@@ -298,6 +298,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-view-foot">
             <button class="rx-print" id="rxPrint" type="button"><i class="bi bi-printer me-1"></i>Print Record</button>
             <div class="rx-view-acts">
+              <button class="rx-flow-btn" id="rxMarkReady" type="button"><i class="bi bi-clipboard-check me-1"></i>Mark Ready</button>
               <button class="rx-done" id="rxComplete" type="button"><i class="bi bi-check-circle me-1"></i>Mark Completed</button>
               <button class="rx-stop" id="rxCancelRx" type="button"><i class="bi bi-x-circle me-1"></i>Cancel</button>
               <button class="rx-view-close" data-bs-dismiss="modal" type="button">Close</button>
@@ -864,7 +865,7 @@ require __DIR__ . '/middleware/auth.php';
         }
         state.viewId = row.id;
         state.viewItems = items;
-        const active = (row.status || 'Recorded') === 'Recorded';
+        const pending = flowStatus(row.status) === 'Pending';
         $('#rxViewTitle').textContent = 'Prescription — ' + (row.rx_no || '—');
         $('#rxViewBody').innerHTML = `
           <div class="rx-facts">
@@ -876,7 +877,8 @@ require __DIR__ . '/middleware/auth.php';
             <div class="alone"><div class="k">Diagnosis / Notes</div><div class="v">${MF.esc(row.diagnosis || '—')}</div></div>
           </div>
           ${medicineTable(items)}`;
-        $('#rxComplete').hidden = !active;
+        $('#rxMarkReady').hidden = !pending;
+        $('#rxComplete').hidden = true;
         $('#rxCancelRx').hidden = row.status === 'Cancelled';
         bootstrap.Modal.getOrCreateInstance($('#rxViewModal')).show();
       }
@@ -917,6 +919,15 @@ require __DIR__ . '/middleware/auth.php';
         $('#rxPrint').addEventListener('click', () => {
           const row = state.rows.find((r) => String(r.id) === String(state.viewId));
           if (row) printRecord(row, state.viewItems);
+        });
+        $('#rxMarkReady').addEventListener('click', () => {
+          const row = state.rows.find((r) => String(r.id) === String(state.viewId));
+          if (!row) return;
+          setStatus(row, 'Ready').then(() => {
+            const modal = bootstrap.Modal.getInstance($('#rxViewModal'));
+            if (modal) modal.hide();
+            MF.toast(row.rx_no + ' marked ready', 'success', 'Packed');
+          }).catch((e) => MF.toast(e.message, 'err', 'Could not update'));
         });
         $('#rxComplete').addEventListener('click', () => onAction('dispensed', state.viewId).catch((e) => MF.toast(e.message, 'err', 'Could not update')));
         $('#rxCancelRx').addEventListener('click', () => onAction('cancel', state.viewId).catch((e) => MF.toast(e.message, 'err', 'Could not update')));
