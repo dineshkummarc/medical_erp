@@ -63,6 +63,23 @@ require __DIR__ . '/middleware/auth.php';
     .dr-modal .form-control:focus { border-color:var(--mf-primary); box-shadow:0 0 0 3px rgba(23,107,91,.16); }
     .dr-cancel { border:0; background:transparent; color:#374151; font-weight:650; padding:8px 12px; border-radius:8px; transition:background .15s ease, color .15s ease; }
     .dr-cancel:hover { background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
+    .dr-mute {
+      background:#f3f4f6; color:#6b7280; border:1px solid #e5e7eb; border-radius:10px;
+      font-weight:650; padding:8px 14px; transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .dr-mute:hover { background:var(--mf-danger); border-color:var(--mf-danger); color:#fff; }
+    .dr-mute.active-hover:hover { background:var(--mf-primary); border-color:var(--mf-primary); color:#fff; }
+    .dr-profile-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:16px; }
+    .dr-profile-name { font-size:1.15rem; font-weight:750; color:#1b2430; letter-spacing:-.02em; }
+    .dr-profile-meta { color:#6b7280; font-size:.84rem; margin-top:4px; line-height:1.45; }
+    .dr-section { margin-top:8px; }
+    .dr-section h6 { font-size:.78rem; font-weight:750; letter-spacing:.06em; text-transform:uppercase; color:#6b7280; margin:0 0 8px; }
+    .dr-mini { border:1px solid #eef2f6; border-radius:12px; overflow:hidden; }
+    .dr-mini table { margin:0; }
+    .dr-mini th { background:#f7f9fc; color:#8b93a0; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid #eef2f6; }
+    .dr-mini td { padding:10px 12px; border-bottom:1px solid #f3f5f8; vertical-align:middle; font-size:.86rem; }
+    .dr-mini tr:last-child td { border-bottom:0; }
+    .dr-mini tbody tr:hover td { background:#f4faf8; }
     .dr-save { border-radius:10px; padding:8px 14px; }
     .dr-save:hover { transform:translateY(-1px); }
   </style>
@@ -177,6 +194,22 @@ require __DIR__ . '/middleware/auth.php';
     </div>
   </div>
 
+  <div class="modal fade dr-modal" id="drProfile" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Doctor profile</h5>
+          <button class="btn-close" data-bs-dismiss="modal" type="button" aria-label="Close"></button>
+        </div>
+        <div class="modal-body" id="drProfileBody"></div>
+        <div class="modal-footer">
+          <button class="dr-cancel" data-bs-dismiss="modal" type="button">Close</button>
+          <button class="dr-mute" id="drProfileStatus" type="button">Mark inactive</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
@@ -185,7 +218,7 @@ require __DIR__ . '/middleware/auth.php';
     (function () {
       const MF = window.MF, D = window.MF_DATA || {};
       const $ = (s) => document.querySelector(s);
-      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, editId: null, seq: 1 };
+      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, editId: null, seq: 1, profileId: null };
 
       function badge(status) {
         return MF.badge(status || 'Active', status === 'Inactive' ? 'secondary' : 'success');
@@ -235,6 +268,7 @@ require __DIR__ . '/middleware/auth.php';
             <div class="dropdown">
               <button type="button" class="btn btn-icon btn-light-mf dr-kebab" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-label="Actions"><i class="bi bi-three-dots-vertical"></i></button>
               <ul class="dropdown-menu dropdown-menu-end dr-menu">
+                <li><button type="button" class="dropdown-item" data-a="view" data-id="${MF.esc(r.id)}"><i class="bi bi-person-vcard"></i><span>View</span></button></li>
                 <li><button type="button" class="dropdown-item" data-a="edit" data-id="${MF.esc(r.id)}"><i class="bi bi-pencil"></i><span>Edit</span></button></li>
                 <li><button type="button" class="dropdown-item" data-a="toggle" data-id="${MF.esc(r.id)}"><i class="bi bi-pause-circle"></i><span>${(r.status || 'Active') === 'Active' ? 'Mark inactive' : 'Mark active'}</span></button></li>
               </ul>
@@ -325,9 +359,130 @@ require __DIR__ . '/middleware/auth.php';
         render();
       }
 
+      function rxBadge(status) {
+        const tone = { Recorded: 'success', Dispensed: 'info', Cancelled: 'secondary' }[status] || 'secondary';
+        return MF.badge(status || 'Recorded', tone);
+      }
+
+      function demoProfile(row) {
+        const id = String(row.id);
+        const customers = D.customers || [];
+        const sales = (D.sales || []).filter((s) => String(s.doctorId ?? s.doctor_id ?? '') === id);
+        const rxs = (D.prescriptions || []).filter((p) => String(p.doctor_id ?? p.doctorId ?? '') === id);
+        const byKey = {};
+        const touch = (key, seed) => {
+          if (!byKey[key]) byKey[key] = Object.assign({ customer_id: null, name: '', phone: '', address: '', rx_count: 0, bill_count: 0, last_seen: '' }, seed);
+          return byKey[key];
+        };
+        rxs.forEach((p) => {
+          const cid = p.customer_id || p.customerId || null;
+          const cust = customers.find((c) => String(c.id) === String(cid));
+          const name = (cust && cust.name) || p.patient_name || p.patientName || 'Patient';
+          const item = touch(cid ? 'c' + cid : 'n' + name.toLowerCase(), { customer_id: cid, name, phone: (cust && cust.phone) || '', address: (cust && cust.address) || '' });
+          item.rx_count += 1;
+          const seen = String(p.rx_date || p.date || '').slice(0, 10);
+          if (seen > item.last_seen) item.last_seen = seen;
+        });
+        sales.forEach((s) => {
+          const cid = s.customerId || s.customer_id;
+          const cust = customers.find((c) => String(c.id) === String(cid));
+          if (!cust) return;
+          const item = touch('c' + cid, { customer_id: cid, name: cust.name, phone: cust.phone || '', address: cust.address || '' });
+          item.bill_count += 1;
+          const seen = String(s.date || s.sale_date || '').slice(0, 10);
+          if (seen > item.last_seen) item.last_seen = seen;
+        });
+        return {
+          patients: Object.values(byKey).sort((a, b) => a.name.localeCompare(b.name)),
+          prescriptions: rxs.map((p) => ({
+            id: p.id,
+            rx_no: p.rx_no || p.rxNo || '',
+            rx_date: String(p.rx_date || p.date || '').slice(0, 10),
+            patient_name: p.patient_name || p.patientName || '',
+            customer_name: p.customer_name || '',
+            diagnosis: p.diagnosis || '',
+            status: p.status || 'Recorded',
+            item_count: p.item_count || (p.items ? p.items.length : 0)
+          }))
+        };
+      }
+
+      function paintStatusButton(row) {
+        const btn = $('#drProfileStatus');
+        const inactive = (row.status || 'Active') === 'Inactive';
+        btn.textContent = inactive ? 'Mark active' : 'Mark inactive';
+        btn.classList.toggle('active-hover', inactive);
+        btn.dataset.id = row.id;
+      }
+
+      function renderProfile(row, extra) {
+        const patients = extra.patients || [];
+        const prescriptions = extra.prescriptions || [];
+        const bits = [row.specialty, row.reg_no || row.regNo, row.clinic, row.phone, row.email].filter(Boolean);
+        $('#drProfileBody').innerHTML = `
+          <div class="dr-profile-head">
+            <div>
+              <div class="dr-profile-name">${MF.esc(row.name || 'Doctor')}</div>
+              <div class="dr-profile-meta">${bits.length ? MF.esc(bits.join(' · ')) : 'No contact details yet'}</div>
+              ${row.address ? `<div class="dr-profile-meta">${MF.esc(row.address)}</div>` : ''}
+            </div>
+            <div>${badge(row.status || 'Active')}</div>
+          </div>
+          <div class="dr-section">
+            <h6>Associated patients / customers · ${MF.num(patients.length)}</h6>
+            <div class="dr-mini">
+              ${patients.length ? `<table class="table"><thead><tr><th>Patient / customer</th><th>Mobile</th><th class="text-end">Prescriptions</th><th class="text-end">Bills</th><th>Last seen</th></tr></thead><tbody>
+                ${patients.map((p) => `<tr>
+                  <td><span class="dr-name">${MF.esc(p.name || '—')}</span>${p.address ? `<span class="dr-sub">${MF.esc(p.address)}</span>` : ''}</td>
+                  <td>${p.phone ? MF.esc(p.phone) : '<span class="text-2">—</span>'}</td>
+                  <td class="text-end num">${MF.num(p.rx_count)}</td>
+                  <td class="text-end num">${MF.num(p.bill_count)}</td>
+                  <td class="num">${p.last_seen ? MF.fmtDate(p.last_seen) : '—'}</td>
+                </tr>`).join('')}
+              </tbody></table>` : '<div class="empty-state"><i class="bi bi-people"></i>No patients or customers are linked to this doctor yet.</div>'}
+            </div>
+          </div>
+          <div class="dr-section mt-3">
+            <h6>Prescription ledger · ${MF.num(prescriptions.length)}</h6>
+            <div class="dr-mini">
+              ${prescriptions.length ? `<table class="table"><thead><tr><th>Rx no</th><th>Date</th><th>Patient</th><th>Diagnosis</th><th class="text-end">Items</th><th>Status</th></tr></thead><tbody>
+                ${prescriptions.map((p) => `<tr>
+                  <td class="dr-name num">${MF.esc(p.rx_no || '—')}</td>
+                  <td class="num">${p.rx_date ? MF.fmtDate(p.rx_date) : '—'}</td>
+                  <td>${MF.esc(p.patient_name || p.customer_name || '—')}</td>
+                  <td>${p.diagnosis ? MF.esc(p.diagnosis) : '<span class="text-2">—</span>'}</td>
+                  <td class="text-end num">${MF.num(p.item_count)}</td>
+                  <td>${rxBadge(p.status)}</td>
+                </tr>`).join('')}
+              </tbody></table>` : '<div class="empty-state"><i class="bi bi-file-medical"></i>No prescriptions recorded for this doctor.</div>'}
+            </div>
+          </div>`;
+        paintStatusButton(row);
+      }
+
+      async function openProfile(row) {
+        state.profileId = row.id;
+        renderProfile(row, { patients: [], prescriptions: [] });
+        bootstrap.Modal.getOrCreateInstance($('#drProfile')).show();
+        if (MF.Api.live && !String(row.id).startsWith('demo-')) {
+          try {
+            const res = await MF.Api.get('doctors.php?id=' + encodeURIComponent(row.id));
+            const data = res.data || {};
+            const fresh = state.rows.find((r) => String(r.id) === String(row.id)) || row;
+            if (data.status) fresh.status = data.status;
+            renderProfile(fresh, data);
+          } catch (e) {
+            MF.toast(e.message, 'err', 'Could not load profile');
+          }
+          return;
+        }
+        renderProfile(row, demoProfile(row));
+      }
+
       async function onAction(action, id) {
         const row = state.rows.find((r) => String(r.id) === String(id));
         if (!row) return;
+        if (action === 'view') return openProfile(row);
         if (action === 'edit') return openEdit(row);
         const next = (row.status || 'Active') === 'Active' ? 'Inactive' : 'Active';
         const body = {
@@ -350,6 +505,22 @@ require __DIR__ . '/middleware/auth.php';
           render();
         }
         MF.toast(row.name + ' marked ' + next.toLowerCase(), 'success', 'Updated');
+        if (String(state.profileId) === String(id) && $('#drProfile').classList.contains('show')) {
+          const fresh = state.rows.find((r) => String(r.id) === String(id)) || row;
+          fresh.status = next;
+          if (MF.Api.live && !String(id).startsWith('demo-')) {
+            try {
+              const res = await MF.Api.get('doctors.php?id=' + encodeURIComponent(id));
+              const data = res.data || {};
+              if (data.status) fresh.status = data.status;
+              renderProfile(fresh, data);
+            } catch (e) {
+              renderProfile(fresh, { patients: [], prescriptions: [] });
+            }
+          } else {
+            renderProfile(fresh, demoProfile(fresh));
+          }
+        }
       }
 
       function fromBootstrap() {
@@ -389,6 +560,10 @@ require __DIR__ . '/middleware/auth.php';
         $('#drSave').addEventListener('click', () => save().catch((e) => MF.toast(e.message, 'err', 'Could not save')));
         $('#drSearch').addEventListener('input', (e) => { state.q = e.target.value; state.page = 1; render(); });
         $('#drStatus').addEventListener('change', (e) => { state.status = e.target.value; state.page = 1; render(); });
+        $('#drProfileStatus').addEventListener('click', () => {
+          const id = $('#drProfileStatus').dataset.id;
+          if (id) onAction('toggle', id).catch((e) => MF.toast(e.message, 'err', 'Could not update'));
+        });
         await load();
       });
     })();

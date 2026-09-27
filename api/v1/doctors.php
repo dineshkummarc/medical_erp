@@ -94,6 +94,122 @@ function findById(int $id): ?array
     return null;
 }
 
+function dateOnly($value): string
+{
+    $text = substr((string) $value, 0, 10);
+    return preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) ? $text : '';
+}
+
+function rememberPatient(array &$byKey, array $row): void
+{
+    $cid = (int) ($row['customer_id'] ?? 0);
+    $name = trim((string) ($row['name'] ?? ''));
+    if ($name === '' && $cid < 1) {
+        return;
+    }
+    $key = $cid > 0 ? 'c' . $cid : 'n' . strtolower($name);
+    if (!isset($byKey[$key])) {
+        $byKey[$key] = [
+            'customer_id' => $cid > 0 ? $cid : null,
+            'name' => $name !== '' ? $name : 'Customer #' . $cid,
+            'phone' => (string) ($row['phone'] ?? ''),
+            'address' => (string) ($row['address'] ?? ''),
+            'rx_count' => 0,
+            'bill_count' => 0,
+            'last_seen' => '',
+        ];
+    }
+    $byKey[$key]['rx_count'] += (int) ($row['rx_count'] ?? 0);
+    $byKey[$key]['bill_count'] += (int) ($row['bill_count'] ?? 0);
+    if ($byKey[$key]['phone'] === '' && !empty($row['phone'])) {
+        $byKey[$key]['phone'] = (string) $row['phone'];
+    }
+    if ($byKey[$key]['address'] === '' && !empty($row['address'])) {
+        $byKey[$key]['address'] = (string) $row['address'];
+    }
+    $seen = dateOnly($row['last_seen'] ?? '');
+    if ($seen !== '' && $seen > $byKey[$key]['last_seen']) {
+        $byKey[$key]['last_seen'] = $seen;
+    }
+}
+
+function doctorPatients(int $id): array
+{
+    $byKey = [];
+    try {
+        $rx = queryRows('SELECT p.customer_id AS customer_id,
+                COALESCE(NULLIF(c.name, \'\'), p.patient_name) AS name,
+                COALESCE(c.phone, \'\') AS phone,
+                COALESCE(c.address, \'\') AS address,
+                COUNT(*) AS rx_count,
+                MAX(p.rx_date) AS last_seen
+             FROM prescriptions p
+             LEFT JOIN customers c ON c.id = p.customer_id
+             WHERE p.doctor_id = ' . $id . '
+             GROUP BY p.customer_id, c.name, c.phone, c.address, p.patient_name');
+        foreach ($rx as $row) {
+            rememberPatient($byKey, $row);
+        }
+    } catch (Throwable $e) {
+        // Prescriptions are optional until that migration is installed.
+    }
+    try {
+        $bills = queryRows('SELECT s.customer_id AS customer_id,
+                c.name AS name,
+                COALESCE(c.phone, \'\') AS phone,
+                COALESCE(c.address, \'\') AS address,
+                COUNT(*) AS bill_count,
+                MAX(s.sale_date) AS last_seen
+             FROM sales s
+             INNER JOIN customers c ON c.id = s.customer_id
+             WHERE s.doctor_id = ' . $id . '
+             GROUP BY s.customer_id, c.name, c.phone, c.address');
+        foreach ($bills as $row) {
+            rememberPatient($byKey, $row);
+        }
+    } catch (Throwable $e) {
+        // A missing sales link should not block the profile.
+    }
+    $patients = array_values($byKey);
+    usort($patients, function (array $a, array $b): int {
+        return strcasecmp($a['name'], $b['name']);
+    });
+    return $patients;
+}
+
+function doctorPrescriptions(int $id): array
+{
+    try {
+        $rows = queryRows('SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.patient_name AS patient_name,
+                p.customer_id AS customer_id, COALESCE(c.name, \'\') AS customer_name,
+                COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status,
+                COALESCE(it.item_count, 0) AS item_count
+             FROM prescriptions p
+             LEFT JOIN customers c ON c.id = p.customer_id
+             LEFT JOIN (
+               SELECT prescription_id, COUNT(*) AS item_count
+               FROM prescription_items GROUP BY prescription_id
+             ) it ON it.prescription_id = p.id
+             WHERE p.doctor_id = ' . $id . '
+             ORDER BY p.rx_date DESC, p.id DESC');
+    } catch (Throwable $e) {
+        return [];
+    }
+    return array_map(function (array $row): array {
+        return [
+            'id' => (int) ($row['id'] ?? 0),
+            'rx_no' => (string) ($row['rx_no'] ?? ''),
+            'rx_date' => dateOnly($row['rx_date'] ?? ''),
+            'patient_name' => (string) ($row['patient_name'] ?? ''),
+            'customer_id' => isset($row['customer_id']) && $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
+            'customer_name' => (string) ($row['customer_name'] ?? ''),
+            'diagnosis' => (string) ($row['diagnosis'] ?? ''),
+            'status' => (string) ($row['status'] ?? 'Recorded'),
+            'item_count' => (int) ($row['item_count'] ?? 0),
+        ];
+    }, $rows);
+}
+
 function regTaken(string $reg, int $excludeId = 0): bool
 {
     if ($reg === '') {
@@ -160,6 +276,8 @@ if ($method === 'GET') {
     if ($id > 0) {
         foreach ($rows as $row) {
             if ((int) $row['id'] === $id) {
+                $row['patients'] = doctorPatients($id);
+                $row['prescriptions'] = doctorPrescriptions($id);
                 Json::ok(['data' => $row]);
             }
         }
