@@ -645,7 +645,56 @@ require __DIR__ . '/middleware/auth.php';
           <p class="fine">This is a pharmacy record of prescription information. It is not a substitute for professional medical advice.</p>
           <div class="printed">Status: ${MF.esc(shown.label)} • Printed ${MF.fmtDate(today())}</div>
         </div>`;
-        MF.printHtml(html);
+        showPrint(html);
+      }
+
+      function showPrint(html) {
+        if (MF.printFrame && MF.printHtml) {
+          MF.printHtml(html);
+          return;
+        }
+        let host = document.getElementById('mf-print-root');
+        if (!host) {
+          host = document.createElement('div');
+          host.id = 'mf-print-root';
+          document.body.appendChild(host);
+        }
+        host.innerHTML = `<div class="modal fade" tabindex="-1" style="z-index:1085">
+          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header"><h5 class="modal-title">Print Preview</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+              <div class="modal-body bg-light"><div class="bg-white border rounded p-4">${html}</div></div>
+              <div class="modal-footer">
+                <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
+                <button class="btn btn-mf" type="button" id="rxDoPrint">Print</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+        const modalEl = host.querySelector('.modal');
+        modalEl.addEventListener('shown.bs.modal', () => {
+          document.querySelectorAll('.modal-backdrop').forEach((el, i, all) => {
+            if (i === all.length - 1) el.style.zIndex = '1080';
+          });
+        });
+        host.querySelector('#rxDoPrint').addEventListener('click', () => printFrame(html));
+        bootstrap.Modal.getOrCreateInstance(modalEl).show();
+      }
+
+      function printFrame(html) {
+        if (MF.printFrame) { MF.printFrame(html); return; }
+        let frame = document.getElementById('mf-print-frame');
+        if (!frame) {
+          frame = document.createElement('iframe');
+          frame.id = 'mf-print-frame';
+          frame.style.cssText = 'position:fixed;width:0;height:0;border:0;left:0;top:0';
+          document.body.appendChild(frame);
+        }
+        const doc = frame.contentDocument || frame.contentWindow.document;
+        doc.open();
+        doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Prescription</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:18px;}table{width:100%;border-collapse:collapse;}@page{margin:14mm;}</style></head><body>' + html + '</body></html>');
+        doc.close();
+        setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); }, 60);
       }
 
       async function openView(row) {

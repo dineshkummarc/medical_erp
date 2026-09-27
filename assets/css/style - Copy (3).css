@@ -370,13 +370,10 @@ a { text-decoration: none; }
 .perm-check { width: 1.05rem; height: 1.05rem; accent-color: var(--mf-primary); }
 
 /* ---------- Print ---------- */
-#mf-print-sheet { display: none; }
 @media print {
   body * { visibility: hidden; }
-  #mf-print-sheet, #mf-print-sheet * { visibility: visible !important; }
-  #mf-print-sheet { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: #fff; color: #111; padding: 1rem; }
   .mf-print-area, .mf-print-area * { visibility: visible; }
-  .mf-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; background: #fff; }
+  .mf-print-area { position: absolute; left: 0; top: 0; width: 100%; padding: 1rem; }
 }
 
 /* ---------- Responsive ---------- */

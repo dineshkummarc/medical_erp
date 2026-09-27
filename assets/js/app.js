@@ -234,11 +234,28 @@ window.MF = window.MF || {};
   };
 
   /* ---------------- Print helper ---------------- */
+  MF.printFrame = function (innerHtml) {
+    let frame = document.getElementById('mf-print-frame');
+    if (!frame) {
+      frame = document.createElement('iframe');
+      frame.id = 'mf-print-frame';
+      frame.setAttribute('aria-hidden', 'true');
+      frame.style.cssText = 'position:fixed;width:0;height:0;border:0;left:0;top:0';
+      document.body.appendChild(frame);
+    }
+    const doc = frame.contentDocument || frame.contentWindow.document;
+    doc.open();
+    doc.write('<!doctype html><html><head><meta charset="utf-8"><title>Prescription</title><style>body{font-family:Arial,Helvetica,sans-serif;color:#111;margin:18px;}table{width:100%;border-collapse:collapse;}@page{margin:14mm;}</style></head><body>' + innerHtml + '</body></html>');
+    doc.close();
+    const win = frame.contentWindow;
+    setTimeout(() => { win.focus(); win.print(); }, 60);
+  };
+
   MF.printHtml = function (innerHtml) {
     let host = document.getElementById('mf-print-root');
     if (!host) { host = document.createElement('div'); host.id = 'mf-print-root'; document.body.appendChild(host); }
     host.innerHTML = `
-      <div class="modal fade" tabindex="-1">
+      <div class="modal fade" tabindex="-1" style="z-index:1085">
         <div class="modal-dialog modal-lg modal-dialog-scrollable">
           <div class="modal-content">
             <div class="modal-header">
@@ -247,13 +264,20 @@ window.MF = window.MF || {};
             </div>
             <div class="modal-body bg-light"><div class="mf-print-area bg-white border rounded p-4">${innerHtml}</div></div>
             <div class="modal-footer">
-              <button class="btn btn-light-mf" data-bs-dismiss="modal">Close</button>
-              <button class="btn btn-mf" onclick="window.print()"><i class="bi bi-printer me-1"></i>Print</button>
+              <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
+              <button class="btn btn-mf" type="button" id="mf-do-print"><i class="bi bi-printer me-1"></i>Print</button>
             </div>
           </div>
         </div>
       </div>`;
-    new bootstrap.Modal(host.querySelector('.modal')).show();
+    const modalEl = host.querySelector('.modal');
+    modalEl.addEventListener('shown.bs.modal', () => {
+      document.querySelectorAll('.modal-backdrop').forEach((el, i, all) => {
+        if (i === all.length - 1) el.style.zIndex = '1080';
+      });
+    });
+    host.querySelector('#mf-do-print').addEventListener('click', () => MF.printFrame(innerHtml));
+    new bootstrap.Modal(modalEl).show();
   };
 
   /* ---------------- CSV export ---------------- */
