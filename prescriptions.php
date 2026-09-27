@@ -63,9 +63,11 @@ require __DIR__ . '/middleware/auth.php';
     .rx-date i { position:absolute; right:12px; top:50%; transform:translateY(-50%); color:#6b7280; pointer-events:none; }
     .rx-date input[type="text"] { padding-right:36px; }
     .rx-date-native { position:absolute; right:4px; top:4px; width:32px; height:32px; opacity:0; cursor:pointer; }
-    .rx-select { width:100%; min-height:40px; border:1px solid #e5e7eb; border-radius:10px; color:#9aa3af; font-size:.9rem; background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%236b7280' d='M3.2 5.5 8 10.3 12.8 5.5'/%3E%3C/svg%3E") no-repeat right 12px center; padding:0 32px 0 12px; appearance:none; }
-    .rx-select.has { color:#1b2430; }
+    .rx-select { width:100%; min-height:40px; border:1px solid #e5e7eb; border-radius:10px; color:#1b2430; font-size:.9rem; background-color:#fff; background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 16 16'%3E%3Cpath fill='%236b7280' d='M3.2 5.5 8 10.3 12.8 5.5'/%3E%3C/svg%3E"); background-repeat:no-repeat; background-position:right 12px center; padding:0 32px 0 12px; appearance:none; }
+    .rx-select.placeholder { color:#9aa3af; }
+    .rx-select option { color:#1b2430; background:#fff; }
     .rx-select:hover, .rx-select:focus { border-color:var(--mf-primary); box-shadow:0 0 0 3px rgba(23,107,91,.16); outline:0; color:#1b2430; }
+    .rx-line .rx-select { min-height:38px; font-size:.86rem; }
     .rx-lines-head { display:flex; align-items:center; justify-content:space-between; margin:18px 0 8px; }
     .rx-lines-head strong { font-size:.95rem; }
     .rx-add { border:0; background:transparent; color:#6b7280; font-weight:650; font-size:.86rem; border-radius:8px; padding:4px 8px; transition:background .15s ease, color .15s ease; }
@@ -223,7 +225,7 @@ require __DIR__ . '/middleware/auth.php';
     (function () {
       const MF = window.MF, D = window.MF_DATA || {};
       const $ = (s) => document.querySelector(s);
-      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, doctorId: '', seq: 1 };
+      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, doctorId: '', seq: 1, doctors: [], medicines: [] };
 
       function today() {
         return MF.today ? MF.today() : new Date().toISOString().slice(0, 10);
@@ -234,8 +236,51 @@ require __DIR__ . '/middleware/auth.php';
         return MF.badge(s || 'Recorded', tone);
       }
 
-      function doctors() { return D.doctors || []; }
-      function medicines() { return D.medicines || []; }
+      function liveData() { return window.MF_DATA || D || {}; }
+
+      function asList(res) {
+        const data = res && res.data;
+        if (Array.isArray(data)) return data;
+        if (data && Array.isArray(data.doctors)) return data.doctors;
+        if (data && Array.isArray(data.medicines)) return data.medicines;
+        if (data && Array.isArray(data.ledger)) return data.ledger;
+        return [];
+      }
+
+      function normalizeDoctor(d) {
+        return { id: d.id, name: d.name || '', specialty: d.specialty || '', status: d.status || 'Active' };
+      }
+
+      function normalizeMedicine(m) {
+        return { id: m.id, name: m.name || m.medicine_name || '', generic: m.generic || m.generic_name || '' };
+      }
+
+      function doctors() { return state.doctors.length ? state.doctors : (liveData().doctors || []).map(normalizeDoctor).filter((d) => d.name); }
+      function medicines() { return state.medicines.length ? state.medicines : (liveData().medicines || []).map(normalizeMedicine).filter((m) => m.name); }
+
+      async function loadCatalogs() {
+        const bag = liveData();
+        let doctorRows = (bag.doctors || []).map(normalizeDoctor);
+        let medicineRows = (bag.medicines || []).map(normalizeMedicine);
+        if (MF.Api && MF.Api.live) {
+          try {
+            const res = await MF.Api.get('doctors.php');
+            const rows = asList(res);
+            if (rows.length) doctorRows = rows.map(normalizeDoctor);
+          } catch (e) { /* keep bootstrap doctors */ }
+          try {
+            const res = await MF.Api.get('medicines.php');
+            const rows = asList(res);
+            if (rows.length) medicineRows = rows.map(normalizeMedicine);
+          } catch (e) { /* keep bootstrap medicines */ }
+        }
+        doctorRows = doctorRows.filter((d) => d.name);
+        const active = doctorRows.filter((d) => d.status !== 'Inactive');
+        state.doctors = (active.length ? active : doctorRows).sort((a, b) => a.name.localeCompare(b.name));
+        state.medicines = medicineRows.filter((m) => m.name).sort((a, b) => a.name.localeCompare(b.name));
+        fillDoctorMenu();
+        fillMedicineSelects();
+      }
 
       function filtered() {
         const q = state.q.toLowerCase();
@@ -297,12 +342,15 @@ require __DIR__ . '/middleware/auth.php';
         $('#rxBody').querySelectorAll('[data-a]').forEach((b) => b.addEventListener('click', () => onAction(b.dataset.a, b.dataset.id)));
       }
 
+      function medicineOptions(selected) {
+        const list = medicines();
+        const empty = list.length ? '— select medicine —' : 'No medicines found';
+        return `<option value="">${empty}</option>` + list.map((m) => `<option value="${MF.esc(m.id)}" data-name="${MF.esc(m.name)}"${String(selected || '') === String(m.id) ? ' selected' : ''}>${MF.esc(m.name)}${m.generic ? ' — ' + MF.esc(m.generic) : ''}</option>`).join('');
+      }
+
       function lineHtml() {
         return `<div class="rx-line">
-          <div style="position:relative">
-            <input class="form-control rx-med" placeholder="Medicine name" autocomplete="off">
-            <div class="rx-suggest" hidden></div>
-          </div>
+          <select class="rx-select rx-med placeholder" aria-label="Medicine">${medicineOptions()}</select>
           <input class="form-control rx-dose" placeholder="e.g. 1 tablet" autocomplete="off">
           <input class="form-control rx-freq" placeholder="e.g. Twice daily" autocomplete="off">
           <input class="form-control rx-dur" placeholder="e.g. 5 days" autocomplete="off">
@@ -313,33 +361,26 @@ require __DIR__ . '/middleware/auth.php';
       }
 
       function bindLine(line) {
-        const input = line.querySelector('.rx-med');
-        const menu = line.querySelector('.rx-suggest');
-        input.addEventListener('input', () => {
-          line.dataset.medId = '';
-          const q = input.value.trim().toLowerCase();
-          if (q.length < 1) { menu.hidden = true; return; }
-          const hits = medicines().filter((m) => (m.name + ' ' + (m.generic || '') + ' ' + (m.brandRef || '')).toLowerCase().includes(q)).slice(0, 6);
-          if (!hits.length) { menu.hidden = true; return; }
-          menu.innerHTML = hits.map((m) => `<button type="button" data-id="${MF.esc(m.id)}" data-name="${MF.esc(m.name)}">${MF.esc(m.name)}${m.generic ? ' — ' + MF.esc(m.generic) : ''}</button>`).join('');
-          menu.hidden = false;
-          menu.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
-            input.value = b.dataset.name;
-            line.dataset.medId = b.dataset.id;
-            menu.hidden = true;
-          }));
-        });
-        input.addEventListener('blur', () => setTimeout(() => { menu.hidden = true; }, 150));
+        const sel = line.querySelector('.rx-med');
+        sel.addEventListener('change', () => sel.classList.toggle('placeholder', !sel.value));
         line.querySelector('.rx-remove').addEventListener('click', () => {
           const wrap = $('#rxLines');
           if (wrap.children.length === 1) {
-            input.value = '';
-            line.dataset.medId = '';
+            sel.value = '';
+            sel.classList.add('placeholder');
             line.querySelectorAll('.rx-dose,.rx-freq,.rx-dur,.rx-note').forEach((el) => { el.value = ''; });
             line.querySelector('.rx-qty').value = '1';
             return;
           }
           line.remove();
+        });
+      }
+
+      function fillMedicineSelects() {
+        document.querySelectorAll('#rxLines .rx-med').forEach((sel) => {
+          const current = sel.value;
+          sel.innerHTML = medicineOptions(current);
+          sel.classList.toggle('placeholder', !sel.value);
         });
       }
 
@@ -374,7 +415,7 @@ require __DIR__ . '/middleware/auth.php';
         $('#rxNotes').value = '';
         state.doctorId = '';
         $('#rxDoctor').value = '';
-        $('#rxDoctor').classList.remove('has');
+        $('#rxDoctor').classList.add('placeholder');
         $('#rxLines').innerHTML = '';
         addLine();
       }
@@ -382,25 +423,31 @@ require __DIR__ . '/middleware/auth.php';
       function fillDoctorMenu() {
         const sel = $('#rxDoctor');
         const current = sel.value;
-        sel.innerHTML = '<option value="">— select doctor —</option>' + doctors().map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}${d.specialty ? ' — ' + MF.esc(d.specialty) : ''}</option>`).join('');
+        const list = doctors();
+        const empty = list.length ? '— select doctor —' : 'No doctors found';
+        sel.innerHTML = `<option value="">${empty}</option>` + list.map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}${d.specialty ? ' — ' + MF.esc(d.specialty) : ''}</option>`).join('');
         if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
-        sel.classList.toggle('has', !!sel.value);
+        sel.classList.toggle('placeholder', !sel.value);
       }
 
       function collectItems() {
-        return [...$('#rxLines').querySelectorAll('.rx-line')].map((line) => ({
-          medicine_id: line.dataset.medId || null,
-          medicine_name: line.querySelector('.rx-med').value.trim(),
+        return [...$('#rxLines').querySelectorAll('.rx-line')].map((line) => {
+          const sel = line.querySelector('.rx-med');
+          const opt = sel.options[sel.selectedIndex];
+          return {
+          medicine_id: sel.value || null,
+          medicine_name: opt ? (opt.getAttribute('data-name') || '') : '',
           dosage: line.querySelector('.rx-dose').value.trim(),
           frequency: line.querySelector('.rx-freq').value.trim(),
           duration: line.querySelector('.rx-dur').value.trim(),
           qty: Math.max(1, parseInt(line.querySelector('.rx-qty').value, 10) || 1),
           instructions: line.querySelector('.rx-note').value.trim()
-        })).filter((l) => l.medicine_name);
+        };
+        }).filter((l) => l.medicine_name);
       }
 
       function customerIdFor(name) {
-        const hit = (D.customers || []).find((c) => String(c.name).toLowerCase() === name.toLowerCase());
+        const hit = (liveData().customers || []).find((c) => String(c.name).toLowerCase() === name.toLowerCase());
         return hit ? hit.id : null;
       }
 
@@ -509,16 +556,15 @@ require __DIR__ . '/middleware/auth.php';
 
       document.addEventListener('DOMContentLoaded', async () => {
         await MF.boot();
-        fillDoctorMenu();
         resetForm();
+        await loadCatalogs();
         $('#rxRecord').addEventListener('click', () => {
           resetForm();
-          fillDoctorMenu();
-          bootstrap.Modal.getOrCreateInstance($('#rxModal')).show();
+          loadCatalogs().then(() => bootstrap.Modal.getOrCreateInstance($('#rxModal')).show()).catch(() => bootstrap.Modal.getOrCreateInstance($('#rxModal')).show());
         });
         $('#rxDoctor').addEventListener('change', () => {
           state.doctorId = $('#rxDoctor').value;
-          $('#rxDoctor').classList.toggle('has', !!state.doctorId);
+          $('#rxDoctor').classList.toggle('placeholder', !state.doctorId);
         });
         $('#rxDate').addEventListener('change', () => setDate($('#rxDate').value));
         $('#rxDateText').addEventListener('change', () => {
