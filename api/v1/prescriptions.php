@@ -45,22 +45,66 @@ function dateOnly($value): string
     return preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) ? $text : '';
 }
 
+function flowStatus(string $status): string
+{
+    $status = trim($status);
+    if ($status === '' || strcasecmp($status, 'Recorded') === 0 || strcasecmp($status, 'Pending') === 0) {
+        return 'Pending';
+    }
+    if (strcasecmp($status, 'Ready') === 0) {
+        return 'Ready';
+    }
+    if (strcasecmp($status, 'Dispensed') === 0 || strcasecmp($status, 'Completed') === 0) {
+        return 'Dispensed';
+    }
+    if (strcasecmp($status, 'Cancelled') === 0) {
+        return 'Cancelled';
+    }
+    return 'Pending';
+}
+
 function shapeRx(array $row): array
 {
+    $age = $row['patient_age'] ?? null;
     return [
         'id' => (int) ($row['id'] ?? 0),
         'rx_no' => (string) ($row['rx_no'] ?? ''),
         'rx_date' => dateOnly($row['rx_date'] ?? ''),
         'customer_id' => isset($row['customer_id']) && $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
         'patient_name' => (string) ($row['patient_name'] ?? ''),
+        'patient_age' => $age === null || $age === '' ? null : (int) $age,
         'doctor_id' => isset($row['doctor_id']) && $row['doctor_id'] !== null ? (int) $row['doctor_id'] : null,
         'doctor_name' => (string) ($row['doctor_name'] ?? ''),
         'specialty' => (string) ($row['specialty'] ?? ''),
         'diagnosis' => (string) ($row['diagnosis'] ?? ''),
-        'status' => (string) ($row['status'] ?? 'Recorded'),
+        'status' => flowStatus((string) ($row['status'] ?? 'Pending')),
         'item_count' => (int) ($row['item_count'] ?? 0),
+        'medicines' => is_array($row['medicines'] ?? null) ? $row['medicines'] : [],
         'created_at' => (string) ($row['created_at'] ?? ''),
     ];
+}
+
+function medicineMap(): array
+{
+    try {
+        $rows = queryRows('SELECT prescription_id, medicine_id, medicine_name, qty
+            FROM prescription_items ORDER BY id ASC');
+    } catch (Throwable $e) {
+        return [];
+    }
+    $map = [];
+    foreach ($rows as $row) {
+        $id = (int) ($row['prescription_id'] ?? 0);
+        if (!$id) {
+            continue;
+        }
+        $map[$id][] = [
+            'medicine_id' => isset($row['medicine_id']) && $row['medicine_id'] !== null ? (int) $row['medicine_id'] : null,
+            'medicine_name' => (string) ($row['medicine_name'] ?? ''),
+            'qty' => (int) ($row['qty'] ?? 1),
+        ];
+    }
+    return $map;
 }
 
 function shapeItem(array $row): array
@@ -80,13 +124,27 @@ function shapeItem(array $row): array
 
 function listRows(): array
 {
-    $sql = 'SELECT id, rx_no, rx_date, customer_id, patient_name, doctor_id, doctor_name, specialty,
+    $withAge = 'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.customer_id AS customer_id,
+            p.patient_name AS patient_name, p.patient_age AS patient_age, p.doctor_id AS doctor_id,
+            COALESCE(d.name, \'\') AS doctor_name, COALESCE(d.specialty, \'\') AS specialty,
+            COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status, p.created_at AS created_at,
+            COALESCE(it.item_count, 0) AS item_count
+         FROM prescriptions p
+         LEFT JOIN doctors d ON d.id = p.doctor_id
+         LEFT JOIN (
+           SELECT prescription_id, COUNT(*) AS item_count
+           FROM prescription_items GROUP BY prescription_id
+         ) it ON it.prescription_id = p.id';
+    try {
+        return queryRows($withAge);
+    } catch (Throwable $e) {
+        $fallback = 'SELECT id, rx_no, rx_date, customer_id, patient_name, doctor_id, doctor_name, specialty,
                    diagnosis, status, item_count, created_at
             FROM v_prescriptions';
-    try {
-        return queryRows($sql);
-    } catch (Throwable $e) {
-        $fallback = 'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.customer_id AS customer_id,
+        try {
+            return queryRows($fallback);
+        } catch (Throwable $e2) {
+            return queryRows('SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.customer_id AS customer_id,
                 p.patient_name AS patient_name, p.doctor_id AS doctor_id,
                 COALESCE(d.name, \'\') AS doctor_name, COALESCE(d.specialty, \'\') AS specialty,
                 COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status, p.created_at AS created_at,
@@ -96,8 +154,8 @@ function listRows(): array
              LEFT JOIN (
                SELECT prescription_id, COUNT(*) AS item_count
                FROM prescription_items GROUP BY prescription_id
-             ) it ON it.prescription_id = p.id';
-        return queryRows($fallback);
+             ) it ON it.prescription_id = p.id');
+        }
     }
 }
 
@@ -121,7 +179,16 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
     try {
-        $rows = array_map('shapeRx', listRows());
+        $names = medicineMap();
+        $rows = array_map(function (array $row) use ($names): array {
+            $id = (int) ($row['id'] ?? 0);
+            $meds = $names[$id] ?? [];
+            $row['medicines'] = $meds;
+            if (!$row['item_count'] && $meds) {
+                $row['item_count'] = count($meds);
+            }
+            return shapeRx($row);
+        }, listRows());
     } catch (Throwable $e) {
         Json::error('Prescription tables are not installed. Run database/migrations/2026_09_27_prescriptions.sql.', 503);
     }
@@ -154,6 +221,10 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $patient = clip((string) ($input['patient_name'] ?? $input['patientName'] ?? ''), 150);
+    $age = (int) ($input['patient_age'] ?? $input['age'] ?? 0);
+    if ($age < 0 || $age > 120) {
+        $age = 0;
+    }
     $date = dateOnly($input['rx_date'] ?? $input['date'] ?? '');
     $diagnosis = clip((string) ($input['diagnosis'] ?? $input['notes'] ?? ''), 255);
     $doctorId = (int) ($input['doctor_id'] ?? $input['doctorId'] ?? 0);
@@ -202,12 +273,22 @@ if ($method === 'POST') {
 
     try {
         $rxNo = nextRxNo();
-        queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, doctor_id, diagnosis, status)
-            VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
-            . ($customerId > 0 ? $customerId : 'NULL') . ', '
-            . sqlStr($patient) . ', '
-            . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
-            . sqlNull($diagnosis) . ", 'Recorded')");
+        $ageSql = $age > 0 ? (string) $age : 'NULL';
+        try {
+            queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, patient_age, doctor_id, diagnosis, status)
+                VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
+                . ($customerId > 0 ? $customerId : 'NULL') . ', '
+                . sqlStr($patient) . ', ' . $ageSql . ', '
+                . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
+                . sqlNull($diagnosis) . ", 'Pending')");
+        } catch (Throwable $e) {
+            queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, doctor_id, diagnosis, status)
+                VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
+                . ($customerId > 0 ? $customerId : 'NULL') . ', '
+                . sqlStr($patient) . ', '
+                . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
+                . sqlNull($diagnosis) . ", 'Pending')");
+        }
         $found = queryRows('SELECT id FROM prescriptions WHERE rx_no = ' . sqlStr($rxNo) . ' LIMIT 1');
         $id = (int) ($found[0]['id'] ?? 0);
         if (!$id) {
@@ -235,7 +316,8 @@ if ($method === 'PUT') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int) ($input['id'] ?? $_GET['id'] ?? 0);
     $status = trim((string) ($input['status'] ?? ''));
-    $allowed = ['Recorded', 'Dispensed', 'Cancelled'];
+    $status = flowStatus($status);
+    $allowed = ['Pending', 'Ready', 'Dispensed', 'Cancelled'];
     if (!$id) {
         Json::error('Prescription not found.', 404);
     }
