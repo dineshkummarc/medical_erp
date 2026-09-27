@@ -70,17 +70,31 @@ function shapeDoctor(array $row): array
         'address' => (string) ($row['address'] ?? ''),
         'status' => $status,
         'created_at' => (string) ($row['created_at'] ?? ''),
+        'rx_count' => (int) ($row['rx_count'] ?? 0),
     ];
 }
 
 function listRows(): array
 {
+    $withCount = 'SELECT d.id, d.name, d.specialty, d.phone, d.reg_no, d.email, d.clinic, d.address, d.status, d.created_at,
+            COALESCE(rx.rx_count, 0) AS rx_count
+        FROM doctors d
+        LEFT JOIN (
+          SELECT doctor_id, COUNT(*) AS rx_count
+          FROM prescriptions
+          GROUP BY doctor_id
+        ) rx ON rx.doctor_id = d.id
+        ORDER BY d.name ASC, d.id ASC';
     $extended = 'SELECT id, name, specialty, phone, reg_no, email, clinic, address, status, created_at
         FROM doctors ORDER BY name ASC, id ASC';
     try {
-        return queryRows($extended);
+        return queryRows($withCount);
     } catch (Throwable $e) {
-        return queryRows('SELECT id, name, specialty, phone, reg_no, created_at FROM doctors ORDER BY name ASC, id ASC');
+        try {
+            return queryRows($extended);
+        } catch (Throwable $e2) {
+            return queryRows('SELECT id, name, specialty, phone, reg_no, created_at FROM doctors ORDER BY name ASC, id ASC');
+        }
     }
 }
 
@@ -136,8 +150,18 @@ function rememberPatient(array &$byKey, array $row): void
 function doctorPatients(int $id): array
 {
     $byKey = [];
-    try {
-        $rx = queryRows('SELECT p.customer_id AS customer_id,
+    $patientSql = [
+        'SELECT p.customer_id AS customer_id,
+                MAX(COALESCE(NULLIF(c.name, \'\'), p.patient_name)) AS name,
+                MAX(COALESCE(NULLIF(c.phone, \'\'), p.patient_phone, \'\')) AS phone,
+                MAX(COALESCE(c.address, \'\')) AS address,
+                COUNT(*) AS rx_count,
+                MAX(p.rx_date) AS last_seen
+             FROM prescriptions p
+             LEFT JOIN customers c ON c.id = p.customer_id
+             WHERE p.doctor_id = ' . $id . '
+             GROUP BY p.customer_id, c.name, p.patient_name',
+        'SELECT p.customer_id AS customer_id,
                 COALESCE(NULLIF(c.name, \'\'), p.patient_name) AS name,
                 COALESCE(c.phone, \'\') AS phone,
                 COALESCE(c.address, \'\') AS address,
@@ -146,12 +170,17 @@ function doctorPatients(int $id): array
              FROM prescriptions p
              LEFT JOIN customers c ON c.id = p.customer_id
              WHERE p.doctor_id = ' . $id . '
-             GROUP BY p.customer_id, c.name, c.phone, c.address, p.patient_name');
-        foreach ($rx as $row) {
-            rememberPatient($byKey, $row);
+             GROUP BY p.customer_id, c.name, c.phone, c.address, p.patient_name',
+    ];
+    foreach ($patientSql as $sql) {
+        try {
+            foreach (queryRows($sql) as $row) {
+                rememberPatient($byKey, $row);
+            }
+            break;
+        } catch (Throwable $e) {
+            // patient_phone may not exist until the workflow migration is run.
         }
-    } catch (Throwable $e) {
-        // Prescriptions are optional until that migration is installed.
     }
     try {
         $bills = queryRows('SELECT s.customer_id AS customer_id,
@@ -177,12 +206,30 @@ function doctorPatients(int $id): array
     return $patients;
 }
 
-function doctorPrescriptions(int $id): array
+function medicineNames(): array
 {
     try {
-        $rows = queryRows('SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.patient_name AS patient_name,
-                p.customer_id AS customer_id, COALESCE(c.name, \'\') AS customer_name,
-                COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status,
+        $rows = queryRows('SELECT prescription_id, medicine_name FROM prescription_items ORDER BY id ASC');
+    } catch (Throwable $e) {
+        return [];
+    }
+    $map = [];
+    foreach ($rows as $row) {
+        $pid = (int) ($row['prescription_id'] ?? 0);
+        $name = trim((string) ($row['medicine_name'] ?? ''));
+        if ($pid && $name !== '') {
+            $map[$pid][] = $name;
+        }
+    }
+    return $map;
+}
+
+function doctorPrescriptions(int $id): array
+{
+    $sqls = [
+        'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.created_at AS created_at, p.patient_name AS patient_name,
+                p.patient_phone AS patient_phone, p.customer_id AS customer_id, COALESCE(c.name, \'\') AS customer_name,
+                COALESCE(c.phone, \'\') AS customer_phone, COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status,
                 COALESCE(it.item_count, 0) AS item_count
              FROM prescriptions p
              LEFT JOIN customers c ON c.id = p.customer_id
@@ -191,21 +238,52 @@ function doctorPrescriptions(int $id): array
                FROM prescription_items GROUP BY prescription_id
              ) it ON it.prescription_id = p.id
              WHERE p.doctor_id = ' . $id . '
-             ORDER BY p.rx_date DESC, p.id DESC');
-    } catch (Throwable $e) {
+             ORDER BY p.rx_date DESC, p.id DESC',
+        'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.created_at AS created_at, p.patient_name AS patient_name,
+                p.customer_id AS customer_id, COALESCE(c.name, \'\') AS customer_name,
+                COALESCE(c.phone, \'\') AS customer_phone, COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status,
+                COALESCE(it.item_count, 0) AS item_count
+             FROM prescriptions p
+             LEFT JOIN customers c ON c.id = p.customer_id
+             LEFT JOIN (
+               SELECT prescription_id, COUNT(*) AS item_count
+               FROM prescription_items GROUP BY prescription_id
+             ) it ON it.prescription_id = p.id
+             WHERE p.doctor_id = ' . $id . '
+             ORDER BY p.rx_date DESC, p.id DESC',
+    ];
+    $rows = null;
+    foreach ($sqls as $sql) {
+        try {
+            $rows = queryRows($sql);
+            break;
+        } catch (Throwable $e) {
+            $rows = null;
+        }
+    }
+    if ($rows === null) {
         return [];
     }
-    return array_map(function (array $row): array {
+    $names = medicineNames();
+    return array_map(function (array $row) use ($names): array {
+        $id = (int) ($row['id'] ?? 0);
+        $phone = trim((string) ($row['patient_phone'] ?? ''));
+        if ($phone === '') {
+            $phone = (string) ($row['customer_phone'] ?? '');
+        }
         return [
-            'id' => (int) ($row['id'] ?? 0),
+            'id' => $id,
             'rx_no' => (string) ($row['rx_no'] ?? ''),
             'rx_date' => dateOnly($row['rx_date'] ?? ''),
+            'created_at' => (string) ($row['created_at'] ?? ''),
             'patient_name' => (string) ($row['patient_name'] ?? ''),
+            'patient_phone' => $phone,
             'customer_id' => isset($row['customer_id']) && $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
             'customer_name' => (string) ($row['customer_name'] ?? ''),
             'diagnosis' => (string) ($row['diagnosis'] ?? ''),
             'status' => (string) ($row['status'] ?? 'Recorded'),
             'item_count' => (int) ($row['item_count'] ?? 0),
+            'medicines' => $names[$id] ?? [],
         ];
     }, $rows);
 }

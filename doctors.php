@@ -69,12 +69,25 @@ require __DIR__ . '/middleware/auth.php';
     }
     .dr-mute:hover { background:var(--mf-danger); border-color:var(--mf-danger); color:#fff; }
     .dr-mute.active-hover:hover { background:var(--mf-primary); border-color:var(--mf-primary); color:#fff; }
-    .dr-profile-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:16px; }
-    .dr-profile-name { font-size:1.15rem; font-weight:750; color:#1b2430; letter-spacing:-.02em; }
+    .dr-profile-head { display:flex; justify-content:space-between; gap:16px; align-items:flex-start; margin-bottom:14px; }
+    .dr-profile-name { font-size:1.2rem; font-weight:750; color:#1b2430; letter-spacing:-.02em; }
     .dr-profile-meta { color:#6b7280; font-size:.84rem; margin-top:4px; line-height:1.45; }
+    .dr-info { display:grid; grid-template-columns:repeat(3, minmax(0,1fr)); gap:10px; margin-bottom:18px; }
+    .dr-tile { border:1px solid #e7edf4; background:#f8fafc; border-radius:12px; padding:10px 12px; min-width:0; transition:border-color .15s ease, background .15s ease; }
+    .dr-tile:hover { border-color:var(--mf-primary); background:var(--mf-primary-soft); }
+    .dr-tile i { color:var(--mf-primary); font-size:.95rem; }
+    .dr-tile span { display:block; margin-top:6px; color:#6b7280; font-size:.68rem; font-weight:750; letter-spacing:.05em; text-transform:uppercase; }
+    .dr-tile strong { display:block; margin-top:2px; color:#1b2430; font-size:.9rem; font-weight:700; line-height:1.35; word-break:break-word; }
+    .dr-flow { display:inline-flex; align-items:center; border-radius:999px; padding:3px 10px; font-size:.75rem; font-weight:700; white-space:nowrap; }
+    .dr-flow.pending { background:#fff4e8; color:#c2410c; }
+    .dr-flow.ready { background:#e8f3fb; color:#1d6fbf; }
+    .dr-flow.dispensed { background:#e7f6ee; color:#178a45; }
+    .dr-flow.cancelled { background:#f3f4f6; color:#6b7280; }
+    .dr-sq { display:inline-flex; align-items:center; border:1px solid #d7ebe6; background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-radius:4px; padding:1px 6px; font-size:.72rem; font-weight:700; margin:4px 4px 0 0; }
+    @media (max-width: 760px) { .dr-info { grid-template-columns:1fr 1fr; } }
     .dr-section { margin-top:8px; }
     .dr-section h6 { font-size:.78rem; font-weight:750; letter-spacing:.06em; text-transform:uppercase; color:#6b7280; margin:0 0 8px; }
-    .dr-mini { border:1px solid #eef2f6; border-radius:12px; overflow:hidden; }
+    .dr-mini { border:1px solid #eef2f6; border-radius:12px; overflow:auto; }
     .dr-mini table { margin:0; }
     .dr-mini th { background:#f7f9fc; color:#8b93a0; font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; padding:10px 12px; border-bottom:1px solid #eef2f6; }
     .dr-mini td { padding:10px 12px; border-bottom:1px solid #f3f5f8; vertical-align:middle; font-size:.86rem; }
@@ -106,7 +119,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="dr-toolbar">
             <label class="dr-search">
               <i class="bi bi-search"></i>
-              <input id="drSearch" type="search" placeholder="Search name, reg no, specialty, clinic…" autocomplete="off">
+              <input id="drSearch" type="search" placeholder="Search name, reg no, mobile, email, specialty…" autocomplete="off">
             </label>
             <select class="dr-status" id="drStatus" aria-label="All status">
               <option value="all">All status</option>
@@ -114,15 +127,15 @@ require __DIR__ . '/middleware/auth.php';
               <option value="inactive">Inactive</option>
             </select>
           </div>
-          <div class="table-scroll" style="max-height:none;overflow:visible">
+          <div class="table-scroll" style="max-height:none;overflow-x:auto">
             <table class="table table-mf">
               <thead>
                 <tr>
                   <th>Doctor</th>
-                  <th>Registration</th>
                   <th>Specialization</th>
-                  <th>Mobile</th>
+                  <th>Contact</th>
                   <th>Clinic / Hospital</th>
+                  <th class="text-end">Rx</th>
                   <th>Status</th>
                   <th class="text-end">Actions</th>
                 </tr>
@@ -198,7 +211,7 @@ require __DIR__ . '/middleware/auth.php';
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Doctor profile</h5>
+          <h5 class="modal-title" id="drProfileTitle">Doctor profile</h5>
           <button class="btn-close" data-bs-dismiss="modal" type="button" aria-label="Close"></button>
         </div>
         <div class="modal-body" id="drProfileBody"></div>
@@ -257,12 +270,14 @@ require __DIR__ . '/middleware/auth.php';
           <div class="col-6 col-md-4"><div class="dr-stat accent"><span>Doctors</span><strong>${MF.num(state.rows.length)}</strong></div></div>
           <div class="col-6 col-md-4"><div class="dr-stat"><span>Active</span><strong>${MF.num(active)}</strong></div></div>
           <div class="col-12 col-md-4"><div class="dr-stat"><span>Inactive</span><strong>${MF.num(state.rows.length - active)}</strong></div></div>`;
-        $('#drBody').innerHTML = slice.map((r) => `<tr>
-          <td><span class="dr-name">${MF.esc(r.name || '—')}</span>${r.email ? `<span class="dr-sub">${MF.esc(r.email)}</span>` : ''}</td>
-          <td class="num">${MF.esc(r.reg_no || r.regNo || '—')}</td>
+        $('#drBody').innerHTML = slice.map((r) => {
+          const reg = r.reg_no || r.regNo || '';
+          return `<tr>
+          <td><span class="dr-name">${MF.esc(r.name || '—')}</span><span class="dr-sub">Reg. ${MF.esc(reg || '—')}</span></td>
           <td>${r.specialty ? MF.esc(r.specialty) : '<span class="text-2">—</span>'}</td>
-          <td>${r.phone ? MF.esc(r.phone) : '<span class="text-2">—</span>'}</td>
+          <td>${r.phone ? MF.esc(r.phone) : '<span class="text-2">—</span>'}${r.email ? `<span class="dr-sub">${MF.esc(r.email)}</span>` : ''}</td>
           <td>${r.clinic ? MF.esc(r.clinic) : '<span class="text-2">—</span>'}${r.address ? `<span class="dr-sub">${MF.esc(r.address)}</span>` : ''}</td>
+          <td class="text-end num"><span class="dr-name">${MF.num(r.rx_count || 0)}</span></td>
           <td>${badge(r.status || 'Active')}</td>
           <td class="text-end">
             <div class="dropdown">
@@ -274,7 +289,8 @@ require __DIR__ . '/middleware/auth.php';
               </ul>
             </div>
           </td>
-        </tr>`).join('') || '<tr><td colspan="7"><div class="empty-state"><i class="bi bi-heart-pulse"></i>No doctors yet. Add one to use them on prescriptions and bills.</div></td></tr>';
+        </tr>`;
+        }).join('') || '<tr><td colspan="7"><div class="empty-state"><i class="bi bi-heart-pulse"></i>No doctors yet. Add one to use them on prescriptions and bills.</div></td></tr>';
         const start = slice.length ? (state.page - 1) * state.per + 1 : 0;
         $('#drPageInfo').textContent = `Showing ${start}–${(state.page - 1) * state.per + slice.length} of ${list.length}`;
         $('#drPager').innerHTML = pageButtons(pages, state.page);
@@ -351,7 +367,7 @@ require __DIR__ . '/middleware/auth.php';
           const row = state.rows.find((r) => String(r.id) === String(state.editId));
           if (row) Object.assign(row, body, { reg_no: body.reg_no, regNo: body.reg_no });
         } else {
-          state.rows.unshift(Object.assign({ id: 'demo-' + state.seq }, body));
+          state.rows.unshift(Object.assign({ id: 'demo-' + state.seq, rx_count: 0 }, body));
           state.seq += 1;
         }
         MF.toast('Saved in this browser only. Run the migration to store it.', 'info', 'Demo');
@@ -359,9 +375,41 @@ require __DIR__ . '/middleware/auth.php';
         render();
       }
 
-      function rxBadge(status) {
-        const tone = { Recorded: 'success', Dispensed: 'info', Cancelled: 'secondary' }[status] || 'secondary';
-        return MF.badge(status || 'Recorded', tone);
+      function flowStatus(status) {
+        if (!status || status === 'Recorded' || status === 'Pending') return 'Pending';
+        if (status === 'Ready') return 'Ready';
+        if (status === 'Dispensed' || status === 'Completed') return 'Dispensed';
+        if (status === 'Cancelled') return 'Cancelled';
+        return 'Pending';
+      }
+
+      function rxPill(status) {
+        const label = flowStatus(status);
+        return `<span class="dr-flow ${label.toLowerCase()}">${MF.esc(label)}</span>`;
+      }
+
+      function clock(row) {
+        const date = row.rx_date ? MF.fmtDate(row.rx_date) : '';
+        const created = String(row.created_at || '');
+        const m = created.match(/(\d{2}):(\d{2})/);
+        let time = '';
+        if (m) {
+          let h = +m[1];
+          const ap = h >= 12 ? 'pm' : 'am';
+          h = h % 12 || 12;
+          time = h + ':' + m[2] + ap;
+        }
+        if (date && time) return date + ' · ' + time;
+        return date || '—';
+      }
+
+      function medNames(row) {
+        const list = row.medicines || row.items || [];
+        return list.map((m) => (typeof m === 'string' ? m : (m.medicine_name || m.name || ''))).filter(Boolean);
+      }
+
+      function tile(icon, label, value) {
+        return `<div class="dr-tile"><i class="bi ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`;
       }
 
       function demoProfile(row) {
@@ -378,7 +426,9 @@ require __DIR__ . '/middleware/auth.php';
           const cid = p.customer_id || p.customerId || null;
           const cust = customers.find((c) => String(c.id) === String(cid));
           const name = (cust && cust.name) || p.patient_name || p.patientName || 'Patient';
-          const item = touch(cid ? 'c' + cid : 'n' + name.toLowerCase(), { customer_id: cid, name, phone: (cust && cust.phone) || '', address: (cust && cust.address) || '' });
+          const phone = (cust && cust.phone) || p.patient_phone || p.phone || '';
+          const item = touch(cid ? 'c' + cid : 'n' + name.toLowerCase(), { customer_id: cid, name, phone, address: (cust && cust.address) || '' });
+          if (!item.phone && phone) item.phone = phone;
           item.rx_count += 1;
           const seen = String(p.rx_date || p.date || '').slice(0, 10);
           if (seen > item.last_seen) item.last_seen = seen;
@@ -394,16 +444,22 @@ require __DIR__ . '/middleware/auth.php';
         });
         return {
           patients: Object.values(byKey).sort((a, b) => a.name.localeCompare(b.name)),
-          prescriptions: rxs.map((p) => ({
-            id: p.id,
-            rx_no: p.rx_no || p.rxNo || '',
-            rx_date: String(p.rx_date || p.date || '').slice(0, 10),
-            patient_name: p.patient_name || p.patientName || '',
-            customer_name: p.customer_name || '',
-            diagnosis: p.diagnosis || '',
-            status: p.status || 'Recorded',
-            item_count: p.item_count || (p.items ? p.items.length : 0)
-          }))
+          prescriptions: rxs.map((p) => {
+            const cust = customers.find((c) => String(c.id) === String(p.customer_id || p.customerId || ''));
+            return {
+              id: p.id,
+              rx_no: p.rx_no || p.rxNo || '',
+              rx_date: String(p.rx_date || p.date || '').slice(0, 10),
+              created_at: p.created_at || '',
+              patient_name: p.patient_name || p.patientName || '',
+              customer_name: p.customer_name || '',
+              patient_phone: p.patient_phone || p.phone || (cust && cust.phone) || '',
+              diagnosis: p.diagnosis || '',
+              status: p.status || 'Recorded',
+              medicines: p.medicines || p.items || [],
+              item_count: p.item_count || (p.items ? p.items.length : 0)
+            };
+          })
         };
       }
 
@@ -418,15 +474,24 @@ require __DIR__ . '/middleware/auth.php';
       function renderProfile(row, extra) {
         const patients = extra.patients || [];
         const prescriptions = extra.prescriptions || [];
-        const bits = [row.specialty, row.reg_no || row.regNo, row.clinic, row.phone, row.email].filter(Boolean);
+        const reg = row.reg_no || row.regNo || '';
+        const shown = (value) => value ? MF.esc(value) : '—';
+        $('#drProfileTitle').textContent = row.name || 'Doctor profile';
         $('#drProfileBody').innerHTML = `
           <div class="dr-profile-head">
             <div>
               <div class="dr-profile-name">${MF.esc(row.name || 'Doctor')}</div>
-              <div class="dr-profile-meta">${bits.length ? MF.esc(bits.join(' · ')) : 'No contact details yet'}</div>
-              ${row.address ? `<div class="dr-profile-meta">${MF.esc(row.address)}</div>` : ''}
+              <div class="dr-profile-meta">${row.specialty ? MF.esc(row.specialty) : 'Specialization not set'}</div>
             </div>
             <div>${badge(row.status || 'Active')}</div>
+          </div>
+          <div class="dr-info">
+            ${tile('bi-card-text', 'Registration', shown(reg ? 'Reg. ' + reg : ''))}
+            ${tile('bi-heart-pulse', 'Specialization', shown(row.specialty))}
+            ${tile('bi-phone', 'Mobile', shown(row.phone))}
+            ${tile('bi-envelope', 'Email', shown(row.email))}
+            ${tile('bi-hospital', 'Clinic / Hospital', shown(row.clinic))}
+            ${tile('bi-geo-alt', 'Address', shown(row.address))}
           </div>
           <div class="dr-section">
             <h6>Associated patients / customers · ${MF.num(patients.length)}</h6>
@@ -445,15 +510,17 @@ require __DIR__ . '/middleware/auth.php';
           <div class="dr-section mt-3">
             <h6>Prescription ledger · ${MF.num(prescriptions.length)}</h6>
             <div class="dr-mini">
-              ${prescriptions.length ? `<table class="table"><thead><tr><th>Rx no</th><th>Date</th><th>Patient</th><th>Diagnosis</th><th class="text-end">Items</th><th>Status</th></tr></thead><tbody>
-                ${prescriptions.map((p) => `<tr>
-                  <td class="dr-name num">${MF.esc(p.rx_no || '—')}</td>
-                  <td class="num">${p.rx_date ? MF.fmtDate(p.rx_date) : '—'}</td>
-                  <td>${MF.esc(p.patient_name || p.customer_name || '—')}</td>
-                  <td>${p.diagnosis ? MF.esc(p.diagnosis) : '<span class="text-2">—</span>'}</td>
-                  <td class="text-end num">${MF.num(p.item_count)}</td>
-                  <td>${rxBadge(p.status)}</td>
-                </tr>`).join('')}
+              ${prescriptions.length ? `<table class="table"><thead><tr><th>Rx no</th><th>Patient</th><th>Diagnosis</th><th>Status</th></tr></thead><tbody>
+                ${prescriptions.map((p) => {
+                  const names = medNames(p);
+                  const phone = p.patient_phone || p.phone || '';
+                  return `<tr>
+                  <td><span class="dr-name num">${MF.esc(p.rx_no || '—')}</span><span class="dr-sub">${MF.esc(clock(p))}</span></td>
+                  <td><span class="dr-name">${MF.esc(p.patient_name || p.customer_name || '—')}</span><span class="dr-sub">${phone ? MF.esc(phone) : '—'}</span></td>
+                  <td>${p.diagnosis ? MF.esc(p.diagnosis) : '<span class="text-2">—</span>'}${names.length ? `<div>${names.map((n) => `<span class="dr-sq">${MF.esc(n)}</span>`).join('')}</div>` : ''}</td>
+                  <td>${rxPill(p.status)}</td>
+                </tr>`;
+                }).join('')}
               </tbody></table>` : '<div class="empty-state"><i class="bi bi-file-medical"></i>No prescriptions recorded for this doctor.</div>'}
             </div>
           </div>`;
@@ -470,6 +537,8 @@ require __DIR__ . '/middleware/auth.php';
             const data = res.data || {};
             const fresh = state.rows.find((r) => String(r.id) === String(row.id)) || row;
             if (data.status) fresh.status = data.status;
+            if (Array.isArray(data.prescriptions)) fresh.rx_count = data.prescriptions.length;
+            render();
             renderProfile(fresh, data);
           } catch (e) {
             MF.toast(e.message, 'err', 'Could not load profile');
@@ -513,6 +582,8 @@ require __DIR__ . '/middleware/auth.php';
               const res = await MF.Api.get('doctors.php?id=' + encodeURIComponent(id));
               const data = res.data || {};
               if (data.status) fresh.status = data.status;
+              if (Array.isArray(data.prescriptions)) fresh.rx_count = data.prescriptions.length;
+              render();
               renderProfile(fresh, data);
             } catch (e) {
               renderProfile(fresh, { patients: [], prescriptions: [] });
@@ -533,7 +604,8 @@ require __DIR__ . '/middleware/auth.php';
           email: d.email || '',
           clinic: d.clinic || '',
           address: d.address || '',
-          status: d.status || 'Active'
+          status: d.status || 'Active',
+          rx_count: (D.prescriptions || []).filter((p) => String(p.doctor_id ?? p.doctorId ?? '') === String(d.id)).length
         }));
       }
 
