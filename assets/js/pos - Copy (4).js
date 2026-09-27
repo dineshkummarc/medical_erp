@@ -26,15 +26,6 @@
     const st = document.createElement('style');
     st.id = 'pos-btn-styles';
     st.textContent = `
-      .pos-held {
-        position:relative; border:1px solid #b7ddd4; background:#fff; color:var(--mf-primary-dark);
-        border-radius:999px; font-weight:700; font-size:.8rem; padding:6px 12px;
-        display:inline-flex; align-items:center; gap:6px; cursor:pointer;
-        transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
-      }
-      .pos-held:hover { background:var(--mf-primary-soft); border-color:var(--mf-primary); color:var(--mf-primary-dark); transform:translateY(-1px); box-shadow:0 4px 12px rgba(23,107,91,.16); }
-      .pos-held:active { transform:translateY(0); box-shadow:none; }
-      .pos-attach:hover { border-color:var(--mf-primary); background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
       .pos-loose-add {
         background:#e7edf6; color:#16325c; border:1px solid transparent; border-radius:8px;
         padding:6px 14px; font-weight:500; display:inline-flex; align-items:center; gap:4px;
@@ -819,7 +810,6 @@
 
   function updateHoldBadge() {
     const b = $('#posHeldBadge');
-    if (!b) return;
     b.textContent = state.heldBills.length;
     b.style.display = state.heldBills.length ? 'inline-flex' : 'none';
   }
@@ -1169,101 +1159,25 @@
     }
   }
 
-  function rxStatus(s) {
-    if (!s || s === 'Recorded' || s === 'Pending') return 'Pending';
-    if (s === 'Ready') return 'Ready';
-    if (s === 'Dispensed' || s === 'Completed') return 'Dispensed';
-    if (s === 'Cancelled') return 'Cancelled';
-    return 'Pending';
-  }
-
-  function rxLabel(row) {
-    const date = row.rx_date && MF.fmtDate ? MF.fmtDate(row.rx_date) : (row.rx_date || '');
-    return [row.rx_no || 'Rx', row.patient_name || row.patient, date, rxStatus(row.status)].filter(Boolean).join(' · ');
-  }
-
-  function paintRxMeta(row) {
-    const box = $('#posRxMeta');
-    if (!box) return;
-    if (!row) {
-      box.innerHTML = 'Choose a prescription to show the doctor, patient and medicines.';
-      return;
+  function applyRxBill() {
+    let raw = '';
+    try { raw = sessionStorage.getItem('mf-rx-bill') || ''; } catch (e) { return; }
+    if (!raw || state._rxApplied) return;
+    let bill;
+    try { bill = JSON.parse(raw); } catch (e) { return; }
+    const cust = document.getElementById('posCustomer');
+    if (cust && bill.customerId && [...cust.options].some((o) => String(o.value) === String(bill.customerId))) {
+      cust.value = bill.customerId;
     }
-    const doctor = row.doctor_name || row.doctorName || 'Doctor not recorded';
-    const patient = row.patient_name || row.patient || 'Patient';
-    const date = row.rx_date && MF.fmtDate ? MF.fmtDate(row.rx_date) : (row.rx_date || '—');
-    const meds = row.medicines || row.items || [];
-    box.innerHTML = `<strong>${MF.esc(row.rx_no || 'Prescription')}</strong> · ${MF.esc(rxStatus(row.status))}<br>Patient ${MF.esc(patient)} · Doctor ${MF.esc(doctor)} · ${MF.esc(date)}${meds.length ? ' · ' + meds.length + ' medicine' + (meds.length === 1 ? '' : 's') : ''}`;
-  }
-
-  function ensureRxOption(row) {
-    const sel = $('#posRx');
-    const id = row && (row.id != null ? row.id : row.rxId);
-    if (!sel || id == null || id === '') return;
-    if (![...sel.options].some((o) => String(o.value) === String(id))) {
-      const label = row.rx_no || row.patient_name ? rxLabel(row) : [row.rxNo || 'Prescription', row.patient].filter(Boolean).join(' · ');
-      sel.insertAdjacentHTML('beforeend', `<option value="${MF.esc(id)}">${MF.esc(label)}</option>`);
-    }
-  }
-
-  async function loadRxOptions() {
-    const sel = $('#posRx');
-    if (!sel) return;
-    let rows = [];
-    if (MF.Api && MF.Api.live) {
-      try {
-        const res = await MF.Api.get('prescriptions.php');
-        rows = ((res.data || {}).ledger) || [];
-      } catch (e) {
-        rows = D.prescriptions || [];
-      }
-    } else {
-      rows = D.prescriptions || [];
-    }
-    rows = rows.filter((r) => rxStatus(r.status) !== 'Cancelled');
-    const rank = { Ready: 0, Pending: 1, Dispensed: 2 };
-    const customerId = $('#posCustomer') ? $('#posCustomer').value : '';
-    rows.sort((a, b) => {
-      const aMatch = customerId && String(a.customer_id || '') === String(customerId) ? 0 : 1;
-      const bMatch = customerId && String(b.customer_id || '') === String(customerId) ? 0 : 1;
-      if (aMatch !== bMatch) return aMatch - bMatch;
-      return (rank[rxStatus(a.status)] ?? 9) - (rank[rxStatus(b.status)] ?? 9);
-    });
-    state.rxRows = rows;
-    const current = sel.value;
-    sel.innerHTML = `<option value="">— select prescription —</option>` + rows.map((r) => `<option value="${MF.esc(r.id)}">${MF.esc(rxLabel(r))}</option>`).join('');
-    if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
-    if (state._rxBill) {
-      ensureRxOption(state._rxBill);
-      if (state._rxBill.rxId && [...sel.options].some((o) => String(o.value) === String(state._rxBill.rxId))) {
-        sel.value = String(state._rxBill.rxId);
-      }
-      wireRxAttachment(state._rxBill);
-    }
-  }
-
-  function setRxAttached(on) {
-    const panel = $('#posRxPanel');
-    const toggle = $('#posRxOn');
-    if (toggle) toggle.checked = !!on;
-    if (panel) panel.hidden = !on;
-    if (on) loadRxOptions().catch(() => {});
-  }
-
-  async function addRxMedicines(row) {
-    let items = (row.medicines && row.medicines.length) ? row.medicines : (row.items || []);
-    if (!items.length && MF.Api && MF.Api.live && row.id) {
-      try {
-        const res = await MF.Api.get('prescriptions.php?id=' + encodeURIComponent(row.id));
-        items = ((res.data || {}).items) || [];
-        row.items = items;
-      } catch (e) { /* keep the empty list */ }
+    const doc = document.getElementById('posDoctor');
+    if (doc && bill.doctorId && [...doc.options].some((o) => String(o.value) === String(bill.doctorId))) {
+      doc.value = bill.doctorId;
     }
     let added = 0;
-    items.forEach((item) => {
-      const med = (D.medicines || []).find((m) => String(m.id) === String(item.medicine_id || item.medicineId) || String(m.name).toLowerCase() === String(item.medicine_name || item.name || '').toLowerCase());
+    (bill.items || []).forEach((item) => {
+      const med = (D.medicines || []).find((m) => String(m.id) === String(item.medicineId) || String(m.name).toLowerCase() === String(item.name || '').toLowerCase());
       if (!med) {
-        MF.toast((item.medicine_name || item.name || 'Medicine') + ' is not in the medicine master', 'warn', 'Prescription');
+        MF.toast((item.name || 'Medicine') + ' is not in the medicine master', 'warn', 'Prescription');
         return;
       }
       const qty = Math.max(1, Number(item.qty) || 1);
@@ -1273,96 +1187,9 @@
       added += 1;
     });
     if (added) renderCart();
-    return added;
-  }
-
-  async function onRxPick() {
-    const sel = $('#posRx');
-    if (!sel) return;
-    const row = (state.rxRows || []).find((r) => String(r.id) === String(sel.value));
-    const doc = $('#posDoctor');
-    if (!row) {
-      if (doc) doc.value = '';
-      paintRxMeta(null);
-      return;
-    }
-    if (doc) doc.value = row.doctor_id || row.doctorId || '';
-    const cust = $('#posCustomer');
-    if (cust && row.customer_id && [...cust.options].some((o) => String(o.value) === String(row.customer_id))) {
-      cust.value = row.customer_id;
-    }
-    paintRxMeta(row);
-    if (String(state.loadedRxId || '') === String(row.id)) return;
-    const added = await addRxMedicines(row);
-    state.loadedRxId = row.id;
-    if (added) MF.toast((row.rx_no || 'Prescription') + ' medicines added to the cart', 'success', 'Prescription');
-  }
-
-  function wireRxAttachment(bill) {
-    const toggle = $('#posRxOn');
-    const panel = $('#posRxPanel');
-    if (!toggle || !panel || !bill) return false;
-    toggle.checked = true;
-    panel.hidden = false;
-    state._rxBill = bill;
-    ensureRxOption({
-      id: bill.rxId,
-      rx_no: bill.rxNo,
-      patient_name: bill.patient,
-      status: 'Ready',
-      doctor_id: bill.doctorId
-    });
-    const sel = $('#posRx');
-    if (sel && bill.rxId) sel.value = String(bill.rxId);
-    const doc = $('#posDoctor');
-    if (doc && bill.doctorId) doc.value = bill.doctorId;
-    paintRxMeta({
-      rx_no: bill.rxNo,
-      patient_name: bill.patient,
-      doctor_name: bill.doctorName || '',
-      status: bill.status || 'Ready',
-      rx_date: bill.date || '',
-      medicines: bill.items || []
-    });
-    return true;
-  }
-
-  function applyRxBill() {
-    if (!state._rxBill) {
-      let raw = '';
-      try { raw = sessionStorage.getItem('mf-rx-bill') || ''; } catch (e) { return; }
-      if (!raw) return;
-      try { state._rxBill = JSON.parse(raw); } catch (e) { return; }
-    }
-    const bill = state._rxBill;
-    if (!bill) return;
-    const cust = document.getElementById('posCustomer');
-    if (cust && bill.customerId && [...cust.options].some((o) => String(o.value) === String(bill.customerId))) {
-      cust.value = bill.customerId;
-    }
-    const doc = document.getElementById('posDoctor');
-    if (doc) doc.value = bill.doctorId || '';
-    if (!state._rxApplied) {
-      let added = 0;
-      (bill.items || []).forEach((item) => {
-        const med = (D.medicines || []).find((m) => String(m.id) === String(item.medicineId) || String(m.name).toLowerCase() === String(item.name || '').toLowerCase());
-        if (!med) {
-          MF.toast((item.name || 'Medicine') + ' is not in the medicine master', 'warn', 'Prescription');
-          return;
-        }
-        const qty = Math.max(1, Number(item.qty) || 1);
-        addToCart(med.id);
-        const line = [...state.cart].reverse().find((l) => String(l.medId) === String(med.id));
-        if (line) line.qty = qty;
-        added += 1;
-      });
-      if (added) renderCart();
-      state._rxApplied = true;
-      state.loadedRxId = bill.rxId || null;
-      try { sessionStorage.removeItem('mf-rx-bill'); } catch (e) { /* ignore */ }
-      if (added) MF.toast((bill.rxNo || 'Prescription') + ' loaded into the cart', 'success', 'Bill at POS');
-    }
-    wireRxAttachment(bill);
+    state._rxApplied = true;
+    try { sessionStorage.removeItem('mf-rx-bill'); } catch (e) { /* ignore */ }
+    if (added) MF.toast((bill.rxNo || 'Prescription') + ' loaded into the cart', 'success', 'Bill at POS');
   }
 
   /* ---------------- Init ---------------- */
@@ -1380,20 +1207,7 @@
     });
     $('#posHold').addEventListener('click', holdBill);
     $('#posDraft').addEventListener('click', () => MF.toast('Draft saving isn\'t available yet — use Hold Bill instead for now.', 'info', 'Save Draft'));
-    const held = $('#posHeldChip');
-    if (held) held.addEventListener('click', () => { showHeldBills(); new bootstrap.Modal($('#posHeldModal')).show(); });
-    const rxToggle = $('#posRxOn');
-    if (rxToggle) {
-      rxToggle.addEventListener('change', () => {
-        const panel = $('#posRxPanel');
-        if (panel) panel.hidden = !rxToggle.checked;
-        if (rxToggle.checked) loadRxOptions().then(() => { if (state._rxBill) wireRxAttachment(state._rxBill); }).catch(() => {});
-      });
-    }
-    const rxSel = $('#posRx');
-    if (rxSel) rxSel.addEventListener('change', () => onRxPick().catch((e) => MF.toast(e.message, 'err', 'Prescription')));
-    const custSel = $('#posCustomer');
-    if (custSel) custSel.addEventListener('change', () => { if ($('#posRxOn') && $('#posRxOn').checked) loadRxOptions().catch(() => {}); });
+    $('#posHeldChip').addEventListener('click', () => { showHeldBills(); new bootstrap.Modal($('#posHeldModal')).show(); });
     $('#posPrint').addEventListener('click', () => {
       if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
       MF.printHtml(receiptHtml('DRAFT', calcTotals()));
@@ -1402,7 +1216,6 @@
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();
     renderCart();
-    loadRxOptions().catch(() => {});
     applyRxBill();
     setTimeout(applyRxBill, 400);
 

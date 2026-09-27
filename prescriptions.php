@@ -110,6 +110,12 @@ require __DIR__ . '/middleware/auth.php';
     .rx-bill:hover { transform:translateY(-1px); }
     .rx-check { display:flex; align-items:flex-start; gap:10px; border:1px solid #eef2f6; border-radius:10px; padding:10px 12px; margin-bottom:8px; }
     .rx-check input { width:1.05rem; height:1.05rem; margin-top:2px; accent-color:var(--mf-primary); }
+    .rx-chip-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+    .rx-mini { display:inline-flex; align-items:center; border-radius:999px; padding:2px 8px; font-size:.72rem; font-weight:700; background:#f3f4f6; color:#4b5563; }
+    .rx-mini.qty { background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
+    .rx-mini.in { background:#e7f6ee; color:#178a45; }
+    .rx-mini.low { background:#fff4e8; color:#c2410c; }
+    .rx-mini.out { background:#fdecec; color:#b42318; }
     .rx-dispense-meta { display:grid; grid-template-columns:140px 1fr; gap:8px 12px; margin-bottom:14px; }
     .rx-dispense-meta .k { color:#6b7280; }
     .rx-dispense-meta .v { font-weight:700; color:#1b2430; }
@@ -378,7 +384,15 @@ require __DIR__ . '/middleware/auth.php';
       }
 
       function normalizeMedicine(m) {
-        return { id: m.id, name: m.name || m.medicine_name || '', generic: m.generic || m.generic_name || '' };
+        return {
+          id: m.id,
+          name: m.name || m.medicine_name || '',
+          generic: m.generic || m.generic_name || '',
+          unit: m.unit || m.pack_unit || 'pack',
+          status: m.status || 'Active',
+          minStock: Number(m.minStock ?? m.min_stock ?? m.reorderLevel ?? 0) || 0,
+          stock: m.stock ?? m.qty_on_hand ?? m.quantity ?? null
+        };
       }
 
       function doctors() { return state.doctors.length ? state.doctors : (liveData().doctors || []).map(normalizeDoctor).filter((d) => d.name); }
@@ -673,6 +687,42 @@ require __DIR__ . '/middleware/auth.php';
         return fresh;
       }
 
+      function findMedicine(item) {
+        const id = item.medicine_id || item.medicineId;
+        const name = String(item.medicine_name || item.name || '').toLowerCase();
+        const lists = [medicines(), liveData().medicines || []];
+        for (const list of lists) {
+          const hit = list.find((m) => (id && String(m.id) === String(id)) || (name && String(m.name || m.medicine_name || '').toLowerCase() === name));
+          if (hit) return hit;
+        }
+        return null;
+      }
+
+      function stockDetail(item) {
+        const med = findMedicine(item);
+        const qty = Math.max(0, Number(item.qty) || 0);
+        const unit = (med && (med.unit || med.pack_unit)) || 'pack';
+        const id = (med && med.id) || item.medicine_id || item.medicineId;
+        let stock = null;
+        if (id && MF.stockOf) {
+          try { stock = MF.stockOf(id); } catch (e) { stock = null; }
+        }
+        if ((stock == null || Number.isNaN(stock)) && med && med.stock != null && med.stock !== '') stock = Number(med.stock);
+        const min = med ? Number(med.minStock || med.reorderLevel || 0) : 0;
+        let label = 'Stock unavailable';
+        let tone = 'unk';
+        if (med && String(med.status || '').toLowerCase() === 'inactive') {
+          label = 'Inactive';
+          tone = 'out';
+        } else if (stock != null && !Number.isNaN(stock)) {
+          if (stock <= 0) { label = 'Out of stock'; tone = 'out'; }
+          else if (stock < qty || (min && stock <= min)) { label = stock < qty ? 'Short stock' : 'Low stock'; tone = 'low'; }
+          else { label = 'In stock'; tone = 'in'; }
+        }
+        const stockText = stock == null || Number.isNaN(stock) ? '—' : MF.num(stock) + ' ' + unit;
+        return `<span class="rx-chip-row"><span class="rx-mini qty">Qty ${MF.num(qty || 1)}</span><span class="rx-mini">Stock ${MF.esc(stockText)}</span><span class="rx-mini ${tone}">${MF.esc(label)}</span></span>`;
+      }
+
       async function openDispense(row) {
         let items = row.medicines && row.medicines.length ? row.medicines : (row.items || []);
         if (MF.Api.live && !items.length && !String(row.id).startsWith('demo-')) {
@@ -681,6 +731,7 @@ require __DIR__ . '/middleware/auth.php';
             items = ((res.data || {}).items) || row.medicines || [];
           } catch (e) { MF.toast(e.message, 'err', 'Could not load medicines'); }
         }
+        try { await loadCatalogs(); } catch (e) { /* stock still uses bootstrap batches */ }
         state.dispenseId = row.id;
         $('#rxDispenseBody').innerHTML = `
           <div class="rx-dispense-meta">
@@ -692,7 +743,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-label">Medicines</div>
           ${(items.length ? items : [{ medicine_name: 'No medicines recorded', qty: 0 }]).map((l, i) => `<label class="rx-check">
             <input type="checkbox" class="rx-pick" data-i="${i}" ${l.medicine_name && l.qty !== 0 ? 'checked' : 'disabled'}>
-            <span><strong>${MF.esc(l.medicine_name || l.name || '—')}</strong><span class="rx-when">${l.dosage ? MF.esc(l.dosage) + ' · ' : ''}Qty ${MF.num(l.qty || 1)}</span></span>
+            <span><strong>${MF.esc(l.medicine_name || l.name || '—')}</strong><span class="rx-when">${[l.dosage, l.frequency, l.duration].filter(Boolean).map((bit) => MF.esc(bit)).join(' · ')}</span>${stockDetail(l)}</span>
           </label>`).join('')}`;
         $('#rxDispenseBody').dataset.items = JSON.stringify(items);
         bootstrap.Modal.getOrCreateInstance($('#rxDispense')).show();
@@ -710,6 +761,8 @@ require __DIR__ . '/middleware/auth.php';
           rxNo: row.rx_no,
           customerId: row.customer_id || null,
           doctorId: row.doctor_id || null,
+          doctorName: row.doctor_name || '',
+          date: row.rx_date || '',
           patient: row.patient_name || '',
           items: picked.map((l) => ({
             medicineId: l.medicine_id || l.medicineId || null,

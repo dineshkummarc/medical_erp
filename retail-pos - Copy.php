@@ -18,31 +18,6 @@ $user   = Auth::user();
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
-  <style>
-    .pos-held {
-      position:relative; border:1px solid #b7ddd4; background:#fff; color:var(--mf-primary-dark);
-      border-radius:999px; font-weight:700; font-size:.8rem; padding:6px 12px;
-      display:inline-flex; align-items:center; gap:6px;
-      transition:background .15s ease, color .15s ease, border-color .15s ease, transform .15s ease, box-shadow .15s ease;
-    }
-    .pos-held:hover { background:var(--mf-primary-soft); border-color:var(--mf-primary); color:var(--mf-primary-dark); transform:translateY(-1px); box-shadow:0 4px 12px rgba(23,107,91,.16); }
-    .pos-held:active { transform:translateY(0); box-shadow:none; }
-    .pos-held-count {
-      min-width:18px; height:18px; border-radius:999px; background:var(--mf-danger); color:#fff;
-      font-size:.68rem; font-weight:750; display:inline-flex; align-items:center; justify-content:center; padding:0 5px;
-    }
-    .pos-attach {
-      display:flex; align-items:center; gap:10px; margin-top:10px; width:100%;
-      padding:8px 10px; border:1px solid #e5e7eb; border-radius:10px; background:#fff;
-      font-weight:650; color:#1b2430; cursor:pointer;
-      transition:border-color .15s ease, background .15s ease, color .15s ease;
-    }
-    .pos-attach:hover { border-color:var(--mf-primary); background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
-    .pos-attach input { width:2.15rem; height:1.15rem; accent-color:var(--mf-primary); cursor:pointer; }
-    .pos-rx-panel { margin-top:8px; padding:10px 12px; border:1px solid #d7ebe6; border-radius:12px; background:#f7fbfa; }
-    .pos-rx-meta { margin-top:8px; color:#516278; font-size:.82rem; line-height:1.45; }
-    .pos-rx-meta strong { color:#1b2430; }
-  </style>
 </head>
 <body data-page="retail-pos">
   <div class="mf-layout">
@@ -58,6 +33,10 @@ $user   = Auth::user();
           </div>
           <div class="ms-auto d-flex align-items-center gap-2">
             <span class="badge badge-soft-secondary"><i class="bi bi-person me-1"></i><?= htmlspecialchars($user['name']) ?></span>
+            <button class="btn btn-light-mf position-relative" id="posHeldChip">
+              <i class="bi bi-hourglass-split me-1"></i>Held Bills
+              <span class="badge rounded-pill text-bg-danger position-absolute top-0 start-100 translate-middle" id="posHeldBadge" style="display:none">0</span>
+            </button>
           </div>
         </div>
 
@@ -81,30 +60,22 @@ $user   = Auth::user();
               <h2 class="card-title"><i class="bi bi-receipt"></i>Current Invoice</h2>
               <div class="card-tools">
                 <span class="rx-chip" id="posRxChip" style="display:none"><i class="bi bi-file-medical"></i>Rx verification needed</span>
-                <button class="pos-held" id="posHeldChip" type="button">
-                  <i class="bi bi-hourglass-split"></i>Held Bills
-                  <span class="pos-held-count" id="posHeldBadge" style="display:none">0</span>
-                </button>
               </div>
             </div>
             <div class="p-3">
-              <div class="mb-2">
-                <label class="form-label" for="posCustomer">Customer</label>
-                <div class="d-flex gap-2">
-                  <select class="form-select" id="posCustomer"></select>
-                  <button class="btn btn-light-mf" type="button" id="posAddCustomer" title="Add new customer"><i class="bi bi-plus-lg"></i></button>
+              <div class="row g-2 mb-2">
+                <div class="col-6">
+                  <label class="form-label">Customer</label>
+                  <div class="d-flex gap-2">
+                    <select class="form-select" id="posCustomer"></select>
+                    <button class="btn btn-light-mf" type="button" id="posAddCustomer" title="Add new customer"><i class="bi bi-plus-lg"></i></button>
+                  </div>
                 </div>
-                <label class="pos-attach" for="posRxOn">
-                  <input id="posRxOn" type="checkbox">
-                  <span>Prescription attached</span>
-                </label>
-                <div class="pos-rx-panel" id="posRxPanel" hidden>
-                  <label class="form-label" for="posRx">Prescription</label>
-                  <select class="form-select" id="posRx">
-                    <option value="">— select prescription —</option>
+                <div class="col-6">
+                  <label class="form-label">Prescribing Doctor</label>
+                  <select class="form-select" id="posDoctor">
+                    <option value="">— Walk-in / none —</option>
                   </select>
-                  <div class="pos-rx-meta" id="posRxMeta">Turn this on to attach a recorded prescription. The doctor, patient and medicines come from that Rx.</div>
-                  <input id="posDoctor" type="hidden" value="">
                 </div>
               </div>
 
@@ -224,10 +195,8 @@ $user   = Auth::user();
       renderCustomers();
 
       const docSel = document.getElementById('posDoctor');
-      if (docSel && docSel.tagName === 'SELECT' && Array.isArray(D.doctors)) {
-        D.doctors.forEach((d) => docSel.insertAdjacentHTML('beforeend',
-          `<option value="${d.id}">${d.name} — ${d.specialty}</option>`));
-      }
+      D.doctors.forEach((d) => docSel.insertAdjacentHTML('beforeend',
+        `<option value="${d.id}">${d.name} — ${d.specialty}</option>`));
 
       document.getElementById('posAddCustomer').addEventListener('click', () => {
         ['pcName', 'pcPhone', 'pcAddress'].forEach((id) => document.getElementById(id).value = '');
