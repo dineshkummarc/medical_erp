@@ -97,7 +97,8 @@ require __DIR__ . '/middleware/auth.php';
     .rx-flow.ready { background:#e8f3fb; color:#1d6fbf; }
     .rx-flow.dispensed { background:#e7f6ee; color:#178a45; }
     .rx-flow.cancelled { background:#f3f4f6; color:#6b7280; }
-    .rx-acts { display:inline-flex; align-items:center; justify-content:flex-end; gap:8px; }
+    .rx-acts { display:inline-flex; align-items:center; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
+    .rx-flow-btn { white-space:nowrap; }
     .rx-flow-btn, .rx-eye {
       border:1px solid #b7ddd4; background:#fff; color:var(--mf-primary-dark); border-radius:999px;
       font-weight:700; font-size:.8rem; padding:5px 12px; transition:background .15s ease, color .15s ease, border-color .15s ease;
@@ -180,7 +181,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-ledger-search">
             <label class="rx-search-box">
               <i class="bi bi-search"></i>
-              <input id="rxSearch" type="search" placeholder="Search Rx no, patient, doctor, diagnosis…" autocomplete="off">
+              <input id="rxSearch" type="search" placeholder="Search Rx no, patient, mobile, doctor, diagnosis…" autocomplete="off">
             </label>
             <select class="rx-status" id="rxStatus" aria-label="All status">
               <option value="all">All status</option>
@@ -190,7 +191,7 @@ require __DIR__ . '/middleware/auth.php';
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <div class="table-scroll" style="max-height:none;overflow:visible">
+          <div class="table-scroll" style="max-height:none;overflow-x:auto">
             <table class="table table-mf">
               <thead>
                 <tr>
@@ -219,7 +220,7 @@ require __DIR__ . '/middleware/auth.php';
     <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Record Prescription</h5>
+          <h5 class="modal-title" id="rxFormTitle">Record Prescription</h5>
           <button class="btn-close" data-bs-dismiss="modal" type="button" aria-label="Close"></button>
         </div>
         <div class="modal-body">
@@ -238,6 +239,10 @@ require __DIR__ . '/middleware/auth.php';
                 <input class="form-control" id="rxPatient" placeholder="Patient name" autocomplete="off">
                 <input class="form-control" id="rxAge" inputmode="numeric" placeholder="Age" style="max-width:84px" autocomplete="off">
               </div>
+            </div>
+            <div class="col-md-4">
+              <label class="rx-label" for="rxMobile">Mobile</label>
+              <input class="form-control" id="rxMobile" inputmode="tel" placeholder="+91 ..." autocomplete="off">
             </div>
             <div class="col-md-4">
               <label class="rx-label" for="rxDoctor">Doctor</label>
@@ -298,7 +303,8 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-view-foot">
             <button class="rx-print" id="rxPrint" type="button"><i class="bi bi-printer me-1"></i>Print Record</button>
             <div class="rx-view-acts">
-              <button class="rx-flow-btn" id="rxMarkReady" type="button"><i class="bi bi-clipboard-check me-1"></i>Mark Ready</button>
+              <button class="rx-flow-btn" id="rxEditView" type="button" hidden><i class="bi bi-pencil me-1"></i>Edit</button>
+              <button class="rx-flow-btn" id="rxMarkReady" type="button" hidden><i class="bi bi-clipboard-check me-1"></i>Mark Ready</button>
               <button class="rx-done" id="rxComplete" type="button"><i class="bi bi-check-circle me-1"></i>Mark Completed</button>
               <button class="rx-stop" id="rxCancelRx" type="button"><i class="bi bi-x-circle me-1"></i>Cancel</button>
               <button class="rx-view-close" data-bs-dismiss="modal" type="button">Close</button>
@@ -407,7 +413,7 @@ require __DIR__ . '/middleware/auth.php';
         return state.rows.filter((r) => {
           if (state.status !== 'all' && flowStatus(r.status).toLowerCase() !== state.status) return false;
           if (!q) return true;
-          return [r.rx_no, r.patient_name, r.doctor_name, r.diagnosis, r.specialty].join(' ').toLowerCase().includes(q);
+          return [r.rx_no, r.patient_name, r.patient_phone, r.doctor_name, r.diagnosis, r.specialty].join(' ').toLowerCase().includes(q);
         });
       }
 
@@ -441,6 +447,10 @@ require __DIR__ . '/middleware/auth.php';
           const flow = flowStatus(r.status);
           const names = medNames(r);
           const age = r.patient_age ? `<span class="rx-when">${MF.esc(r.patient_age)} yrs</span>` : '<span class="rx-when">Age —</span>';
+          const phone = r.patient_phone ? `<span class="rx-when">${MF.esc(r.patient_phone)}</span>` : '';
+          const edit = flow === 'Pending'
+            ? `<button type="button" class="rx-flow-btn" data-a="edit" data-id="${MF.esc(r.id)}"><i class="bi bi-pencil me-1"></i>Edit</button>`
+            : '';
           const action = flow === 'Pending'
             ? `<button type="button" class="rx-flow-btn" data-a="ready" data-id="${MF.esc(r.id)}"><i class="bi bi-clipboard-check me-1"></i>Mark Ready</button>`
             : flow === 'Ready'
@@ -448,11 +458,11 @@ require __DIR__ . '/middleware/auth.php';
               : '';
           return `<tr>
           <td><span class="rx-name num">${MF.esc(r.rx_no || '—')}</span><span class="rx-when">${MF.esc(clock(r))}</span></td>
-          <td><span class="rx-name">${MF.esc(r.patient_name || '—')}</span>${age}</td>
+          <td><span class="rx-name">${MF.esc(r.patient_name || '—')}</span>${age}${phone}</td>
           <td>${r.doctor_name ? MF.esc(r.doctor_name) : '<span class="text-2">—</span>'}${r.specialty ? `<span class="rx-when">${MF.esc(r.specialty)}</span>` : ''}</td>
           <td>${r.diagnosis ? MF.esc(r.diagnosis) : '<span class="text-2">—</span>'}${names.length ? `<div>${names.map((n) => `<span class="rx-sq">${MF.esc(n)}</span>`).join('')}</div>` : ''}</td>
           <td>${statusBadge(r.status)}</td>
-          <td class="text-end"><div class="rx-acts">${action}<button type="button" class="rx-eye" data-a="view" data-id="${MF.esc(r.id)}" aria-label="View"><i class="bi bi-eye"></i></button></div></td>
+          <td class="text-end"><div class="rx-acts">${edit}${action}<button type="button" class="rx-eye" data-a="view" data-id="${MF.esc(r.id)}" aria-label="View"><i class="bi bi-eye"></i></button></div></td>
         </tr>`;
         }).join('') || '<tr><td colspan="6"><div class="empty-state"><i class="bi bi-file-medical"></i>No prescriptions yet. Record one to start the ledger.</div></td></tr>';
         const start = slice.length ? (state.page - 1) * state.per + 1 : 0;
@@ -530,9 +540,13 @@ require __DIR__ . '/middleware/auth.php';
       }
 
       function resetForm() {
+        state.editId = null;
+        $('#rxFormTitle').textContent = 'Record Prescription';
+        $('#rxSave').innerHTML = '<i class="bi bi-check-lg me-1"></i>Save Prescription';
         setDate(today());
         $('#rxPatient').value = '';
         $('#rxAge').value = '';
+        $('#rxMobile').value = '';
         $('#rxNotes').value = '';
         state.doctorId = '';
         $('#rxDoctor').value = '';
@@ -556,7 +570,7 @@ require __DIR__ . '/middleware/auth.php';
           const sel = line.querySelector('.rx-med');
           const opt = sel.options[sel.selectedIndex];
           return {
-          medicine_id: sel.value || null,
+          medicine_id: sel.value && !String(sel.value).startsWith('kept:') ? sel.value : null,
           medicine_name: opt ? (opt.getAttribute('data-name') || '') : '',
           dosage: line.querySelector('.rx-dose').value.trim(),
           frequency: line.querySelector('.rx-freq').value.trim(),
@@ -587,37 +601,61 @@ require __DIR__ . '/middleware/auth.php';
           date: date,
           patient_name: patient,
           patient_age: parseInt($('#rxAge').value, 10) || null,
+          patient_phone: $('#rxMobile').value.trim(),
           customer_id: customerIdFor(patient),
           doctor_id: $('#rxDoctor').value || null,
           diagnosis: $('#rxNotes').value.trim(),
           items
         };
         if (MF.Api.live) {
-          const res = await MF.Api.post('prescriptions.php', payload);
-          MF.toast(`${res.rx_no || 'Prescription'} recorded`, 'success', 'Saved');
+          if (state.editId) {
+            payload.id = state.editId;
+            await MF.Api.put('prescriptions.php', payload);
+            MF.toast('Prescription updated', 'success', 'Saved');
+          } else {
+            const res = await MF.Api.post('prescriptions.php', payload);
+            MF.toast(`${res.rx_no || 'Prescription'} recorded`, 'success', 'Saved');
+          }
           bootstrap.Modal.getInstance($('#rxModal')).hide();
           await load();
           return;
         }
         const doctor = doctors().find((d) => String(d.id) === String($('#rxDoctor').value));
-        state.rows.unshift({
-          id: 'demo-' + state.seq,
-          rx_no: 'RX-' + String(state.seq).padStart(5, '0'),
-          rx_date: payload.date,
-          patient_name: patient,
-          patient_age: payload.patient_age,
-          doctor_id: payload.doctor_id,
-          doctor_name: doctor ? doctor.name : '',
-          specialty: doctor ? (doctor.specialty || '') : '',
-          diagnosis: payload.diagnosis,
-          status: 'Pending',
-          created_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
-          item_count: items.length,
-          medicines: items,
-          items
-        });
-        state.seq += 1;
-        MF.toast('Saved in this browser only. Run the migration to store it.', 'info', 'Demo');
+        const existing = state.editId ? state.rows.find((r) => String(r.id) === String(state.editId)) : null;
+        if (existing) {
+          existing.rx_date = payload.date;
+          existing.patient_name = patient;
+          existing.patient_age = payload.patient_age;
+          existing.patient_phone = payload.patient_phone;
+          existing.doctor_id = payload.doctor_id;
+          existing.doctor_name = doctor ? doctor.name : '';
+          existing.specialty = doctor ? (doctor.specialty || '') : '';
+          existing.diagnosis = payload.diagnosis;
+          existing.item_count = items.length;
+          existing.medicines = items;
+          existing.items = items;
+          MF.toast('Prescription updated', 'success', 'Saved');
+        } else {
+          state.rows.unshift({
+            id: 'demo-' + state.seq,
+            rx_no: 'RX-' + String(state.seq).padStart(5, '0'),
+            rx_date: payload.date,
+            patient_name: patient,
+            patient_age: payload.patient_age,
+            patient_phone: payload.patient_phone,
+            doctor_id: payload.doctor_id,
+            doctor_name: doctor ? doctor.name : '',
+            specialty: doctor ? (doctor.specialty || '') : '',
+            diagnosis: payload.diagnosis,
+            status: 'Pending',
+            created_at: new Date().toISOString().slice(0, 16).replace('T', ' '),
+            item_count: items.length,
+            medicines: items,
+            items
+          });
+          state.seq += 1;
+          MF.toast('Saved in this browser only. Run the migration to store it.', 'info', 'Demo');
+        }
         bootstrap.Modal.getInstance($('#rxModal')).hide();
         render();
       }
@@ -646,7 +684,7 @@ require __DIR__ . '/middleware/auth.php';
         state.dispenseId = row.id;
         $('#rxDispenseBody').innerHTML = `
           <div class="rx-dispense-meta">
-            <div class="k">Patient</div><div class="v">${MF.esc(row.patient_name || '—')}${row.patient_age ? ' · ' + MF.esc(row.patient_age) + ' yrs' : ''}</div>
+            <div class="k">Patient</div><div class="v">${MF.esc(row.patient_name || '—')}${row.patient_age ? ' · ' + MF.esc(row.patient_age) + ' yrs' : ''}${row.patient_phone ? ' · ' + MF.esc(row.patient_phone) : ''}</div>
             <div class="k">Doctor</div><div class="v">${MF.esc(row.doctor_name || '—')}</div>
             <div class="k">Date and time</div><div class="v">${MF.esc(clock(row))}</div>
             <div class="k">Diagnosis</div><div class="v">${MF.esc(row.diagnosis || '—')}</div>
@@ -684,10 +722,69 @@ require __DIR__ . '/middleware/auth.php';
         location.href = 'retail-pos.php';
       }
 
+      async function openEdit(row) {
+        if (flowStatus(row.status) !== 'Pending') return;
+        const view = bootstrap.Modal.getInstance($('#rxViewModal'));
+        const viewOpen = $('#rxViewModal').classList.contains('show');
+        if (view) view.hide();
+        let items = row.items && row.items.length ? row.items : [];
+        if (MF.Api.live && !String(row.id).startsWith('demo-')) {
+          try {
+            const res = await MF.Api.get('prescriptions.php?id=' + encodeURIComponent(row.id));
+            const data = res.data || {};
+            if (data.prescription) Object.assign(row, data.prescription);
+            items = data.items || items;
+          } catch (e) { MF.toast(e.message, 'err', 'Could not load prescription'); }
+        }
+        if (!items.length) items = row.medicines || [];
+        resetForm();
+        state.editId = row.id;
+        $('#rxFormTitle').textContent = 'Edit Prescription';
+        $('#rxSave').innerHTML = '<i class="bi bi-check-lg me-1"></i>Update Prescription';
+        await loadCatalogs();
+        setDate(row.rx_date || today());
+        $('#rxPatient').value = row.patient_name || '';
+        $('#rxAge').value = row.patient_age || '';
+        $('#rxMobile').value = row.patient_phone || '';
+        $('#rxNotes').value = row.diagnosis || '';
+        fillDoctorMenu();
+        if (row.doctor_id) {
+          $('#rxDoctor').value = String(row.doctor_id);
+          $('#rxDoctor').classList.remove('placeholder');
+          state.doctorId = String(row.doctor_id);
+        }
+        $('#rxLines').innerHTML = '';
+        (items.length ? items : [{}]).forEach((item) => {
+          addLine();
+          const line = $('#rxLines').lastElementChild;
+          const sel = line.querySelector('.rx-med');
+          const id = item.medicine_id || item.medicineId || '';
+          const name = item.medicine_name || item.name || '';
+          if (id && ![...sel.options].some((o) => o.value === String(id))) {
+            sel.insertAdjacentHTML('beforeend', `<option value="${MF.esc(id)}" data-name="${MF.esc(name)}">${MF.esc(name || 'Medicine')}</option>`);
+          }
+          if (id) sel.value = String(id);
+          else if (name) {
+            sel.insertAdjacentHTML('beforeend', `<option value="${MF.esc('kept:' + name)}" data-name="${MF.esc(name)}" selected>${MF.esc(name)}</option>`);
+            sel.value = 'kept:' + name;
+          }
+          sel.classList.toggle('placeholder', !sel.value);
+          line.querySelector('.rx-dose').value = item.dosage || '';
+          line.querySelector('.rx-freq').value = item.frequency || '';
+          line.querySelector('.rx-dur').value = item.duration || '';
+          line.querySelector('.rx-qty').value = item.qty || 1;
+          line.querySelector('.rx-note').value = item.instructions || '';
+        });
+        const open = () => bootstrap.Modal.getOrCreateInstance($('#rxModal')).show();
+        if (viewOpen) setTimeout(open, 220);
+        else open();
+      }
+
       async function onAction(action, id) {
         const row = state.rows.find((r) => String(r.id) === String(id));
         if (!row) return;
         if (action === 'view') return openView(row);
+        if (action === 'edit') return openEdit(row);
         if (action === 'dispense') return openDispense(row);
         if (action === 'ready') {
           await setStatus(row, 'Ready');
@@ -792,7 +889,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-sheet-meta">
             <div class="k">Rx No.</div><div class="v">${MF.esc(row.rx_no || '—')}</div>
             <div class="k">Date</div><div class="v">${row.rx_date ? MF.fmtDate(row.rx_date) : '—'}</div>
-            <div class="k">Patient</div><div class="v">${MF.esc(row.patient_name || '—')}</div>
+            <div class="k">Patient</div><div class="v">${MF.esc(row.patient_name || '—')}${row.patient_phone ? '<div style="font-weight:500">' + MF.esc(row.patient_phone) + '</div>' : ''}</div>
             <div class="k">Doctor</div><div class="v">${MF.esc(row.doctor_name || '—')}</div>
             <div class="rx-sheet-notes"><div class="k">Diagnosis / Notes</div><div class="v">${MF.esc(row.diagnosis || '—')}</div></div>
           </div>
@@ -871,12 +968,13 @@ require __DIR__ . '/middleware/auth.php';
           <div class="rx-facts">
             ${fact('Prescription No.', MF.esc(row.rx_no || '—'))}
             ${fact('Date', row.rx_date ? MF.fmtDate(row.rx_date) : '—')}
-            ${fact('Customer / Patient', MF.esc(row.patient_name || '—'))}
+            ${fact('Customer / Patient', MF.esc(row.patient_name || '—') + (row.patient_age ? '<div class="text-2 small">' + MF.esc(row.patient_age) + ' yrs</div>' : '') + (row.patient_phone ? '<div class="text-2 small">' + MF.esc(row.patient_phone) + '</div>' : ''))}
             ${fact('Doctor', MF.esc(row.doctor_name || '—'))}
             ${fact('Status', statusPill(row.status))}
             <div class="alone"><div class="k">Diagnosis / Notes</div><div class="v">${MF.esc(row.diagnosis || '—')}</div></div>
           </div>
           ${medicineTable(items)}`;
+        $('#rxEditView').hidden = !pending;
         $('#rxMarkReady').hidden = !pending;
         $('#rxComplete').hidden = true;
         $('#rxCancelRx').hidden = row.status === 'Cancelled';
@@ -919,6 +1017,10 @@ require __DIR__ . '/middleware/auth.php';
         $('#rxPrint').addEventListener('click', () => {
           const row = state.rows.find((r) => String(r.id) === String(state.viewId));
           if (row) printRecord(row, state.viewItems);
+        });
+        $('#rxEditView').addEventListener('click', () => {
+          const row = state.rows.find((r) => String(r.id) === String(state.viewId));
+          if (row) openEdit(row).catch((e) => MF.toast(e.message, 'err', 'Could not edit'));
         });
         $('#rxMarkReady').addEventListener('click', () => {
           const row = state.rows.find((r) => String(r.id) === String(state.viewId));

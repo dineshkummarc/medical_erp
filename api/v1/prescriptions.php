@@ -73,6 +73,7 @@ function shapeRx(array $row): array
         'customer_id' => isset($row['customer_id']) && $row['customer_id'] !== null ? (int) $row['customer_id'] : null,
         'patient_name' => (string) ($row['patient_name'] ?? ''),
         'patient_age' => $age === null || $age === '' ? null : (int) $age,
+        'patient_phone' => (string) ($row['patient_phone'] ?? ''),
         'doctor_id' => isset($row['doctor_id']) && $row['doctor_id'] !== null ? (int) $row['doctor_id'] : null,
         'doctor_name' => (string) ($row['doctor_name'] ?? ''),
         'specialty' => (string) ($row['specialty'] ?? ''),
@@ -125,6 +126,17 @@ function shapeItem(array $row): array
 function listRows(): array
 {
     $withAge = 'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.customer_id AS customer_id,
+            p.patient_name AS patient_name, p.patient_age AS patient_age, p.patient_phone AS patient_phone, p.doctor_id AS doctor_id,
+            COALESCE(d.name, \'\') AS doctor_name, COALESCE(d.specialty, \'\') AS specialty,
+            COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status, p.created_at AS created_at,
+            COALESCE(it.item_count, 0) AS item_count
+         FROM prescriptions p
+         LEFT JOIN doctors d ON d.id = p.doctor_id
+         LEFT JOIN (
+           SELECT prescription_id, COUNT(*) AS item_count
+           FROM prescription_items GROUP BY prescription_id
+         ) it ON it.prescription_id = p.id';
+    $ageOnly = 'SELECT p.id AS id, p.rx_no AS rx_no, p.rx_date AS rx_date, p.customer_id AS customer_id,
             p.patient_name AS patient_name, p.patient_age AS patient_age, p.doctor_id AS doctor_id,
             COALESCE(d.name, \'\') AS doctor_name, COALESCE(d.specialty, \'\') AS specialty,
             COALESCE(p.diagnosis, \'\') AS diagnosis, p.status AS status, p.created_at AS created_at,
@@ -138,6 +150,10 @@ function listRows(): array
     try {
         return queryRows($withAge);
     } catch (Throwable $e) {
+        try {
+            return queryRows($ageOnly);
+        } catch (Throwable $eAge) {
+        }
         $fallback = 'SELECT id, rx_no, rx_date, customer_id, patient_name, doctor_id, doctor_name, specialty,
                    diagnosis, status, item_count, created_at
             FROM v_prescriptions';
@@ -225,6 +241,7 @@ if ($method === 'POST') {
     if ($age < 0 || $age > 120) {
         $age = 0;
     }
+    $phone = clip((string) ($input['patient_phone'] ?? $input['phone'] ?? $input['mobile'] ?? ''), 32);
     $date = dateOnly($input['rx_date'] ?? $input['date'] ?? '');
     $diagnosis = clip((string) ($input['diagnosis'] ?? $input['notes'] ?? ''), 255);
     $doctorId = (int) ($input['doctor_id'] ?? $input['doctorId'] ?? 0);
@@ -275,19 +292,28 @@ if ($method === 'POST') {
         $rxNo = nextRxNo();
         $ageSql = $age > 0 ? (string) $age : 'NULL';
         try {
-            queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, patient_age, doctor_id, diagnosis, status)
+            queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, patient_age, patient_phone, doctor_id, diagnosis, status)
                 VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
                 . ($customerId > 0 ? $customerId : 'NULL') . ', '
-                . sqlStr($patient) . ', ' . $ageSql . ', '
+                . sqlStr($patient) . ', ' . $ageSql . ', ' . sqlNull($phone) . ', '
                 . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
                 . sqlNull($diagnosis) . ", 'Pending')");
         } catch (Throwable $e) {
-            queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, doctor_id, diagnosis, status)
-                VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
-                . ($customerId > 0 ? $customerId : 'NULL') . ', '
-                . sqlStr($patient) . ', '
-                . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
-                . sqlNull($diagnosis) . ", 'Pending')");
+            try {
+                queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, patient_age, doctor_id, diagnosis, status)
+                    VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
+                    . ($customerId > 0 ? $customerId : 'NULL') . ', '
+                    . sqlStr($patient) . ', ' . $ageSql . ', '
+                    . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
+                    . sqlNull($diagnosis) . ", 'Pending')");
+            } catch (Throwable $eAge) {
+                queryRows('INSERT INTO prescriptions (rx_no, rx_date, customer_id, patient_name, doctor_id, diagnosis, status)
+                    VALUES (' . sqlStr($rxNo) . ', ' . sqlStr($date) . ', '
+                    . ($customerId > 0 ? $customerId : 'NULL') . ', '
+                    . sqlStr($patient) . ', '
+                    . ($doctorId > 0 ? $doctorId : 'NULL') . ', '
+                    . sqlNull($diagnosis) . ", 'Pending')");
+            }
         }
         $found = queryRows('SELECT id FROM prescriptions WHERE rx_no = ' . sqlStr($rxNo) . ' LIMIT 1');
         $id = (int) ($found[0]['id'] ?? 0);
@@ -315,21 +341,119 @@ if ($method === 'POST') {
 if ($method === 'PUT') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int) ($input['id'] ?? $_GET['id'] ?? 0);
-    $status = trim((string) ($input['status'] ?? ''));
-    $status = flowStatus($status);
-    $allowed = ['Pending', 'Ready', 'Dispensed', 'Cancelled'];
     if (!$id) {
         Json::error('Prescription not found.', 404);
     }
-    if (!in_array($status, $allowed, true)) {
-        Json::error('Status must be Recorded, Dispensed, or Cancelled.', 422);
+    $current = null;
+    foreach (listRows() as $row) {
+        if ((int) ($row['id'] ?? 0) === $id) {
+            $current = $row;
+            break;
+        }
     }
-    try {
+    if (!$current) {
+        Json::error('Prescription not found.', 404);
+    }
+    $editing = array_key_exists('patient_name', $input) || array_key_exists('items', $input);
+    if ($editing && flowStatus((string) ($current['status'] ?? '')) !== 'Pending') {
+        Json::error('Only a pending prescription can be edited.', 409);
+    }
+    if ($editing) {
+        $patient = clip((string) ($input['patient_name'] ?? ''), 150);
+        $age = (int) ($input['patient_age'] ?? $input['age'] ?? 0);
+        if ($age < 0 || $age > 120) {
+            $age = 0;
+        }
+        $phone = clip((string) ($input['patient_phone'] ?? $input['phone'] ?? $input['mobile'] ?? ''), 32);
+        $date = dateOnly($input['rx_date'] ?? $input['date'] ?? '');
+        $diagnosis = clip((string) ($input['diagnosis'] ?? $input['notes'] ?? ''), 255);
+        $doctorId = (int) ($input['doctor_id'] ?? $input['doctorId'] ?? 0);
+        $customerId = (int) ($input['customer_id'] ?? $input['customerId'] ?? 0);
+        $items = is_array($input['items'] ?? null) ? $input['items'] : [];
+        if ($patient === '' || $date === '') {
+            Json::error('Patient name and date are required.', 422);
+        }
+        $lines = [];
+        foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
+            $name = clip((string) ($item['medicine_name'] ?? $item['name'] ?? ''), 200);
+            if ($name === '') {
+                continue;
+            }
+            $qty = (int) ($item['qty'] ?? 1);
+            if ($qty < 1) {
+                $qty = 1;
+            }
+            $lines[] = [
+                'medicine_id' => (int) ($item['medicine_id'] ?? $item['medicineId'] ?? 0),
+                'medicine_name' => $name,
+                'dosage' => clip((string) ($item['dosage'] ?? ''), 80),
+                'frequency' => clip((string) ($item['frequency'] ?? ''), 80),
+                'duration' => clip((string) ($item['duration'] ?? ''), 80),
+                'qty' => $qty,
+                'instructions' => clip((string) ($item['instructions'] ?? ''), 255),
+            ];
+        }
+        if (!$lines) {
+            Json::error('Add at least one medicine.', 422);
+        }
+        $ageSql = $age > 0 ? (string) $age : 'NULL';
+        try {
+            queryRows('UPDATE prescriptions SET
+                rx_date = ' . sqlStr($date) . ',
+                customer_id = ' . ($customerId > 0 ? $customerId : 'NULL') . ',
+                patient_name = ' . sqlStr($patient) . ',
+                patient_age = ' . $ageSql . ',
+                patient_phone = ' . sqlNull($phone) . ',
+                doctor_id = ' . ($doctorId > 0 ? $doctorId : 'NULL') . ',
+                diagnosis = ' . sqlNull($diagnosis) . '
+                WHERE id = ' . $id);
+        } catch (Throwable $e) {
+            try {
+                queryRows('UPDATE prescriptions SET
+                    rx_date = ' . sqlStr($date) . ',
+                    customer_id = ' . ($customerId > 0 ? $customerId : 'NULL') . ',
+                    patient_name = ' . sqlStr($patient) . ',
+                    patient_age = ' . $ageSql . ',
+                    doctor_id = ' . ($doctorId > 0 ? $doctorId : 'NULL') . ',
+                    diagnosis = ' . sqlNull($diagnosis) . '
+                    WHERE id = ' . $id);
+            } catch (Throwable $eAge) {
+                queryRows('UPDATE prescriptions SET
+                    rx_date = ' . sqlStr($date) . ',
+                    customer_id = ' . ($customerId > 0 ? $customerId : 'NULL') . ',
+                    patient_name = ' . sqlStr($patient) . ',
+                    doctor_id = ' . ($doctorId > 0 ? $doctorId : 'NULL') . ',
+                    diagnosis = ' . sqlNull($diagnosis) . '
+                    WHERE id = ' . $id);
+            }
+        }
+        queryRows('DELETE FROM prescription_items WHERE prescription_id = ' . $id);
+        foreach ($lines as $line) {
+            queryRows('INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, dosage, frequency, duration, qty, instructions)
+                VALUES (' . $id . ', '
+                . ($line['medicine_id'] > 0 ? $line['medicine_id'] : 'NULL') . ', '
+                . sqlStr($line['medicine_name']) . ', '
+                . sqlNull($line['dosage']) . ', '
+                . sqlNull($line['frequency']) . ', '
+                . sqlNull($line['duration']) . ', '
+                . $line['qty'] . ', '
+                . sqlNull($line['instructions']) . ')');
+        }
+    }
+    if (array_key_exists('status', $input) && trim((string) $input['status']) !== '') {
+        $raw = trim((string) $input['status']);
+        $known = ['Pending', 'Ready', 'Dispensed', 'Cancelled', 'Recorded', 'Completed'];
+        if (!in_array($raw, $known, true)) {
+            Json::error('Status must be Pending, Ready, Dispensed, or Cancelled.', 422);
+        }
+        $status = flowStatus($raw);
         queryRows('UPDATE prescriptions SET status = ' . sqlStr($status) . ' WHERE id = ' . $id);
-    } catch (Throwable $e) {
-        Json::error('Prescription tables are not installed. Run database/migrations/2026_09_27_prescriptions.sql.', 503);
+        Json::ok(['id' => $id, 'status' => $status]);
     }
-    Json::ok(['id' => $id, 'status' => $status]);
+    Json::ok(['id' => $id]);
 }
 
 Json::error('Method not allowed.', 405);
