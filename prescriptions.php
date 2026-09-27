@@ -86,6 +86,37 @@ require __DIR__ . '/middleware/auth.php';
     .rx-cancel:hover { background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
     .rx-save { border-radius:10px; padding:8px 14px; }
     .rx-save:hover { transform:translateY(-1px); }
+    .rx-view .modal-content { border:0; border-radius:16px; }
+    .rx-view .modal-header, .rx-view .modal-footer { border-color:#eef2f6; }
+    .rx-view .modal-title { font-size:1.05rem; font-weight:750; }
+    .rx-facts { display:grid; grid-template-columns:158px minmax(0,1fr) 158px minmax(0,1fr); column-gap:18px; row-gap:12px; align-items:center; margin-bottom:16px; }
+    .rx-facts .k { color:#6b7280; font-size:.9rem; }
+    .rx-facts .v { font-weight:700; color:#1b2430; }
+    .rx-facts .alone { grid-column:1 / -1; display:grid; grid-template-columns:158px minmax(0,1fr); column-gap:18px; align-items:start; }
+    .rx-pill { display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:2px 10px; font-size:.78rem; font-weight:700; }
+    .rx-pill i { font-size:.55rem; }
+    .rx-pill.live { background:#e7f6ee; color:#178a45; }
+    .rx-pill.done { background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
+    .rx-pill.stop { background:#fdecec; color:#b42318; }
+    .rx-meds { border:1px solid #eef2f6; border-radius:12px; overflow:hidden; }
+    .rx-meds table { width:100%; margin:0; border-collapse:collapse; }
+    .rx-meds th { background:#f7f8fa; color:#8b93a0; font-size:11px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; padding:10px 12px; text-align:left; }
+    .rx-meds td { padding:12px; border-top:1px solid #f0f3f6; vertical-align:middle; }
+    .rx-meds .name { font-weight:750; color:#1b2430; }
+    .rx-view-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
+    .rx-view-acts { display:flex; align-items:center; gap:8px; }
+    .rx-print, .rx-done, .rx-stop, .rx-view-close { border-radius:10px; font-weight:650; padding:7px 12px; transition:background .15s ease, color .15s ease, border-color .15s ease; }
+    .rx-print { border:0; background:transparent; color:#6b7280; }
+    .rx-print:hover { background:#f3f4f6; color:#374151; }
+    .rx-done { border:1px solid #178a45; background:#fff; color:#178a45; }
+    .rx-done:hover { background:#e7f6ee; color:#0f6b34; }
+    .rx-stop { border:1px solid #dc3545; background:#fff; color:#dc3545; }
+    .rx-stop:hover { background:#fdecec; color:#b42318; }
+    .rx-view-close { border:0; background:transparent; color:#374151; }
+    .rx-view-close:hover { background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
+    @media (max-width: 760px) {
+      .rx-facts, .rx-facts .alone { grid-template-columns:128px minmax(0,1fr); }
+    }
     @media (max-width: 900px) {
       .rx-grid-head { display:none; }
       .rx-grid-head, .rx-line { grid-template-columns:1fr 1fr; }
@@ -202,16 +233,23 @@ require __DIR__ . '/middleware/auth.php';
     </div>
   </div>
 
-  <div class="modal fade" id="rxViewModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+  <div class="modal fade rx-view" id="rxViewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="rxViewTitle">Prescription</h5>
-          <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+          <button class="btn-close" data-bs-dismiss="modal" type="button" aria-label="Close"></button>
         </div>
         <div class="modal-body" id="rxViewBody"></div>
         <div class="modal-footer">
-          <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
+          <div class="rx-view-foot">
+            <button class="rx-print" id="rxPrint" type="button"><i class="bi bi-printer me-1"></i>Print Record</button>
+            <div class="rx-view-acts">
+              <button class="rx-done" id="rxComplete" type="button"><i class="bi bi-check-circle me-1"></i>Mark Completed</button>
+              <button class="rx-stop" id="rxCancelRx" type="button"><i class="bi bi-x-circle me-1"></i>Cancel</button>
+              <button class="rx-view-close" data-bs-dismiss="modal" type="button">Close</button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -225,7 +263,7 @@ require __DIR__ . '/middleware/auth.php';
     (function () {
       const MF = window.MF, D = window.MF_DATA || {};
       const $ = (s) => document.querySelector(s);
-      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, doctorId: '', seq: 1, doctors: [], medicines: [] };
+      const state = { rows: [], q: '', status: 'all', page: 1, per: 12, doctorId: '', seq: 1, doctors: [], medicines: [], viewId: null, viewItems: [] };
 
       function today() {
         return MF.today ? MF.today() : new Date().toISOString().slice(0, 10);
@@ -509,6 +547,105 @@ require __DIR__ . '/middleware/auth.php';
           render();
         }
         MF.toast(row.rx_no + ' marked ' + status.toLowerCase(), 'success', 'Updated');
+        if (String(state.viewId) === String(id) && $('#rxViewModal').classList.contains('show')) {
+          const fresh = state.rows.find((r) => String(r.id) === String(id)) || row;
+          fresh.status = status;
+          await openView(fresh);
+        }
+      }
+
+      function viewStatus(status) {
+        if (status === 'Dispensed') return { label: 'Completed', tone: 'done' };
+        if (status === 'Cancelled') return { label: 'Cancelled', tone: 'stop' };
+        return { label: 'Active', tone: 'live' };
+      }
+
+      function statusPill(status) {
+        const s = viewStatus(status);
+        return `<span class="rx-pill ${s.tone}"><i class="bi bi-circle-fill"></i>${MF.esc(s.label)}</span>`;
+      }
+
+      function fact(label, value) {
+        return `<div class="k">${label}</div><div class="v">${value}</div>`;
+      }
+
+      function medicineTable(items) {
+        const rows = (items || []).map((l, i) => `<tr>
+          <td class="num">${i + 1}</td>
+          <td class="name">${MF.esc(l.medicine_name || l.name || '—')}</td>
+          <td>${MF.esc(l.dosage || '—')}</td>
+          <td>${MF.esc(l.frequency || '—')}</td>
+          <td>${MF.esc(l.duration || '—')}</td>
+          <td class="num">${MF.num(l.qty || 1)}</td>
+          <td>${MF.esc(l.instructions || '—')}</td>
+        </tr>`).join('');
+        return `<div class="rx-meds"><table>
+          <thead><tr><th>#</th><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Qty</th><th>Instructions</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="7"><div class="empty-state"><i class="bi bi-capsule"></i>No medicines on this prescription.</div></td></tr>'}</tbody>
+        </table></div>`;
+      }
+
+      function storeInfo() {
+        const s = (window.MF_DATA && window.MF_DATA.store) || {};
+        return {
+          name: s.name || 'Optms Rx',
+          address: s.address || 'Madhepura, Bihar',
+          gstin: s.gstin || ''
+        };
+      }
+
+      function printRecord(row, items) {
+        const shop = storeInfo();
+        const shown = viewStatus(row.status);
+        const gst = shop.gstin ? ' • GSTIN ' + shop.gstin : '';
+        const lines = (items || []).map((l, i) => `<tr>
+          <td>${i + 1}</td>
+          <td>${MF.esc(l.medicine_name || l.name || '—')}</td>
+          <td>${MF.esc(l.dosage || '—')}</td>
+          <td>${MF.esc(l.frequency || '—')}</td>
+          <td>${MF.esc(l.duration || '—')}</td>
+          <td>${MF.num(l.qty || 1)}</td>
+          <td>${MF.esc(l.instructions || '—')}</td>
+        </tr>`).join('');
+        const html = `<style>
+          .rx-sheet { color:#111; font-size:13px; }
+          .rx-sheet-top { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; margin-bottom:16px; }
+          .rx-sheet-top h2 { font-size:18px; margin:0 0 2px; font-weight:750; }
+          .rx-sheet-top .sub { color:#4b5563; font-size:12px; }
+          .rx-sheet-top .kind { font-size:14px; font-weight:800; letter-spacing:.04em; }
+          .rx-sheet-meta { display:grid; grid-template-columns:110px 1fr 90px 1fr; gap:8px 12px; align-items:baseline; }
+          .rx-sheet-meta .k { color:#374151; }
+          .rx-sheet-meta .v { font-weight:700; }
+          .rx-sheet-notes { grid-column:1 / -1; display:grid; grid-template-columns:140px 1fr; gap:12px; border-bottom:1px solid #111; padding:6px 0 8px; margin-top:2px; }
+          .rx-sheet table { width:100%; border-collapse:collapse; margin-top:12px; }
+          .rx-sheet th, .rx-sheet td { border-bottom:1px solid #d1d5db; padding:7px 8px; text-align:left; font-size:12.5px; }
+          .rx-sheet th { font-weight:750; }
+          .rx-sheet .fine { color:#4b5563; font-size:12px; margin:14px 0 6px; }
+          .rx-sheet .printed { font-size:12.5px; }
+        </style>
+        <div class="rx-sheet">
+          <div class="rx-sheet-top">
+            <div>
+              <h2>${MF.esc(shop.name)}</h2>
+              <div class="sub">${MF.esc(shop.address)}${MF.esc(gst)}</div>
+            </div>
+            <div class="kind">PRESCRIPTION RECORD</div>
+          </div>
+          <div class="rx-sheet-meta">
+            <div class="k">Rx No.</div><div class="v">${MF.esc(row.rx_no || '—')}</div>
+            <div class="k">Date</div><div class="v">${row.rx_date ? MF.fmtDate(row.rx_date) : '—'}</div>
+            <div class="k">Patient</div><div class="v">${MF.esc(row.patient_name || '—')}</div>
+            <div class="k">Doctor</div><div class="v">${MF.esc(row.doctor_name || '—')}</div>
+            <div class="rx-sheet-notes"><div class="k">Diagnosis / Notes</div><div class="v">${MF.esc(row.diagnosis || '—')}</div></div>
+          </div>
+          <table>
+            <thead><tr><th>#</th><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th>Qty</th><th>Instructions</th></tr></thead>
+            <tbody>${lines || '<tr><td colspan="7">No medicines recorded.</td></tr>'}</tbody>
+          </table>
+          <p class="fine">This is a pharmacy record of prescription information. It is not a substitute for professional medical advice.</p>
+          <div class="printed">Status: ${MF.esc(shown.label)} • Printed ${MF.fmtDate(today())}</div>
+        </div>`;
+        MF.printHtml(html);
       }
 
       async function openView(row) {
@@ -516,29 +653,25 @@ require __DIR__ . '/middleware/auth.php';
         if (MF.Api.live && !items.length && !String(row.id).startsWith('demo-')) {
           try {
             const res = await MF.Api.get('prescriptions.php?id=' + encodeURIComponent(row.id));
-            items = (res.data || {}).items || [];
+            items = ((res.data || {}).items) || [];
           } catch (e) { MF.toast(e.message, 'err', 'Could not load prescription'); }
         }
-        $('#rxViewTitle').textContent = row.rx_no || 'Prescription';
+        state.viewId = row.id;
+        state.viewItems = items;
+        const active = (row.status || 'Recorded') === 'Recorded';
+        $('#rxViewTitle').textContent = 'Prescription — ' + (row.rx_no || '—');
         $('#rxViewBody').innerHTML = `
-          <div class="d-flex justify-content-between gap-2 mb-3">
-            <div>
-              <div class="rx-name">${MF.esc(row.patient_name || '—')}</div>
-              <div class="text-2 small">${row.rx_date ? MF.fmtDate(row.rx_date) : '—'} · ${MF.esc(row.doctor_name || 'No doctor')}</div>
-              ${row.diagnosis ? `<div class="rx-muted">${MF.esc(row.diagnosis)}</div>` : ''}
-            </div>
-            <div>${statusBadge(row.status)}</div>
+          <div class="rx-facts">
+            ${fact('Prescription No.', MF.esc(row.rx_no || '—'))}
+            ${fact('Date', row.rx_date ? MF.fmtDate(row.rx_date) : '—')}
+            ${fact('Customer / Patient', MF.esc(row.patient_name || '—'))}
+            ${fact('Doctor', MF.esc(row.doctor_name || '—'))}
+            ${fact('Status', statusPill(row.status))}
+            <div class="alone"><div class="k">Diagnosis / Notes</div><div class="v">${MF.esc(row.diagnosis || '—')}</div></div>
           </div>
-          ${items.length ? `<table class="table table-mf"><thead><tr><th>Medicine</th><th>Dosage</th><th>Frequency</th><th>Duration</th><th class="text-end">Qty</th><th>Instructions</th></tr></thead><tbody>
-            ${items.map((l) => `<tr>
-              <td class="fw-semibold">${MF.esc(l.medicine_name || l.name || '—')}</td>
-              <td>${MF.esc(l.dosage || '—')}</td>
-              <td>${MF.esc(l.frequency || '—')}</td>
-              <td>${MF.esc(l.duration || '—')}</td>
-              <td class="text-end num">${MF.num(l.qty)}</td>
-              <td>${MF.esc(l.instructions || '—')}</td>
-            </tr>`).join('')}
-          </tbody></table>` : '<div class="empty-state"><i class="bi bi-capsule"></i>No medicines on this prescription.</div>'}`;
+          ${medicineTable(items)}`;
+        $('#rxComplete').hidden = !active;
+        $('#rxCancelRx').hidden = row.status === 'Cancelled';
         bootstrap.Modal.getOrCreateInstance($('#rxViewModal')).show();
       }
 
@@ -575,6 +708,12 @@ require __DIR__ . '/middleware/auth.php';
         $('#rxSave').addEventListener('click', () => save().catch((e) => MF.toast(e.message, 'err', 'Could not save')));
         $('#rxSearch').addEventListener('input', (e) => { state.q = e.target.value; state.page = 1; render(); });
         $('#rxStatus').addEventListener('change', (e) => { state.status = e.target.value; state.page = 1; render(); });
+        $('#rxPrint').addEventListener('click', () => {
+          const row = state.rows.find((r) => String(r.id) === String(state.viewId));
+          if (row) printRecord(row, state.viewItems);
+        });
+        $('#rxComplete').addEventListener('click', () => onAction('dispensed', state.viewId).catch((e) => MF.toast(e.message, 'err', 'Could not update')));
+        $('#rxCancelRx').addEventListener('click', () => onAction('cancel', state.viewId).catch((e) => MF.toast(e.message, 'err', 'Could not update')));
         await load();
       });
     })();
