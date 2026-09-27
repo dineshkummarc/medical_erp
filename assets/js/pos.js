@@ -34,7 +34,9 @@
       }
       .pos-held:hover { background:var(--mf-primary-soft); border-color:var(--mf-primary); color:var(--mf-primary-dark); transform:translateY(-1px); box-shadow:0 4px 12px rgba(23,107,91,.16); }
       .pos-held:active { transform:translateY(0); box-shadow:none; }
-      .pos-attach:hover { border-color:var(--mf-primary); background:var(--mf-primary-soft); color:var(--mf-primary-dark); }
+      .pos-rx-verify.show { display:flex; }
+      .pos-switch:hover span { background:#c4b5fd; }
+      .pos-switch:hover input:checked + span { background:#6d28d9; }
       .pos-loose-add {
         background:#e7edf6; color:#16325c; border:1px solid transparent; border-radius:8px;
         padding:6px 14px; font-weight:500; display:inline-flex; align-items:center; gap:4px;
@@ -573,9 +575,51 @@
     renderUpiPanel();
   }
 
+  function needsRx(line) {
+    const med = MF.med(line.medId);
+    return !!(med && med.rxRequired);
+  }
+
   function renderRxChip() {
-    const hasRx = state.cart.some((l) => MF.med(l.medId).rxRequired);
-    $('#posRxChip').style.display = hasRx ? 'inline-flex' : 'none';
+    const chip = $('#posRxChip');
+    const wrap = $('#posRxToggleWrap');
+    const hasRx = state.cart.some(needsRx);
+    const show = hasRx || !!state._rxBill;
+    if (chip) chip.style.display = show ? 'inline-flex' : 'none';
+    if (wrap) {
+      wrap.hidden = !show;
+      wrap.classList.toggle('show', show);
+    }
+    if (!show) {
+      const panel = $('#posRxPanel');
+      const toggle = $('#posRxOn');
+      if (panel) panel.hidden = true;
+      if (toggle) toggle.checked = false;
+    }
+  }
+
+  async function fillDoctors() {
+    const sel = $('#posDoctor');
+    if (!sel || sel.tagName !== 'SELECT') return;
+    const current = sel.value;
+    let rows = Array.isArray(D.doctors) ? D.doctors.slice() : [];
+    if (MF.Api && MF.Api.live) {
+      try {
+        const res = await MF.Api.get('doctors.php');
+        const data = res.data;
+        const list = Array.isArray(data) ? data : ((data && data.doctors) || []);
+        if (list.length) rows = list;
+      } catch (e) { /* keep bootstrap doctors */ }
+    }
+    rows = rows.filter((d) => d && d.name && d.status !== 'Inactive');
+    rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    sel.innerHTML = '<option value="">— Walk-in / none —</option>' + rows.map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}${d.specialty ? ' — ' + MF.esc(d.specialty) : ''}</option>`).join('');
+    const wanted = current || (state._rxBill && state._rxBill.doctorId) || '';
+    if (wanted && ![...sel.options].some((o) => String(o.value) === String(wanted))) {
+      const name = (state._rxBill && state._rxBill.doctorName) || 'Doctor';
+      sel.insertAdjacentHTML('beforeend', `<option value="${MF.esc(wanted)}">${MF.esc(name)}</option>`);
+    }
+    if (wanted) sel.value = String(wanted);
   }
 
   /* ---------------- Payments ---------------- */
@@ -1286,7 +1330,15 @@
       paintRxMeta(null);
       return;
     }
-    if (doc) doc.value = row.doctor_id || row.doctorId || '';
+    if (doc && doc.tagName === 'SELECT') {
+      const id = row.doctor_id || row.doctorId || '';
+      if (id && ![...doc.options].some((o) => String(o.value) === String(id))) {
+        doc.insertAdjacentHTML('beforeend', `<option value="${MF.esc(id)}">${MF.esc(row.doctor_name || row.doctorName || 'Doctor')}</option>`);
+      }
+      doc.value = id ? String(id) : '';
+    } else if (doc) {
+      doc.value = row.doctor_id || row.doctorId || '';
+    }
     const cust = $('#posCustomer');
     if (cust && row.customer_id && [...cust.options].some((o) => String(o.value) === String(row.customer_id))) {
       cust.value = row.customer_id;
@@ -1304,6 +1356,11 @@
     if (!toggle || !panel || !bill) return false;
     toggle.checked = true;
     panel.hidden = false;
+    const wrap = $('#posRxToggleWrap');
+    if (wrap) {
+      wrap.hidden = false;
+      wrap.classList.add('show');
+    }
     state._rxBill = bill;
     ensureRxOption({
       id: bill.rxId,
@@ -1341,7 +1398,14 @@
       cust.value = bill.customerId;
     }
     const doc = document.getElementById('posDoctor');
-    if (doc) doc.value = bill.doctorId || '';
+    if (doc && doc.tagName === 'SELECT' && bill.doctorId) {
+      if (![...doc.options].some((o) => String(o.value) === String(bill.doctorId))) {
+        doc.insertAdjacentHTML('beforeend', `<option value="${MF.esc(bill.doctorId)}">${MF.esc(bill.doctorName || 'Doctor')}</option>`);
+      }
+      doc.value = String(bill.doctorId);
+    } else if (doc) {
+      doc.value = bill.doctorId || '';
+    }
     if (!state._rxApplied) {
       let added = 0;
       (bill.items || []).forEach((item) => {
@@ -1402,6 +1466,7 @@
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();
     renderCart();
+    fillDoctors().then(() => applyRxBill()).catch(() => {});
     loadRxOptions().catch(() => {});
     applyRxBill();
     setTimeout(applyRxBill, 400);
