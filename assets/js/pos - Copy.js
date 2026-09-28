@@ -16,9 +16,7 @@
     tender: null,        // { cashReceived, changeReturned } for the open bill
     tenderOpen: false,
     upiSig: '',
-    upiRef: '',
-    pick: 'quick',       // quick | recent | subs — left-column browse tabs
-    recent: []           // medicine ids, newest first
+    upiRef: ''
   };
 
   const $ = (s) => document.querySelector(s);
@@ -86,13 +84,6 @@
       .pos-exp.mid { background:#f6d36a; color:#6b4300; border-color:#e0b04a; }
       .pos-exp.near { background:#ffe1cc; color:#c2410c; border-color:#f5b183; }
       .pos-exp.urgent { background:#fde2e2; color:#b42318; border-color:#f3b4b4; }
-      .pos-pick-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
-      .pos-pick-tab {
-        border:1px solid #d7ebe6; background:#fff; color:#516278; border-radius:999px;
-        font-size:.75rem; font-weight:700; padding:5px 12px; cursor:pointer;
-      }
-      .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
-      .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
 
       /* Cash tender on Complete sale */
       .pos-tender-dialog { max-width: 540px; }
@@ -440,10 +431,8 @@
 
   /* ---------------- Medicine search ---------------- */
   function searchMeds(q) {
-    q = (q || '').trim().toLowerCase();
+    q = q.trim().toLowerCase();
     const box = $('#posResults');
-    const tabs = $('#posPickTabs');
-    if (tabs) tabs.hidden = !!q;
     if (!q) { box.innerHTML = emptySearch(); bindResultClicks(box); return; }
     const hits = D.medicines.filter((m) =>
       (m.name + ' ' + m.generic + ' ' + m.composition + ' ' + m.brandRef).toLowerCase().includes(q) ||
@@ -455,19 +444,12 @@
   }
 
   function emptySearch() {
-    if (state.pick === 'recent') {
-      const picks = recentMeds();
-      if (!picks.length) return `<div class="empty-state"><i class="bi bi-clock-history"></i>No recent medicines yet. Add one to the cart and it will show up here.</div>`;
-      return `${picks.map(resultCard).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-clock-history me-1"></i>Medicines added on this counter, newest first.</p>`;
-    }
-    if (state.pick === 'subs') {
-      const rows = substituteMeds();
-      if (!rows.length) return `<div class="empty-state"><i class="bi bi-arrow-left-right"></i>No in-stock substitutes for the current cart.</div>`;
-      return `${rows.map((row) => `<div class="pos-sub-for">Instead of ${MF.esc(row.from.name)}</div>${resultCard(row.med)}`).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-arrow-left-right me-1"></i>In-stock alternatives sharing the same generic group.</p>`;
-    }
-    const picks = (D.medicines || []).slice(0, 5);
+    const picks = D.medicines.slice(0, 5);
     if (!picks.length) return `<div class="empty-state"><i class="bi bi-capsule"></i>No medicines yet — add some in Medicine Master.</div>`;
-    return `${picks.map(resultCard).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-lightbulb me-1"></i>Search by medicine name, generic name, composition, batch no or barcode.</p>`;
+    return `
+      <div class="sr-group-label">Quick picks</div>
+      ${picks.map(resultCard).join('')}
+      <p class="text-2 small mt-3 mb-0"><i class="bi bi-lightbulb me-1"></i>Search by medicine name, generic name, composition, batch no or barcode.</p>`;
   }
 
   /* ---------------- Cart ---------------- */
@@ -493,61 +475,7 @@
     if (line) line.qty++;
     else state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct: 0, unit: pack ? 'pack' : 'loose' });
     if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
-    rememberRecent(medId);
     renderCart();
-  }
-
-  function rememberRecent(medId) {
-    const id = String(medId);
-    state.recent = [id, ...state.recent.filter((x) => String(x) !== id)].slice(0, 12);
-    try { sessionStorage.setItem('mf-pos-recent', JSON.stringify(state.recent)); } catch (e) { /* ignore */ }
-  }
-
-  function medBySaleLine(line) {
-    if (!line) return null;
-    const id = line.medId || line.medicineId || line.medicine_id;
-    if (id != null && MF.med(id)) return MF.med(id);
-    const name = line.medicine_name || line.name || line.medicine;
-    if (!name) return null;
-    return (D.medicines || []).find((m) => String(m.name).toLowerCase() === String(name).toLowerCase()) || null;
-  }
-
-  function recentMeds() {
-    const ids = [];
-    const push = (id) => {
-      if (id == null || id === '') return;
-      if (!ids.some((x) => String(x) === String(id))) ids.push(id);
-    };
-    state.recent.forEach(push);
-    const invoices = D.salesInvoices || D.sales || [];
-    invoices.slice().reverse().forEach((inv) => {
-      (inv.items || inv.lines || []).forEach((line) => {
-        const med = medBySaleLine(line);
-        if (med) push(med.id);
-      });
-    });
-    return ids.map((id) => MF.med(id)).filter(Boolean).slice(0, 8);
-  }
-
-  function substituteMeds() {
-    const seeds = [];
-    const pushSeed = (id) => {
-      const med = MF.med(id);
-      if (med && !seeds.some((m) => m.id == med.id)) seeds.push(med);
-    };
-    state.cart.forEach((l) => pushSeed(l.medId));
-    if (!seeds.length && state.recent.length) pushSeed(state.recent[0]);
-    const out = [];
-    const push = (m, from) => {
-      if (!m || seeds.some((s) => s.id == m.id) || out.some((x) => x.med.id == m.id)) return;
-      out.push({ med: m, from });
-    };
-    if (seeds.length) {
-      seeds.forEach((s) => MF.substitutesOf(s.id).forEach((m) => push(m, s)));
-    } else {
-      (D.medicines || []).forEach((s) => MF.substitutesOf(s.id).forEach((m) => push(m, s)));
-    }
-    return out.slice(0, 8);
   }
 
   /* "2 Strips · 20 Tabs" (or just tablets, for a loose line) — recomputed from the stepper qty. */
@@ -645,7 +573,6 @@
     renderSummary();
     renderRxChip();
     refreshPicks();
-    refreshDraftBtn();
   }
 
   /* Redraw Quick picks / search cards so strip + tablet counts follow the cart. */
@@ -944,72 +871,6 @@
   }
 
   /* ---------------- Held bills ---------------- */
-  const DRAFT_KEY = 'mf-pos-draft';
-
-  function refreshDraftBtn() {
-    const btn = $('#posDraft');
-    if (!btn) return;
-    let has = false;
-    try { has = !!localStorage.getItem(DRAFT_KEY); } catch (e) { has = false; }
-    const key = '<span class="badge bg-light text-dark border ms-1">F9</span>';
-    btn.innerHTML = (!state.cart.length && has)
-      ? `<i class="bi bi-folder2-open me-1"></i>Load Draft ${key}`
-      : `<i class="bi bi-save me-1"></i>Save Draft ${key}`;
-  }
-
-  function saveDraft() {
-    if (!state.cart.length) { loadDraft(); return; }
-    const draft = {
-      cart: state.cart,
-      customer: $('#posCustomer') ? $('#posCustomer').value : '',
-      doctor: $('#posDoctor') ? $('#posDoctor').value : '',
-      disc: $('#posGlobalDisc') ? $('#posGlobalDisc').value : '0',
-      payment: state.payment,
-    };
-    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }
-    catch (e) { MF.toast('Could not save the draft on this browser.', 'err', 'Save Draft'); return; }
-    refreshDraftBtn();
-    MF.toast('Draft saved on this counter. Clear the cart and press F9 to load it.', 'success', 'Save Draft');
-  }
-
-  function loadDraft() {
-    let draft = null;
-    try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { draft = null; }
-    if (!draft || !Array.isArray(draft.cart) || !draft.cart.length) {
-      MF.toast('No draft saved on this counter.', 'warn', 'Save Draft');
-      return;
-    }
-    state.cart = draft.cart;
-    if ($('#posCustomer') && draft.customer) $('#posCustomer').value = draft.customer;
-    if ($('#posDoctor') && draft.doctor) $('#posDoctor').value = draft.doctor;
-    if ($('#posGlobalDisc')) $('#posGlobalDisc').value = draft.disc || 0;
-    if (draft.payment) {
-      state.payment = draft.payment;
-      const radio = document.querySelector(`input[name="posPay"][value="${draft.payment}"]`);
-      if (radio) radio.checked = true;
-    }
-    renderCart();
-    MF.toast('Draft loaded into the cart.', 'success', 'Save Draft');
-  }
-
-  function printInvoice() {
-    if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
-    MF.printHtml(receiptHtml('DRAFT', calcTotals()));
-  }
-
-  async function clearCart() {
-    if (!state.cart.length) return;
-    const ok = await MF.confirm({ title: 'Clear current bill?', message: 'All cart items will be removed.', confirmText: 'Clear', tone: 'danger' });
-    if (ok) { state.cart = []; renderCart(); }
-  }
-
-  function selectPay(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    el.checked = true;
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-  }
-
   function holdBill() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to hold', 'warn'); return; }
     state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)) });
@@ -1591,27 +1452,16 @@
     if (!document.getElementById('posSearch')) return;
     await MF.boot();
 
-    try {
-      const savedRecent = JSON.parse(sessionStorage.getItem('mf-pos-recent') || '[]');
-      if (Array.isArray(savedRecent)) state.recent = savedRecent.map(String);
-    } catch (e) { /* ignore */ }
-
     $('#posSearch').addEventListener('input', (e) => searchMeds(e.target.value));
-    const pickTabs = $('#posPickTabs');
-    if (pickTabs) pickTabs.addEventListener('click', (e) => {
-      const btn = e.target.closest('[data-pick]');
-      if (!btn) return;
-      state.pick = btn.dataset.pick;
-      pickTabs.querySelectorAll('.pos-pick-tab').forEach((b) => b.classList.toggle('is-on', b === btn));
-      const input = $('#posSearch');
-      if (input && input.value) input.value = '';
-      searchMeds('');
-    });
     searchMeds('');
 
-    $('#posClearCart').addEventListener('click', clearCart);
+    $('#posClearCart').addEventListener('click', async () => {
+      if (!state.cart.length) return;
+      const ok = await MF.confirm({ title: 'Clear current bill?', message: 'All cart items will be removed.', confirmText: 'Clear', tone: 'danger' });
+      if (ok) { state.cart = []; renderCart(); }
+    });
     $('#posHold').addEventListener('click', holdBill);
-    $('#posDraft').addEventListener('click', saveDraft);
+    $('#posDraft').addEventListener('click', () => MF.toast('Draft saving isn\'t available yet — use Hold Bill instead for now.', 'info', 'Save Draft'));
     const held = $('#posHeldChip');
     if (held) held.addEventListener('click', () => { showHeldBills(); new bootstrap.Modal($('#posHeldModal')).show(); });
     const rxToggle = $('#posRxOn');
@@ -1626,7 +1476,10 @@
     if (rxSel) rxSel.addEventListener('change', () => onRxPick().catch((e) => MF.toast(e.message, 'err', 'Prescription')));
     const custSel = $('#posCustomer');
     if (custSel) custSel.addEventListener('change', () => { if ($('#posRxOn') && $('#posRxOn').checked) loadRxOptions().catch(() => {}); });
-    $('#posPrint').addEventListener('click', printInvoice);
+    $('#posPrint').addEventListener('click', () => {
+      if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
+      MF.printHtml(receiptHtml('DRAFT', calcTotals()));
+    });
     $('#posComplete').addEventListener('click', completeSale);
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();
@@ -1637,19 +1490,10 @@
     setTimeout(applyRxBill, 400);
 
     document.addEventListener('keydown', (e) => {
-      if (!document.getElementById('posSearch')) return;
-      const key = e.key;
-      if (key === 'F2') { e.preventDefault(); $('#posSearch').focus(); }
-      else if (key === 'F3') { e.preventDefault(); selectPay('posPayCash'); }
-      else if (key === 'F4') { e.preventDefault(); selectPay('posPayUpi'); }
-      else if (key === 'F5') { e.preventDefault(); selectPay('posPayCard'); }
-      else if (key === 'F6') { e.preventDefault(); selectPay('posPayCredit'); }
-      else if (key === 'F7') { e.preventDefault(); selectPay('posPaySplit'); }
-      else if (key === 'F8') { e.preventDefault(); holdBill(); }
-      else if (key === 'F9') { e.preventDefault(); saveDraft(); }
-      else if (key === 'F10') { e.preventDefault(); completeSale(); }
-      else if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === 'p' && !e.altKey) { e.preventDefault(); printInvoice(); }
-      else if (e.altKey && !e.ctrlKey && !e.metaKey && key.toLowerCase() === 'c') { e.preventDefault(); clearCart(); }
+      if (e.key === 'F2') { e.preventDefault(); $('#posSearch').focus(); }
+      else if (e.key === 'F3') { e.preventDefault(); $('#posPayCash').checked = true; $('#posPayCash').dispatchEvent(new Event('change')); }
+      else if (e.key === 'F4') { e.preventDefault(); $('#posPayUpi').checked = true; $('#posPayUpi').dispatchEvent(new Event('change')); }
+      else if (e.key === 'F10') { e.preventDefault(); completeSale(); }
     });
   });
 })();

@@ -31,6 +31,15 @@ $user   = Auth::user();
       min-width:18px; height:18px; border-radius:999px; background:var(--mf-danger); color:#fff;
       font-size:.68rem; font-weight:750; display:inline-flex; align-items:center; justify-content:center; padding:0 5px;
     }
+    .pos-pick-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
+    .pos-pick-tab {
+      border:1px solid #d7ebe6; background:#fff; color:#516278; border-radius:999px;
+      font-size:.75rem; font-weight:700; padding:5px 12px; cursor:pointer;
+      transition:background .15s ease, color .15s ease, border-color .15s ease;
+    }
+    .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
+    .pos-pick-tab:hover { border-color:var(--mf-primary); color:var(--mf-primary-dark); }
+    .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
     .pos-rx-verify {
       display:none; align-items:center; justify-content:space-between; gap:12px;
       margin-top:10px; padding:8px 12px; border-radius:999px; background:#f7f4ff; border:1px solid #e6defa;
@@ -85,6 +94,11 @@ $user   = Auth::user();
             <div class="input-group mb-2">
               <span class="input-group-text"><i class="bi bi-search"></i></span>
               <input id="posSearch" class="form-control" placeholder="Medicine name, barcode or batch…" autocomplete="off" autofocus>
+            </div>
+            <div class="pos-pick-tabs" id="posPickTabs">
+              <button type="button" class="pos-pick-tab is-on" data-pick="quick">Quick picks</button>
+              <button type="button" class="pos-pick-tab" data-pick="recent">Recent</button>
+              <button type="button" class="pos-pick-tab" data-pick="subs">Substitutes</button>
             </div>
             <div id="posResults"></div>
           </div>
@@ -145,16 +159,16 @@ $user   = Auth::user();
               <div class="row g-2 row-cols-5 mb-3">
                 <div class="col pay-opt"><input type="radio" name="posPay" id="posPayCash" value="cash" checked><label for="posPayCash"><i class="bi bi-cash"></i>Cash <small class="d-block text-muted">F3</small></label></div>
                 <div class="col pay-opt"><input type="radio" name="posPay" id="posPayUpi" value="upi"><label for="posPayUpi"><i class="bi bi-qr-code-scan"></i>UPI <small class="d-block text-muted">F4</small></label></div>
-                <div class="col pay-opt"><input type="radio" name="posPay" id="posPayCard" value="card"><label for="posPayCard"><i class="bi bi-credit-card"></i>Card</label></div>
-                <div class="col pay-opt"><input type="radio" name="posPay" id="posPayCredit" value="credit"><label for="posPayCredit"><i class="bi bi-journal-text"></i>Credit</label></div>
-                <div class="col pay-opt"><input type="radio" name="posPay" id="posPaySplit" value="split"><label for="posPaySplit"><i class="bi bi-diagram-3"></i>Split</label></div>
+                <div class="col pay-opt"><input type="radio" name="posPay" id="posPayCard" value="card"><label for="posPayCard"><i class="bi bi-credit-card"></i>Card <small class="d-block text-muted">F5</small></label></div>
+                <div class="col pay-opt"><input type="radio" name="posPay" id="posPayCredit" value="credit"><label for="posPayCredit"><i class="bi bi-journal-text"></i>Credit <small class="d-block text-muted">F6</small></label></div>
+                <div class="col pay-opt"><input type="radio" name="posPay" id="posPaySplit" value="split"><label for="posPaySplit"><i class="bi bi-diagram-3"></i>Split <small class="d-block text-muted">F7</small></label></div>
               </div>
 
               <div class="d-flex flex-wrap gap-2">
-                <button class="btn btn-light-mf" id="posHold"><i class="bi bi-hourglass-split me-1"></i>Hold Bill</button>
-                <button class="btn btn-light-mf" id="posDraft"><i class="bi bi-save me-1"></i>Save Draft</button>
-                <button class="btn btn-light-mf" id="posPrint"><i class="bi bi-printer me-1"></i>Print Invoice</button>
-                <button class="btn btn-light-mf text-danger ms-auto" id="posClearCart"><i class="bi bi-trash3 me-1"></i>Clear</button>
+                <button class="btn btn-light-mf" id="posHold" type="button"><i class="bi bi-hourglass-split me-1"></i>Hold Bill <span class="badge bg-light text-dark border ms-1">F8</span></button>
+                <button class="btn btn-light-mf" id="posDraft" type="button"><i class="bi bi-save me-1"></i>Save Draft <span class="badge bg-light text-dark border ms-1">F9</span></button>
+                <button class="btn btn-light-mf" id="posPrint" type="button"><i class="bi bi-printer me-1"></i>Print Invoice <span class="badge bg-light text-dark border ms-1">Ctrl+P</span></button>
+                <button class="btn btn-light-mf text-danger ms-auto" id="posClearCart" type="button"><i class="bi bi-trash3 me-1"></i>Clear <span class="badge bg-light text-dark border ms-1">Alt+C</span></button>
                 <button class="btn btn-mf px-4" id="posComplete"><i class="bi bi-check2-circle me-1"></i>Complete Sale <span class="badge bg-white text-success ms-2">F10</span></button>
               </div>
             </div>
