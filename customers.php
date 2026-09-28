@@ -370,6 +370,12 @@ require __DIR__ . '/middleware/auth.php';
                 <div><div class="kpi-label">Last purchase</div><div class="kpi-value num">${c.lastPurchase ? MF.fmtDate(c.lastPurchase) : '—'}</div></div>
               </div></div>
             </div>
+            <div class="row g-3 mb-3">
+              ${[['Phone', MF.esc(c.phone || '—')], ['Business', MF.esc(c.business_name || c.businessName || '—')],
+                 ['Customer type', MF.esc(kind)], ['Address', MF.esc(c.address || '—')],
+                 ['GST number', MF.esc(gstin || '—')], ['Drug licence', MF.esc(dl || '—')]].map(([k, v]) =>
+                `<div class="col-md-4 col-6"><div class="kpi-label">${k}</div><div class="fw-semibold">${v}</div></div>`).join('')}
+            </div>
             ${c.due > 0 ? `<div class="alert alert-light border d-flex align-items-center gap-2 small mb-0">
               <i class="bi bi-exclamation-triangle text-warning"></i>
               <span>Outstanding <strong>${MF.fmt(c.due)}</strong> — use "Receive Payment" to post a receipt.</span></div>` : ''}
