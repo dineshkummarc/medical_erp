@@ -170,6 +170,7 @@ require __DIR__ . '/middleware/auth.php';
       const $ = (s) => document.querySelector(s);
       let current = null;
       let editId = null;
+      let reopenProfile = false;
 
       function typeLabel(value) {
         return { retail: 'Retail Customer', wholesale: 'Wholesale Dealer', Hospital: 'Hospital', Clinic: 'Clinic', Others: 'Others' }[value] || value || '—';
@@ -308,8 +309,26 @@ require __DIR__ . '/middleware/auth.php';
         $('#cuGstin').value = row ? (row.gstin || '') : '';
         $('#cuDl').value = row ? (row.dl_no || row.dlNo || '') : '';
         $('#cuAddr').value = row ? (row.address || '') : '';
+        const profileEl = $('#cuProfileModal');
+        const profileOpen = profileEl.classList.contains('show');
+        if (row && profileOpen) {
+          reopenProfile = true;
+          profileEl.addEventListener('hidden.bs.modal', function showEdit() {
+            profileEl.removeEventListener('hidden.bs.modal', showEdit);
+            bootstrap.Modal.getOrCreateInstance($('#cuAddModal')).show();
+          });
+          bootstrap.Modal.getOrCreateInstance(profileEl).hide();
+          return;
+        }
+        reopenProfile = false;
         bootstrap.Modal.getOrCreateInstance($('#cuAddModal')).show();
       }
+
+      $('#cuAddModal').addEventListener('hidden.bs.modal', () => {
+        if (!reopenProfile || !current) return;
+        reopenProfile = false;
+        openProfile(current.id);
+      });
 
       $('#cuAddBtn').addEventListener('click', () => openForm(null));
       $('#cuEditBtn').addEventListener('click', () => { if (current) openForm(current); });
@@ -334,7 +353,17 @@ require __DIR__ . '/middleware/auth.php';
             address: saved.address || body.address,
             phone: saved.phone || body.phone
           };
-          bootstrap.Modal.getInstance($('#cuAddModal')).hide();
+          const backToProfile = reopenProfile;
+          reopenProfile = false;
+          const editEl = $('#cuAddModal');
+          const closed = new Promise((resolve) => {
+            editEl.addEventListener('hidden.bs.modal', function once() {
+              editEl.removeEventListener('hidden.bs.modal', once);
+              resolve();
+            });
+          });
+          bootstrap.Modal.getInstance(editEl).hide();
+          await closed;
           MF.toast(editId ? 'Customer updated' : name + ' added to customer master.', 'success', editId ? 'Saved' : 'Customer created');
           await MF.rehydrate();
           const id = saved.id || editId;
@@ -343,7 +372,7 @@ require __DIR__ . '/middleware/auth.php';
           else if (id) D.customers.push(Object.assign({ id, due: 0, paid: 0, totalSales: 0, lastPurchase: null }, extra));
           if (current && String(current.id) === String(id)) Object.assign(current, extra);
           renderKpis(); render();
-          if (current && String(current.id) === String(id) && $('#cuProfileModal').classList.contains('show')) openProfile(id);
+          if (backToProfile) openProfile(id);
         } catch (err) {
           MF.toast(err.message || 'Could not save the customer.', 'danger');
         }
