@@ -74,6 +74,17 @@
       .pos-stock-badge.low { background:#fff4dc; color:#a86400; }
       .pos-stock-badge.out { background:#fdeaea; color:#c62828; }
 
+      /* Expiry pill — not the Low stock yellow. Green >6 mo, amber 3–6, orange <3, red <30 days. */
+      .pos-exp {
+        display:inline-flex; align-items:center; padding:1px 8px;
+        font-size:.68rem; font-weight:700; line-height:1.5; border-radius:999px;
+        border:1px solid transparent; letter-spacing:.01em;
+      }
+      .pos-exp.far { background:#e6f6ec; color:#157347; border-color:#b7e4c7; }
+      .pos-exp.mid { background:#f6d36a; color:#6b4300; border-color:#e0b04a; }
+      .pos-exp.near { background:#ffe1cc; color:#c2410c; border-color:#f5b183; }
+      .pos-exp.urgent { background:#fde2e2; color:#b42318; border-color:#f3b4b4; }
+
       /* Cash tender on Complete sale */
       .pos-tender-dialog { max-width: 540px; }
       .pos-tender .modal-header { border-bottom: 1px solid #e4ebf3; align-items: flex-start; }
@@ -176,15 +187,22 @@
     return `${day} ${month} ${d.getFullYear()}`;
   }
 
-  /* 'danger' once expired, 'warning' inside 90 days, else 'success' */
-  function expiryTone(dateVal, alertDays = 90) {
+  /* Quick-pick expiry chip. Not the Low stock yellow.
+     green above 6 months, amber at 3–6 months, orange under 3 months, red under 30 days. */
+  function expiryTier(dateVal) {
     const exp = new Date(dateVal);
-    const today = new Date(MF.today ? MF.today() : Date.now());
-    if (isNaN(exp)) return 'success';
-    const days = Math.ceil((exp - today) / 86400000);
-    if (days < 0) return 'danger';
-    if (days <= (alertDays || 90)) return 'warning';
-    return 'success';
+    const base = new Date(MF.today ? MF.today() : Date.now());
+    if (isNaN(exp)) return { key: 'far', title: 'Expiry date unknown' };
+    const start = new Date(base.getFullYear(), base.getMonth(), base.getDate());
+    const end = new Date(exp.getFullYear(), exp.getMonth(), exp.getDate());
+    const days = Math.round((end - start) / 86400000);
+    if (days < 0) return { key: 'urgent', title: 'Expired' };
+    if (days < 30) return { key: 'urgent', title: 'Under 30 days to expiry' };
+    const plus3 = new Date(start.getFullYear(), start.getMonth() + 3, start.getDate());
+    const plus6 = new Date(start.getFullYear(), start.getMonth() + 6, start.getDate());
+    if (end < plus3) return { key: 'near', title: 'Under 3 months to expiry' };
+    if (end <= plus6) return { key: 'mid', title: '3–6 months to expiry' };
+    return { key: 'far', title: 'More than 6 months to expiry' };
   }
 
   /* Pack label (Strip, Bottle, …). subUnit / packQty describe the pieces inside it. */
@@ -326,11 +344,11 @@
   /* Batch + expiry only. Strip and tablet counts live on the stock line. */
   function batchExpiryPills(b, m) {
     if (!b) return '';
-    const tone = expiryTone(b.expiry, m && m.expiryAlertDays);
+    const tier = expiryTier(b.expiry);
     return `
       <div class="d-flex align-items-center flex-wrap gap-1 mt-1">
         <span class="badge rounded-pill bg-light text-dark" title="Batch ${MF.esc(b.batchNo)}"><i class="bi bi-upc-scan"></i> ${MF.esc(b.batchNo)}</span>
-        <span class="badge rounded-pill bg-${tone}-subtle text-${tone}-emphasis" title="Next batch to sell (FEFO)">Exp : ${fmtExpiryDate(b.expiry)}</span>
+        <span class="pos-exp ${tier.key}" title="${tier.title}">Exp : ${fmtExpiryDate(b.expiry)}</span>
       </div>`;
   }
 
