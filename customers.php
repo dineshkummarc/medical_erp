@@ -15,6 +15,14 @@ require __DIR__ . '/middleware/auth.php';
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
+  <style>
+    .cu-modal .form-control, .cu-modal .form-select { border-radius:10px; min-height:40px; border-color:#e5e7eb; transition:border-color .15s ease, box-shadow .15s ease; }
+    .cu-modal .form-control:hover, .cu-modal .form-select:hover { border-color:var(--mf-primary); }
+    .cu-modal .form-control:focus, .cu-modal .form-select:focus { border-color:var(--mf-primary); box-shadow:0 0 0 3px rgba(23,107,91,.16); }
+    .cu-save { border-radius:10px; }
+    .cu-save:hover { transform:translateY(-1px); }
+    .cu-addr { display:block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#516278; }
+  </style>
 </head>
 <body data-page="customers">
   <div class="mf-layout">
@@ -39,7 +47,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="row g-2">
             <div class="col-md-6">
               <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
-              <input class="form-control" id="cuSearch" placeholder="Search name or phone…"></div>
+              <input class="form-control" id="cuSearch" placeholder="Search name, business, phone…"></div>
             </div>
             <div class="col-md-4">
               <select class="form-select" id="cuDue">
@@ -56,7 +64,7 @@ require __DIR__ . '/middleware/auth.php';
             <table class="table table-mf">
               <thead>
                 <tr>
-                  <th>Customer Name</th><th>Phone</th>
+                  <th>Customer Name</th><th>Phone</th><th>Address</th>
                   <th class="text-end">Total Sales</th><th class="text-end">Paid</th><th class="text-end">Due</th>
                   <th>Last Purchase</th><th class="text-end">Actions</th>
                 </tr>
@@ -71,12 +79,23 @@ require __DIR__ . '/middleware/auth.php';
   </div>
 
   <!-- Add customer modal -->
-  <div class="modal fade" id="cuAddModal" tabindex="-1">
+  <div class="modal fade cu-modal" id="cuAddModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Add Customer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-          <div class="mb-2"><label class="form-label">Customer Name <span class="req">*</span></label><input class="form-control" id="cuName"></div>
+          <div class="mb-2"><label class="form-label">Customer Name <span class="req">*</span></label><input class="form-control" id="cuName" placeholder="Contact person"></div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label" for="cuOrg">Category</label>
+              <select class="form-select" id="cuOrg">
+                <option value="">— select —</option>
+                <option value="Hospital">Hospital</option>
+                <option value="Clinic">Clinic</option>
+                <option value="Others">Others</option>
+              </select>
+            </div>
+            <div class="col-6"><label class="form-label" for="cuBiz">Business name</label><input class="form-control" id="cuBiz" placeholder="Hospital, clinic or shop"></div>
+          </div>
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">Phone</label><input class="form-control" id="cuPhone" placeholder="98xxx xxxxx"></div>
             <div class="col-6"><label class="form-label">Type</label>
@@ -90,7 +109,7 @@ require __DIR__ . '/middleware/auth.php';
         </div>
         <div class="modal-footer">
           <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-mf" id="cuAddSave"><i class="bi bi-check2 me-1"></i>Save Customer</button>
+          <button class="btn btn-mf cu-save" id="cuAddSave"><i class="bi bi-check2 me-1"></i>Save Customer</button>
         </div>
       </div>
     </div>
@@ -158,7 +177,8 @@ require __DIR__ . '/middleware/auth.php';
         const q = $('#cuSearch').value.toLowerCase();
         const due = $('#cuDue').value;
         return list().filter((c) => {
-          if (q && !(c.name + (c.phone || '')).toLowerCase().includes(q)) return false;
+          const biz = c.business_name || c.businessName || '';
+          if (q && !(c.name + biz + (c.phone || '') + (c.address || '')).toLowerCase().includes(q)) return false;
           if (due === 'due' && c.due <= 0) return false;
           if (due === 'clear' && c.due > 0) return false;
           return true;
@@ -184,10 +204,14 @@ require __DIR__ . '/middleware/auth.php';
       function render() {
         const l = filtered();
         $('#cuCount').textContent = `${list().length} customer(s)`;
-        $('#cuBody').innerHTML = l.map((c) => `
+        $('#cuBody').innerHTML = l.map((c) => {
+          const biz = c.business_name || c.businessName || '';
+          const addr = String(c.address || '').replace(/\s+/g, ' ').trim();
+          return `
           <tr>
-            <td><div class="td-title">${MF.esc(c.name)}</div><div class="td-sub">${MF.esc(c.address || '')}</div></td>
+            <td><div class="td-title">${MF.esc(c.name)}</div>${biz ? `<div class="td-sub">${MF.esc(biz)}</div>` : ''}</td>
             <td class="num">${MF.esc(c.phone || '—')}</td>
+            <td>${addr ? `<span class="cu-addr" title="${MF.esc(addr)}">${MF.esc(addr)}</span>` : '<span class="text-2">—</span>'}</td>
             <td class="text-end num">${MF.fmt(c.totalSales)}</td>
             <td class="text-end num text-success">${MF.fmt(c.paid)}</td>
             <td class="text-end num fw-semibold ${c.due ? 'text-danger' : ''}">${MF.fmt(c.due)}</td>
@@ -195,7 +219,8 @@ require __DIR__ . '/middleware/auth.php';
             <td class="text-end row-actions">
               <button class="btn btn-sm btn-mf-soft" data-view="${c.id}">Profile</button>
             </td>
-          </tr>`).join('') || `<tr><td colspan="7"><div class="empty-state"><i class="bi bi-people"></i>No customers match the filters.</div></td></tr>`;
+          </tr>`;
+        }).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="bi bi-people"></i>No customers match the filters.</div></td></tr>`;
         $('#cuBody').querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => openProfile(b.dataset.view)));
       }
 
@@ -212,7 +237,8 @@ require __DIR__ . '/middleware/auth.php';
         $('#cuProfileBody').innerHTML = `
           <div class="tab-pane fade show active" id="cuTabOverview">
             <div class="row g-3 mb-3">
-              ${[['Phone', c.phone || '—'], ['Address', c.address || '—'],
+              ${[['Phone', MF.esc(c.phone || '—')], ['Business', MF.esc(c.business_name || c.businessName || '—')],
+                 ['Category', MF.esc(c.org_type || c.orgType || '—')], ['Address', MF.esc(c.address || '—')],
                  ['Total Sales', MF.fmt(c.totalSales)], ['Received', MF.fmt(c.paid)],
                  ['Outstanding Due', MF.fmt(c.due)], ['Last Purchase', c.lastPurchase ? MF.fmtDate(c.lastPurchase) : '—']].map(([k, v]) =>
                 `<div class="col-md-4 col-6"><div class="kpi-label">${k}</div><div class="fw-semibold num">${v}</div></div>`).join('')}
@@ -261,21 +287,32 @@ require __DIR__ . '/middleware/auth.php';
       });
 
       $('#cuAddBtn').addEventListener('click', () => {
-        ['cuName', 'cuPhone', 'cuGstin', 'cuDl', 'cuAddr'].forEach((id) => $('#' + id).value = '');
+        ['cuName', 'cuBiz', 'cuPhone', 'cuGstin', 'cuDl', 'cuAddr'].forEach((id) => $('#' + id).value = '');
         $('#cuType').value = 'retail';
+        $('#cuOrg').value = '';
         new bootstrap.Modal($('#cuAddModal')).show();
       });
       $('#cuAddSave').addEventListener('click', async () => {
         const name = $('#cuName').value.trim();
         if (!name) { MF.toast('Customer name is required.', 'err', 'Validation'); return; }
         try {
-          await MF.Api.post('customers.php', {
+          const saved = await MF.Api.post('customers.php', {
             name, type: $('#cuType').value, phone: $('#cuPhone').value.trim(),
+            business_name: $('#cuBiz').value.trim(), org_type: $('#cuOrg').value,
             gstin: $('#cuGstin').value.trim(), dlNo: $('#cuDl').value.trim(), address: $('#cuAddr').value.trim(),
           });
+          const extra = {
+            business_name: saved.business_name || $('#cuBiz').value.trim(),
+            org_type: saved.org_type || $('#cuOrg').value,
+            address: saved.address || $('#cuAddr').value.trim(),
+            phone: saved.phone || $('#cuPhone').value.trim()
+          };
           bootstrap.Modal.getInstance($('#cuAddModal')).hide();
           MF.toast(name + ' added to customer master.', 'success', 'Customer created');
           await MF.rehydrate();
+          const hit = (D.customers || []).find((c) => String(c.id) === String(saved.id));
+          if (hit) Object.assign(hit, extra);
+          else if (saved.id) D.customers.push(Object.assign({ id: saved.id, name, type: $('#cuType').value, due: 0, paid: 0, totalSales: 0, lastPurchase: null }, extra));
           renderKpis(); render();
         } catch (err) {
           MF.toast(err.message || 'Could not add customer.', 'danger');
@@ -284,6 +321,18 @@ require __DIR__ . '/middleware/auth.php';
 
       ['cuSearch', 'cuDue'].forEach((id) => $('#' + id).addEventListener('input', render));
 
+      async function loadProfiles() {
+        if (!MF.Api.live) return;
+        try {
+          const res = await MF.Api.get('customers.php');
+          const rows = Array.isArray(res.data) ? res.data : [];
+          rows.forEach((row) => {
+            const hit = (D.customers || []).find((c) => String(c.id) === String(row.id));
+            if (hit) Object.assign(hit, { business_name: row.business_name || '', org_type: row.org_type || '', address: row.address || hit.address || '' });
+          });
+        } catch (e) { /* ledger still uses the bootstrapped customers */ }
+      }
+      loadProfiles().then(() => { renderKpis(); render(); });
       renderKpis(); render();
     })();
     });
