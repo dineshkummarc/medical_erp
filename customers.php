@@ -23,6 +23,7 @@ require __DIR__ . '/middleware/auth.php';
     .cu-save:hover, .cu-edit:hover { transform:translateY(-1px); }
     .cu-edit:hover { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
     .cu-addr { display:block; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:#516278; }
+    .cu-type { display:inline-flex; align-items:center; margin-top:4px; border:1px solid #d7ebe6; background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-radius:4px; padding:1px 6px; font-size:.72rem; font-weight:700; letter-spacing:.01em; }
   </style>
 </head>
 <body data-page="customers">
@@ -48,7 +49,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="row g-2">
             <div class="col-md-6">
               <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
-              <input class="form-control" id="cuSearch" placeholder="Search name, business, phone…"></div>
+              <input class="form-control" id="cuSearch" placeholder="Search name, business, phone, GSTIN…"></div>
             </div>
             <div class="col-md-4">
               <select class="form-select" id="cuDue">
@@ -65,7 +66,7 @@ require __DIR__ . '/middleware/auth.php';
             <table class="table table-mf">
               <thead>
                 <tr>
-                  <th>Customer Name</th><th>Phone</th><th>Address</th>
+                  <th>Customer Name</th><th>Phone</th><th>GSTIN</th><th>Address</th>
                   <th class="text-end">Total Sales</th><th class="text-end">Paid</th><th class="text-end">Due</th>
                   <th>Last Purchase</th><th class="text-end">Actions</th>
                 </tr>
@@ -201,7 +202,7 @@ require __DIR__ . '/middleware/auth.php';
         const due = $('#cuDue').value;
         return list().filter((c) => {
           const biz = c.business_name || c.businessName || '';
-          if (q && !(c.name + biz + (c.phone || '') + (c.address || '')).toLowerCase().includes(q)) return false;
+          if (q && !(c.name + biz + (c.phone || '') + (c.gstin || '') + (c.address || '') + typeLabel(c.type)).toLowerCase().includes(q)) return false;
           if (due === 'due' && c.due <= 0) return false;
           if (due === 'clear' && c.due > 0) return false;
           return true;
@@ -230,10 +231,13 @@ require __DIR__ . '/middleware/auth.php';
         $('#cuBody').innerHTML = l.map((c) => {
           const biz = c.business_name || c.businessName || '';
           const addr = String(c.address || '').replace(/\s+/g, ' ').trim();
+          const kind = typeLabel(c.type);
+          const gstin = c.gstin || '';
           return `
           <tr>
             <td><div class="td-title">${MF.esc(c.name)}</div>${biz ? `<div class="td-sub">${MF.esc(biz)}</div>` : ''}</td>
-            <td class="num">${MF.esc(c.phone || '—')}</td>
+            <td><div class="num">${MF.esc(c.phone || '—')}</div>${kind && kind !== '—' ? `<span class="cu-type">${MF.esc(kind)}</span>` : ''}</td>
+            <td class="num">${gstin ? MF.esc(gstin) : '<span class="text-2">—</span>'}</td>
             <td>${addr ? `<span class="cu-addr" title="${MF.esc(addr)}">${MF.esc(addr)}</span>` : '<span class="text-2">—</span>'}</td>
             <td class="text-end num">${MF.fmt(c.totalSales)}</td>
             <td class="text-end num text-success">${MF.fmt(c.paid)}</td>
@@ -243,7 +247,7 @@ require __DIR__ . '/middleware/auth.php';
               <button class="btn btn-sm btn-mf-soft" data-view="${c.id}">Profile</button>
             </td>
           </tr>`;
-        }).join('') || `<tr><td colspan="8"><div class="empty-state"><i class="bi bi-people"></i>No customers match the filters.</div></td></tr>`;
+        }).join('') || `<tr><td colspan="9"><div class="empty-state"><i class="bi bi-people"></i>No customers match the filters.</div></td></tr>`;
         $('#cuBody').querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => openProfile(b.dataset.view)));
       }
 
