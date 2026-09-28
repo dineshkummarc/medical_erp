@@ -11,8 +11,9 @@ if (!Auth::check()) {
 }
 
 /**
- * Customer master. Saves the Add Customer modal, including category and business name.
- * Extra columns come from database/migrations/2026_09_28_customer_profile.sql.
+ * Customer master. Saves and edits the customer form, including business name
+ * and customer type (retail, wholesale, Hospital, Clinic, Others).
+ * business_name comes from database/migrations/2026_09_28_customer_profile.sql.
  */
 
 function queryRows(string $sql): array
@@ -41,20 +42,18 @@ function clip(string $value, int $max): string
     return substr($value, 0, $max);
 }
 
-function orgType($value): string
+function customerType($value): string
 {
-    $text = trim((string) $value);
-    foreach (['Hospital', 'Clinic', 'Others'] as $allowed) {
-        if (strcasecmp($text, $allowed) === 0) {
-            return $allowed;
-        }
-    }
-    return '';
-}
-
-function saleType($value): string
-{
-    return strcasecmp(trim((string) $value), 'wholesale') === 0 ? 'wholesale' : 'retail';
+    $key = strtolower(trim((string) $value));
+    $map = [
+        'retail' => 'retail',
+        'wholesale' => 'wholesale',
+        'hospital' => 'Hospital',
+        'clinic' => 'Clinic',
+        'others' => 'Others',
+        'other' => 'Others',
+    ];
+    return $map[$key] ?? 'retail';
 }
 
 function shapeCustomer(array $row): array
@@ -65,8 +64,6 @@ function shapeCustomer(array $row): array
         'business_name' => (string) ($row['business_name'] ?? ''),
         'businessName' => (string) ($row['business_name'] ?? ''),
         'type' => (string) ($row['type'] ?? 'retail'),
-        'org_type' => (string) ($row['org_type'] ?? ''),
-        'orgType' => (string) ($row['org_type'] ?? ''),
         'phone' => (string) ($row['phone'] ?? ''),
         'gstin' => (string) ($row['gstin'] ?? ''),
         'dl_no' => (string) ($row['dl_no'] ?? ''),
@@ -78,7 +75,7 @@ function shapeCustomer(array $row): array
 
 function listRows(): array
 {
-    $extended = 'SELECT id, name, business_name, type, org_type, phone, gstin, dl_no, address, created_at
+    $extended = 'SELECT id, name, business_name, type, phone, gstin, dl_no, address, created_at
         FROM customers ORDER BY name ASC, id ASC';
     try {
         return queryRows($extended);
@@ -103,8 +100,7 @@ if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $name = clip((string) ($input['name'] ?? ''), 150);
     $business = clip((string) ($input['business_name'] ?? $input['businessName'] ?? ''), 150);
-    $org = orgType($input['org_type'] ?? $input['orgType'] ?? $input['category'] ?? '');
-    $type = saleType($input['type'] ?? 'retail');
+    $type = customerType($input['type'] ?? 'retail');
     $phone = clip((string) ($input['phone'] ?? ''), 20);
     $gstin = clip((string) ($input['gstin'] ?? ''), 20);
     $dl = clip((string) ($input['dl_no'] ?? $input['dlNo'] ?? ''), 50);
@@ -114,9 +110,9 @@ if ($method === 'POST') {
     }
     try {
         try {
-            queryRows('INSERT INTO customers (name, business_name, type, org_type, phone, gstin, dl_no, address)
+            queryRows('INSERT INTO customers (name, business_name, type, phone, gstin, dl_no, address)
                 VALUES (' . sqlStr($name) . ', ' . sqlNull($business) . ', ' . sqlStr($type) . ', '
-                . sqlNull($org) . ', ' . sqlNull($phone) . ', ' . sqlNull($gstin) . ', '
+                . sqlNull($phone) . ', ' . sqlNull($gstin) . ', '
                 . sqlNull($dl) . ', ' . sqlNull($address) . ')');
         } catch (Throwable $e) {
             queryRows('INSERT INTO customers (name, type, phone, gstin, dl_no, address)
@@ -138,9 +134,67 @@ if ($method === 'POST') {
         'id' => $id,
         'name' => $name,
         'business_name' => $business,
-        'org_type' => $org,
         'address' => $address,
         'phone' => $phone,
+        'type' => $type,
+    ]);
+}
+
+if ($method === 'PUT') {
+    $input = json_decode(file_get_contents('php://input'), true) ?? [];
+    $id = (int) ($input['id'] ?? $_GET['id'] ?? 0);
+    $name = clip((string) ($input['name'] ?? ''), 150);
+    $business = clip((string) ($input['business_name'] ?? $input['businessName'] ?? ''), 150);
+    $type = customerType($input['type'] ?? 'retail');
+    $phone = clip((string) ($input['phone'] ?? ''), 20);
+    $gstin = clip((string) ($input['gstin'] ?? ''), 20);
+    $dl = clip((string) ($input['dl_no'] ?? $input['dlNo'] ?? ''), 50);
+    $address = clip((string) ($input['address'] ?? ''), 255);
+    if (!$id) {
+        Json::error('Customer not found.', 404);
+    }
+    if ($name === '') {
+        Json::error('Customer name is required.', 422);
+    }
+    $found = queryRows('SELECT id FROM customers WHERE id = ' . $id . ' LIMIT 1');
+    if (!$found) {
+        Json::error('Customer not found.', 404);
+    }
+    try {
+        try {
+            queryRows('UPDATE customers SET
+                name = ' . sqlStr($name) . ',
+                business_name = ' . sqlNull($business) . ',
+                type = ' . sqlStr($type) . ',
+                phone = ' . sqlNull($phone) . ',
+                gstin = ' . sqlNull($gstin) . ',
+                dl_no = ' . sqlNull($dl) . ',
+                address = ' . sqlNull($address) . '
+                WHERE id = ' . $id);
+        } catch (Throwable $e) {
+            queryRows('UPDATE customers SET
+                name = ' . sqlStr($name) . ',
+                type = ' . sqlStr($type) . ',
+                phone = ' . sqlNull($phone) . ',
+                gstin = ' . sqlNull($gstin) . ',
+                dl_no = ' . sqlNull($dl) . ',
+                address = ' . sqlNull($address) . '
+                WHERE id = ' . $id);
+        }
+    } catch (Throwable $e) {
+        Json::error('Could not update the customer. Run database/migrations/2026_09_28_customer_profile.sql if the type could not be saved.', 500);
+    }
+    if (class_exists('Audit')) {
+        Audit::log('CUSTOMER_UPDATE', $name);
+    }
+    Json::ok([
+        'id' => $id,
+        'name' => $name,
+        'business_name' => $business,
+        'address' => $address,
+        'phone' => $phone,
+        'gstin' => $gstin,
+        'dl_no' => $dl,
         'type' => $type,
     ]);
 }
