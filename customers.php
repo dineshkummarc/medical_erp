@@ -171,6 +171,19 @@ require __DIR__ . '/middleware/auth.php';
       let current = null;
       let editId = null;
       let reopenProfile = false;
+      const savedRows = {};
+
+      function remember(id, fields) {
+        if (id == null || id === '') return;
+        savedRows[String(id)] = Object.assign({}, savedRows[String(id)] || {}, fields);
+      }
+
+      function applySaved() {
+        (D.customers || []).forEach((c) => {
+          const saved = savedRows[String(c.id)];
+          if (saved) Object.assign(c, saved);
+        });
+      }
 
       function typeLabel(value) {
         return { retail: 'Retail Customer', wholesale: 'Wholesale Dealer', Hospital: 'Hospital', Clinic: 'Clinic', Others: 'Others' }[value] || value || '—';
@@ -290,6 +303,7 @@ require __DIR__ . '/middleware/auth.php';
           bootstrap.Modal.getInstance($('#cuProfileModal')).hide();
           MF.toast(`${MF.fmt(amt)} received from ${current.name}.`, 'success', 'Payment recorded');
           await MF.rehydrate();
+          applySaved();
           renderKpis(); render();
         } catch (err) {
           MF.toast(err.message || 'Could not record payment.', 'danger');
@@ -334,6 +348,7 @@ require __DIR__ . '/middleware/auth.php';
       $('#cuEditBtn').addEventListener('click', () => { if (current) openForm(current); });
       $('#cuAddSave').addEventListener('click', async () => {
         const name = $('#cuName').value.trim();
+        const savingId = editId;
         if (!name) { MF.toast('Customer name is required.', 'err', 'Validation'); return; }
         const body = {
           name, type: $('#cuType').value, phone: $('#cuPhone').value.trim(),
@@ -341,18 +356,22 @@ require __DIR__ . '/middleware/auth.php';
           gstin: $('#cuGstin').value.trim(), dlNo: $('#cuDl').value.trim(), address: $('#cuAddr').value.trim(),
         };
         try {
-          const saved = editId
-            ? await MF.Api.put('customers.php', Object.assign({ id: editId }, body))
+          const saved = savingId
+            ? await MF.Api.put('customers.php', Object.assign({ id: savingId }, body))
             : await MF.Api.post('customers.php', body);
+          const id = saved.id || savingId;
           const extra = {
             name,
-            type: saved.type || body.type,
-            business_name: saved.business_name || body.business_name,
-            gstin: saved.gstin || body.gstin,
-            dl_no: saved.dl_no || body.dlNo,
-            address: saved.address || body.address,
-            phone: saved.phone || body.phone
+            type: body.type,
+            business_name: body.business_name,
+            businessName: body.business_name,
+            gstin: body.gstin,
+            dl_no: body.dlNo,
+            dlNo: body.dlNo,
+            address: body.address,
+            phone: body.phone
           };
+          remember(id, extra);
           const backToProfile = reopenProfile;
           reopenProfile = false;
           const editEl = $('#cuAddModal');
@@ -364,9 +383,10 @@ require __DIR__ . '/middleware/auth.php';
           });
           bootstrap.Modal.getInstance(editEl).hide();
           await closed;
-          MF.toast(editId ? 'Customer updated' : name + ' added to customer master.', 'success', editId ? 'Saved' : 'Customer created');
-          await MF.rehydrate();
-          const id = saved.id || editId;
+          MF.toast(savingId ? 'Customer updated' : name + ' added to customer master.', 'success', savingId ? 'Saved' : 'Customer created');
+          if (MF.rehydrate) await MF.rehydrate();
+          await loadProfiles();
+          applySaved();
           const hit = (D.customers || []).find((c) => String(c.id) === String(id));
           if (hit) Object.assign(hit, extra);
           else if (id) D.customers.push(Object.assign({ id, due: 0, paid: 0, totalSales: 0, lastPurchase: null }, extra));
@@ -387,18 +407,17 @@ require __DIR__ . '/middleware/auth.php';
           const rows = Array.isArray(res.data) ? res.data : [];
           rows.forEach((row) => {
             const hit = (D.customers || []).find((c) => String(c.id) === String(row.id));
-            if (hit) Object.assign(hit, {
-              business_name: row.business_name || '',
-              type: row.type || hit.type,
-              phone: row.phone || hit.phone || '',
-              gstin: row.gstin || hit.gstin || '',
-              dl_no: row.dl_no || hit.dl_no || '',
-              address: row.address || hit.address || ''
+            if (!hit) return;
+            ['name', 'phone', 'address', 'type', 'gstin', 'business_name', 'dl_no'].forEach((key) => {
+              if (Object.prototype.hasOwnProperty.call(row, key) && row[key] != null && row[key] !== '') hit[key] = row[key];
             });
+            if (row.businessName && !hit.business_name) hit.business_name = row.businessName;
+            if (row.dlNo && !hit.dl_no) hit.dl_no = row.dlNo;
           });
+          applySaved();
         } catch (e) { /* ledger still uses the bootstrapped customers */ }
       }
-      loadProfiles().then(() => { renderKpis(); render(); });
+      loadProfiles().then(() => { applySaved(); renderKpis(); render(); });
       renderKpis(); render();
     })();
     });
