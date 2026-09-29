@@ -38,10 +38,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     /* Packaging & Identification — grouped, icon fields. Every original field stays. */
     .mm-pack { display:grid; gap:12px; }
     .mm-pack-group {
-      background:#f8fafc;
-      border:1px solid #e7edf4;
-      border-radius:14px;
-      padding:12px 14px 14px;
+      background:transparent;
+      border:0;
+      border-radius:0;
+      padding:0;
     }
     .mm-pack-head {
       display:flex; align-items:center; gap:8px;
@@ -61,11 +61,23 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-input > i { color:#8aa0b8; font-size:1rem; flex:0 0 auto; }
     .mm-input .form-control,
     .mm-input .form-select {
-      border:0; background:transparent; box-shadow:none;
-      padding-left:0; height:40px; min-height:40px;
+      border:0 !important; background:transparent !important; box-shadow:none !important;
+      border-radius:0 !important; outline:0; padding-left:0; height:40px; min-height:40px;
     }
     .mm-input .form-control:focus,
-    .mm-input .form-select:focus { box-shadow:none; background:transparent; }
+    .mm-input .form-select:focus { box-shadow:none !important; background:transparent !important; border-color:transparent !important; }
+    .mm-input > i { border:0; background:transparent; box-shadow:none; }
+    .mm-barcode-row { display:flex; align-items:stretch; gap:8px; }
+    .mm-barcode-row .mm-input { flex:1; min-width:0; }
+    .mm-gen {
+      border:1px solid #176B5B; background:#fff; color:#176B5B; border-radius:10px;
+      font-weight:650; padding:0 14px; white-space:nowrap;
+    }
+    .mm-gen:hover { background:#E6F1EE; color:#0F4D42; }
+    .mm-text-btn {
+      border:0; background:transparent; color:#176B5B; font:inherit; font-weight:650;
+      padding:0; text-decoration:underline;
+    }
     .mm-input .form-select {
       appearance:none; -webkit-appearance:none; -moz-appearance:none;
       background-image:none !important; cursor:pointer; padding-right:.4rem;
@@ -429,12 +441,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-fingerprint"></i> Identification</div>
               <div class="row g-3">
-                <div class="col-md-6 col-12">
+                <div class="col-md-8 col-12">
                   <label class="form-label" for="fBarcode">Barcode</label>
-                  <div class="mm-input">
-                    <i class="bi bi-upc-scan"></i>
-                    <input class="form-control" id="fBarcode" placeholder="8901234…">
+                  <div class="mm-barcode-row">
+                    <div class="mm-input">
+                      <i class="bi bi-upc-scan"></i>
+                      <input class="form-control" id="fBarcode" placeholder="8901234…">
+                    </div>
+                    <button type="button" class="mm-gen" id="fBarcodeGen">Generate</button>
                   </div>
+                  <div class="mm-hint">No barcode on the pack? Generate an internal one and <button type="button" class="mm-text-btn" id="fBarcodePrint">print a label</button>.</div>
                   <div id="fBarcodeWarn" class="small mt-1" style="display:none"></div>
                 </div>
               </div>
@@ -451,7 +467,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   </div>
                 </div>
                 <div class="col-lg-3 col-md-4 col-6">
-                  <label class="form-label" for="fUnit">Form</label>
+                  <label class="form-label" for="fUnit">Form <span class="req">*</span></label>
                   <div class="mm-input">
                     <i class="bi bi-tag"></i>
                     <select class="form-select" id="fUnit">
@@ -505,7 +521,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <label class="form-label" for="fBoxUnit">Box Unit</label>
                   <div class="mm-input">
                     <i class="bi bi-box"></i>
-                    <input class="form-control" id="fBoxUnit" placeholder="Box" value="Box">
+                    <input class="form-control" id="fBoxUnit" placeholder="e.g. Box">
                   </div>
                 </div>
               </div>
@@ -515,15 +531,15 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           <div class="mm-section-title">Pricing &amp; Tax</div>
           <div class="row g-3 align-items-start mm-align">
             <div class="col-md-3 col-6"><label class="form-label">GST %</label>
-              <select class="form-select" id="fGst"><option>5</option><option selected>12</option><option>18</option></select></div>
-            <div class="col-md-3 col-6"><label class="form-label" for="fMrp">MRP (₹)</label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
+              <select class="form-select" id="fGst"><option value="">Select GST</option><option>5</option><option>12</option><option>18</option></select></div>
+            <div class="col-md-3 col-6"><label class="form-label" for="fMrp">MRP (₹) <span class="req">*</span></label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
             <div class="col-md-3 col-6"><label class="form-label" for="fPtr">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr" placeholder="e.g. 80.00"></div>
             <div class="col-md-3 col-6"><label class="form-label" for="fRetail">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"></div>
             <div class="col-md-3 col-6"><label class="form-label" for="fWholesale">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale" placeholder="e.g. 90.00"></div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fDisc">Default discount</label>
               <div class="mm-per">
-                <input type="number" min="0" step="0.01" id="fDisc" value="0" placeholder="0">
+                <input type="number" min="0" step="0.01" id="fDisc" placeholder="0">
                 <div class="mm-disc-switch" id="fDiscSwitch" role="group" aria-label="Discount type">
                   <button type="button" class="is-on" data-disc="percent" aria-pressed="true">%</button>
                   <button type="button" data-disc="rupee" aria-pressed="false">₹</button>
@@ -551,6 +567,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <input class="form-control" id="fBatchNo" placeholder="e.g. B24091">
             </div>
             <div class="col-md-3 col-6">
+              <label class="form-label" for="fExpiry">Expiry (month)</label>
+              <input class="form-control" id="fExpiry" inputmode="numeric" maxlength="7" placeholder="04-2028" autocomplete="off">
+              <div class="mm-field-hint" id="fExpiryHint"></div>
+            </div>
+            <div class="col-md-3 col-6">
               <label class="form-label" for="fStockQty">Quantity</label>
               <div class="mm-per">
                 <input type="number" min="0" id="fStockQty" value="" placeholder="e.g. 20">
@@ -559,7 +580,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             </div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fMin">Minimum Stock</label>
-              <input type="number" class="form-control" id="fMin" value="50" placeholder="e.g. 10">
+              <input type="number" class="form-control" id="fMin" placeholder="e.g. 10">
             </div>
             <div class="col-md-3 col-12">
               <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
@@ -568,7 +589,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-md-6 col-12">
               <label class="form-label" for="fReorder">Reorder level</label>
               <div class="mm-per">
-                <input type="number" min="0" id="fReorder" value="5" placeholder="e.g. 5">
+                <input type="number" min="0" id="fReorder" placeholder="e.g. 5">
                 <span class="mm-per-unit" id="fReorderUnit">units</span>
               </div>
               <div class="mm-field-hint">Shows "Low stock" at or below this.</div>
@@ -762,7 +783,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 ['Pack', mmTxt(spec ? spec.unit : m.unit)],
                 packRow,
                 ['Loose sale', spec && spec.whole ? 'No' : (m.allowLoose ? 'Allowed' : 'No')],
-                ['Box', mmTxt([m.boxQty, m.boxUnit || 'Box'].filter((x) => x != null && x !== '').join(' '))],
+                ['Box', mmTxt([m.boxQty, m.boxUnit].filter((x) => x != null && x !== '').join(' '))],
+                ['Expiry', expiryHint(expiryToField(m.expiry)) || mmTxt(expiryToField(m.expiry))],
                 ['Schedule', mmTxt(m.schedule)],
                 ['Rx required', rxNeed ? 'Yes' : 'No']
               ])}
@@ -807,10 +829,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBatchNo').value = m?.batchNo || (m ? (MF.batchesOf(m.id)[0]?.batchNo || '') : '');
         $('#fStockQty').value = m?.openingQty ?? '';
         syncPackUnit();
-        $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
-        $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC');
+        $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || '';
+        $('#fGst').value = m && m.gst != null && m.gst !== '' ? String(m.gst) : ''; setSchedule(m?.schedule || 'OTC');
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
-        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fDisc').value = m?.defaultDiscount ?? 0; setDiscType(m?.discountType === 'rupee' ? 'rupee' : 'percent', false); $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 5; $('#fRack').value = m?.rack || '';
+        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fDisc').value = m?.defaultDiscount ?? ''; setDiscType(m?.discountType === 'rupee' ? 'rupee' : 'percent', false); $('#fMin').value = m?.minStock ?? ''; $('#fReorder').value = m?.reorderLevel ?? ''; $('#fRack').value = m?.rack || '';
+        $('#fExpiry').value = expiryToField(m?.expiry || (m ? (MF.batchesOf(m.id)[0]?.expiry || '') : ''));
+        syncExpiryHint();
         $('#fExpiryAlert').value = m?.expiryAlertDays ?? '';
         $('#fActive').checked = m ? m.status === 'Active' : true;
         $('#fNameWarn').style.display = 'none'; $('#fBarcodeWarn').style.display = 'none';
@@ -824,6 +848,73 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         H1: { hint: 'Needs a prescription and goes into the H1 register. Billing will require doctor and patient details.', rx: true },
         X: { hint: 'Restricted drug. Sale needs a prescription and special records.', rx: true }
       };
+      const EXPIRY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      function expiryToField(value) {
+        if (!value) return '';
+        const text = String(value);
+        const iso = /^(\d{4})-(\d{2})/.exec(text);
+        if (iso) return iso[2] + '-' + iso[1];
+        return /^(\d{2})-(\d{4})$/.test(text) ? text : '';
+      }
+      function fieldToExpiry(text) {
+        const match = /^(\d{2})-(\d{4})$/.exec(String(text || '').trim());
+        if (!match) return '';
+        const month = +match[1];
+        if (month < 1 || month > 12) return '';
+        return match[2] + '-' + match[1] + '-01';
+      }
+      function expiryHint(text) {
+        const match = /^(\d{2})-(\d{4})$/.exec(String(text || '').trim());
+        if (!match) return '';
+        const month = +match[1];
+        if (month < 1 || month > 12) return '';
+        return 'Expires ' + EXPIRY_MONTHS[month - 1] + ' ' + match[2] + '.';
+      }
+      function syncExpiryHint() {
+        const el = $('#fExpiryHint');
+        if (!el) return;
+        const raw = $('#fExpiry') ? $('#fExpiry').value.trim() : '';
+        el.textContent = raw ? (expiryHint(raw) || 'Use month and year, like 04-2028.') : '';
+      }
+      function randomBarcode() {
+        let body = '20';
+        for (let i = 0; i < 10; i++) body += Math.floor(Math.random() * 10);
+        let sum = 0;
+        for (let i = 0; i < 12; i++) sum += (+body[i]) * (i % 2 ? 3 : 1);
+        return body + ((10 - (sum % 10)) % 10);
+      }
+      function barcodeSvg(code) {
+        const digits = String(code || '').replace(/\D/g, '');
+        const L = ['0001101','0011001','0010011','0111101','0100011','0110001','0101111','0111011','0110111','0001011'];
+        const G = ['0100111','0110011','0011011','0100001','0011101','0111001','0000101','0010001','0001001','0010111'];
+        const R = ['1110010','1100110','1101100','1000010','1011100','1001110','1010000','1000100','1001000','1110100'];
+        const P = ['LLLLLL','LLGLGG','LLGGLG','LLGGGL','LGLLGG','LGGLLG','LGGGLL','LGLGLG','LGLGGL','LGGLGL'];
+        if (digits.length !== 13) return '';
+        const parity = P[+digits[0]];
+        let bits = '101';
+        for (let i = 1; i <= 6; i++) bits += (parity[i - 1] === 'L' ? L : G)[+digits[i]];
+        bits += '01010';
+        for (let i = 7; i <= 12; i++) bits += R[+digits[i]];
+        bits += '101';
+        const width = 2;
+        let x = 0;
+        let rects = '';
+        for (const bit of bits) {
+          if (bit === '1') rects += '<rect x="' + x + '" y="0" width="' + width + '" height="72" fill="#111"/>';
+          x += width;
+        }
+        return '<svg xmlns="http://www.w3.org/2000/svg" width="' + x + '" height="72" viewBox="0 0 ' + x + ' 72">' + rects + '</svg>';
+      }
+      function printBarcodeLabel() {
+        const code = $('#fBarcode').value.trim();
+        if (!code) { MF.toast('Generate or enter a barcode first.', 'warn', 'Barcode'); return; }
+        const name = $('#fName').value.trim() || 'Medicine';
+        const svg = barcodeSvg(code);
+        const win = window.open('', '_blank', 'width=420,height=320');
+        if (!win) { MF.toast('Allow pop-ups to print the label.', 'warn', 'Barcode'); return; }
+        win.document.write('<!doctype html><title>Label</title><style>body{font-family:Inter,sans-serif;margin:24px;text-align:center}h1{font-size:18px;margin:0 0 12px}p{letter-spacing:.12em;font-size:16px}</style><h1>' + MF.esc(name) + '</h1>' + (svg || '') + '<p>' + MF.esc(code) + '</p><' + 'script>window.onload=function(){window.print()}<' + '/script>');
+        win.document.close();
+      }
       function setSchedule(code) {
         const key = SCHEDULES[code] ? code : 'OTC';
         $('#fSchedule').value = key;
@@ -998,6 +1089,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       }
       $('#fName').addEventListener('input', checkNameDuplicate);
       $('#fBarcode').addEventListener('input', checkBarcodeConflict);
+      $('#fBarcodeGen').addEventListener('click', () => {
+        $('#fBarcode').value = randomBarcode();
+        checkBarcodeConflict();
+      });
+      $('#fBarcodePrint').addEventListener('click', printBarcodeLabel);
+      $('#fExpiry').addEventListener('input', () => {
+        const digits = $('#fExpiry').value.replace(/\D/g, '').slice(0, 6);
+        $('#fExpiry').value = digits.length <= 2 ? digits : digits.slice(0, 2) + '-' + digits.slice(2);
+        syncExpiryHint();
+      });
       $('#fSchedGroup').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-sched]');
         if (!btn) return;
@@ -1049,11 +1150,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           packQty: spec.whole ? 1 : (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
           batchNo: $('#fBatchNo').value.trim(),
           openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
-          boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
+          boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim(),
+          expiry: fieldToExpiry($('#fExpiry').value),
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
           defaultDiscount: $('#fDisc').value === '' ? 0 : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
-          wholesaleRate: +$('#fWholesale').value || (+$('#fMrp').value * 0.9), minStock: +$('#fMin').value,
-          reorderLevel: +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
+          wholesaleRate: $('#fWholesale').value === '' ? '' : +$('#fWholesale').value, minStock: $('#fMin').value === '' ? '' : +$('#fMin').value,
+          reorderLevel: $('#fReorder').value === '' ? '' : +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
         if (MF.Api.live) {
@@ -1342,5 +1444,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42cac3b7995444f',t:'MTc5MDcwMjU3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42cd5bc9c217eab',t:'MTc5MDcwNDI3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
