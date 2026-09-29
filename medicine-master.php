@@ -75,24 +75,27 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:flex; flex-wrap:wrap; width:fit-content; max-width:100%;
       border:1px solid #d7e0ea; border-radius:10px; overflow:hidden; background:#fff;
     }
+    .mm-sched { align-items:stretch; }
     .mm-sched-opt {
-      border:0; background:#fff; color:#1b2430; font-weight:650; font-size:.84rem;
-      padding:8px 14px; border-right:1px solid #e3ebf4;
+      border:0; background:#fff; color:#1b2430; font-weight:650; font-size:.84rem; line-height:1.2;
+      margin:0; min-height:40px; padding:8px 14px; border-right:1px solid #e3ebf4;
+      display:inline-flex; align-items:center; justify-content:center; align-self:stretch;
     }
     .mm-sched-opt:last-child { border-right:0; }
     .mm-sched-opt.is-on { color:#fff; }
     .mm-sched-opt.is-on.otc { background:#176B5B; }
     .mm-sched-opt.is-on.h { background:#0369A1; }
-    .mm-sched-opt.is-on.h1 { background:#C2410C; }
+    .mm-sched-opt.is-on.sh1 { background:#6D28D9; }
     .mm-sched-opt.is-on.x { background:#B42318; }
     .mm-chips {
-      display:flex; flex-wrap:wrap; gap:6px; align-items:center;
-      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:6px 8px; min-height:42px;
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:8px 10px; min-height:42px;
     }
+    .mm-chip-list { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     .mm-chips:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-chip {
-      display:inline-flex; align-items:center; gap:4px; background:#E6F1EE; color:#0F4D42;
-      border-radius:999px; padding:2px 8px; font-size:.78rem; font-weight:700;
+      display:inline-flex; align-items:center; gap:6px; background:#E6F1EE; color:#0F4D42;
+      border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700;
     }
     .mm-chip button { border:0; background:transparent; color:inherit; line-height:1; padding:0 2px; font-size:1rem; }
     .mm-chip-input { border:0; outline:0; flex:1; min-width:160px; background:transparent; font-size:.9rem; }
@@ -100,6 +103,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:flex; align-items:center; gap:8px; color:#B45309; background:#FEF3E2;
       border:1px solid #f6d7a2; border-radius:10px; padding:8px 12px; font-size:.82rem; font-weight:650;
     }
+    .mm-per {
+      display:flex; align-items:center; gap:8px;
+      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 12px;
+    }
+    .mm-per:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
+    .mm-per input {
+      border:0; outline:0; background:transparent; width:88px; min-height:40px; padding:0;
+      font-size:1rem; color:#1b2430;
+    }
+    .mm-per-unit { margin-left:auto; color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
     }
@@ -353,7 +366,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <div class="mm-sched" id="fSchedGroup" role="radiogroup" aria-label="Drug schedule">
                 <button type="button" class="mm-sched-opt otc is-on" data-sched="OTC">None (OTC)</button>
                 <button type="button" class="mm-sched-opt h" data-sched="H">Schedule H</button>
-                <button type="button" class="mm-sched-opt h1" data-sched="H1">Schedule H1</button>
+                <button type="button" class="mm-sched-opt sh1" data-sched="H1">Schedule H1</button>
                 <button type="button" class="mm-sched-opt x" data-sched="X">Schedule X</button>
               </div>
               <div class="mm-hint" id="fSchedHint">OTC items can be sold without a prescription.</div>
@@ -388,10 +401,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   </div>
                 </div>
                 <div class="col-lg-2 col-md-4 col-6">
-                  <label class="form-label" for="fUnit">Unit</label>
+                  <label class="form-label" for="fUnit">Form</label>
                   <div class="mm-input">
                     <i class="bi bi-tag"></i>
-                    <select class="form-select" id="fUnit"><option>Strip</option><option>Bottle</option><option>Tube</option><option>Sachet</option><option>Vial</option><option>Inhaler</option><option>Pen</option></select>
+                    <select class="form-select" id="fUnit"><option>Tablet</option><option>Capsule</option><option>Strip</option><option>Bottle</option><option>Tube</option><option>Sachet</option><option>Vial</option><option>Inhaler</option><option>Pen</option><option>Drop</option><option>Injection</option></select>
                   </div>
                 </div>
                 <div class="col-lg-3 col-md-4 col-6">
@@ -402,11 +415,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   </div>
                   <div class="text-2 small mt-1">Total pieces in 1 pack</div>
                 </div>
-                <div class="col-lg-2 col-md-4 col-6">
-                  <label class="form-label" for="fPackQty">Pack / Strip Qty</label>
-                  <div class="mm-input">
-                    <i class="bi bi-123"></i>
-                    <input type="number" min="1" class="form-control" id="fPackQty" value="1" placeholder="e.g. 10">
+                <div class="col-lg-3 col-md-4 col-12">
+                  <label class="form-label" for="fPackQty">Units per strip <span class="req">*</span></label>
+                  <div class="mm-per">
+                    <input type="number" min="1" id="fPackQty" value="15">
+                    <span class="mm-per-unit" id="fPackQtyUnit">tablets</span>
                   </div>
                 </div>
                 <div class="col-lg-2 col-md-6 col-6">
@@ -641,8 +654,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <section class="mm-detail-card">
               <div class="mm-pack-head"><i class="bi bi-box-seam"></i> Packaging</div>
               ${mmPairs([
-                ['Unit', mmTxt(pack)],
-                ['Pack / strip qty', mmTxt(m.packQty)],
+                ['Form', mmTxt(m.unit)],
+                ['Units per strip', mmTxt(m.packQty)],
                 ['Sub-unit', mmTxt(m.subUnit)],
                 ['Loose sale', m.allowLoose ? 'Allowed' : 'No'],
                 ['Box', mmTxt([m.boxQty, m.boxUnit || 'Box'].filter((x) => x != null && x !== '').join(' '))],
@@ -683,6 +696,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m?.unit || 'Strip'; $('#fPack').value = m?.packSize || '';
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty || 1; $('#fSubUnit').value = m?.subUnit || ''; $('#fAllowLoose').checked = !!m?.allowLoose;
+        syncPackUnit();
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
         $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
@@ -725,6 +739,17 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function setGroups(text) {
         groups = [];
         addGroup(text);
+      }
+      function pieceWord(form) {
+        const word = String(form || 'tablet').trim().toLowerCase();
+        if (!word) return 'units';
+        if (/(s|x|ch|sh)$/.test(word)) return word + 'es';
+        if (word.endsWith('y') && !/[aeiou]y$/.test(word)) return word.slice(0, -1) + 'ies';
+        return word + 's';
+      }
+      function syncPackUnit() {
+        const el = $('#fPackQtyUnit');
+        if (el) el.textContent = pieceWord($('#fUnit') && $('#fUnit').value);
       }
       function checkPrice() {
         const buy = parseFloat($('#fPtr').value);
@@ -811,6 +836,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         }
       });
       ['fPtr', 'fRetail', 'fMrp'].forEach((id) => $('#' + id).addEventListener('input', checkPrice));
+      $('#fUnit').addEventListener('change', syncPackUnit);
 
       $('#mmFormSave').addEventListener('click', async () => {
         if ($('#fGroupInput').value.trim()) { addGroup($('#fGroupInput').value); $('#fGroupInput').value = ''; }
