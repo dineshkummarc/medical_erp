@@ -16,6 +16,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
   <style>
+    #mmFormModal .modal-dialog { width:840px; max-width:840px; }
+    @media (max-width: 880px) { #mmFormModal .modal-dialog { width:calc(100% - 1rem); } }
+    .mm-pack-note {
+      color:#5f7084; font-size:.84rem; line-height:1.4; background:#fff;
+      border:1px dashed #d7e0ea; border-radius:10px; min-height:42px;
+      display:flex; align-items:center; padding:8px 12px;
+    }
     .mm-section-title{
       font-size:.75rem;
       font-weight:700;
@@ -440,7 +447,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <label class="form-label" for="fHsn">HSN Code</label>
                   <div class="mm-input">
                     <i class="bi bi-hash"></i>
-                    <input class="form-control" id="fHsn" value="3004">
+                    <input class="form-control" id="fHsn" placeholder="e.g. 3004">
                   </div>
                 </div>
                 <div class="col-lg-3 col-md-4 col-6">
@@ -462,12 +469,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     </select>
                   </div>
                 </div>
-                <div class="col-lg-3 col-md-4 col-12">
+                <div class="col-lg-3 col-md-4 col-12" id="fPackQtyWrap">
                   <label class="form-label" for="fPackQty"><span id="fPackQtyLabel">Units per strip</span> <span class="req">*</span></label>
                   <div class="mm-per">
-                    <input type="number" min="1" id="fPackQty" value="">
+                    <input type="number" min="1" id="fPackQty" value="" placeholder="e.g. 10">
                     <span class="mm-per-unit" id="fPackQtyUnit">units</span>
                   </div>
+                </div>
+                <div class="col-lg-6 col-md-8 col-12" id="fPackNoteWrap" hidden>
+                  <label class="form-label" aria-hidden="true">&nbsp;</label>
+                  <div class="mm-pack-note" id="fPackNote">Sold as one complete bottle — no sub-units to enter.</div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-12" id="fLooseWrap" hidden>
                   <label class="form-label" aria-hidden="true">&nbsp;</label>
@@ -505,10 +516,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           <div class="row g-3 align-items-start mm-align">
             <div class="col-md-3 col-6"><label class="form-label">GST %</label>
               <select class="form-select" id="fGst"><option>5</option><option selected>12</option><option>18</option></select></div>
-            <div class="col-md-3 col-6"><label class="form-label">MRP (₹)</label><input type="number" step="0.01" class="form-control" id="fMrp"></div>
-            <div class="col-md-3 col-6"><label class="form-label">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr"></div>
-            <div class="col-md-3 col-6"><label class="form-label">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail"></div>
-            <div class="col-md-3 col-6"><label class="form-label">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale"></div>
+            <div class="col-md-3 col-6"><label class="form-label" for="fMrp">MRP (₹)</label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
+            <div class="col-md-3 col-6"><label class="form-label" for="fPtr">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr" placeholder="e.g. 80.00"></div>
+            <div class="col-md-3 col-6"><label class="form-label" for="fRetail">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"></div>
+            <div class="col-md-3 col-6"><label class="form-label" for="fWholesale">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale" placeholder="e.g. 90.00"></div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fDisc">Default discount</label>
               <div class="mm-per">
@@ -542,13 +553,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-md-3 col-6">
               <label class="form-label" for="fStockQty">Quantity</label>
               <div class="mm-per">
-                <input type="number" min="0" id="fStockQty" value="">
+                <input type="number" min="0" id="fStockQty" value="" placeholder="e.g. 20">
                 <span class="mm-per-unit" id="fStockQtyUnit">units</span>
               </div>
             </div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fMin">Minimum Stock</label>
-              <input type="number" class="form-control" id="fMin" value="50">
+              <input type="number" class="form-control" id="fMin" value="50" placeholder="e.g. 10">
             </div>
             <div class="col-md-3 col-12">
               <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
@@ -557,7 +568,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-md-6 col-12">
               <label class="form-label" for="fReorder">Reorder level</label>
               <div class="mm-per">
-                <input type="number" min="0" id="fReorder" value="5">
+                <input type="number" min="0" id="fReorder" value="5" placeholder="e.g. 5">
                 <span class="mm-per-unit" id="fReorderUnit">units</span>
               </div>
               <div class="mm-field-hint">Shows "Low stock" at or below this.</div>
@@ -566,18 +577,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fRack">Rack / shelf</label>
               <input class="form-control" id="fRack" placeholder="e.g. A-3">
             </div>
-            <div class="col-12">
-              <div class="mm-switch-row">
-                <label class="mm-switch">
-                  <input type="checkbox" id="fRx">
-                  <span><strong>Prescription required</strong><small>Ask for a prescription at billing</small></span>
-                </label>
-                <label class="mm-switch">
-                  <input type="checkbox" id="fActive" checked>
-                  <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
-                </label>
-              </div>
+            <div class="col-md-6 col-12">
+              <label class="mm-switch">
+                <input type="checkbox" id="fActive" checked>
+                <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
+              </label>
             </div>
+            <input type="checkbox" id="fRx" hidden>
           </div>
 
         </div>
@@ -630,8 +636,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function buildLookups() {
         $('#mmCategory').innerHTML = '<option value="">All Categories</option>' + D.categories.map((c) => `<option>${c}</option>`).join('');
         $('#mmMfg').innerHTML = '<option value="">All Manufacturers</option>' + D.manufacturers.map((m) => `<option>${m}</option>`).join('');
-        $('#fCategory').innerHTML = D.categories.map((c) => `<option>${c}</option>`).join('');
-        $('#fMfg').innerHTML = D.manufacturers.map((m) => `<option>${m}</option>`).join('');
+        $('#fCategory').innerHTML = '<option value="">Select category</option>' + D.categories.map((c) => `<option>${c}</option>`).join('');
+        $('#fMfg').innerHTML = '<option value="">Select manufacturer</option>' + D.manufacturers.map((m) => `<option>${m}</option>`).join('');
         const groups = [...new Set(D.medicines.flatMap((m) => String(m.genericGroup || '').split(/[,;]|\s+\+\s+/).map((s) => s.trim()).filter(Boolean)))].sort();
         $('#fGenericGroupList').innerHTML = groups.map((g) => `<option value="${MF.esc(g)}">`).join('');
       }
@@ -661,7 +667,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#mmBody').innerHTML = slice.map((m) => {
           const st = MF.stockOf(m.id);
           return `<tr>
-            <td><div class="td-title">${MF.esc(m.name)}</div><div class="td-sub">${MF.esc(m.composition)}${m.rxRequired ? ' · <span class="rx-chip" style="font-size:.6rem">Rx</span>' : ''}</div></td>
+            <td><div class="td-title">${MF.esc(m.name)}</div><div class="td-sub">${MF.esc(m.composition)}${(SCHEDULES[m.schedule] ? SCHEDULES[m.schedule].rx : m.rxRequired) ? ' · <span class="rx-chip" style="font-size:.6rem">Rx</span>' : ''}</div></td>
             <td>${MF.esc(m.generic)}</td>
             <td>${m.brandRef ? MF.esc(m.brandRef) : '<span class="text-2">—</span>'}</td>
             <td class="text-2">${m.category}</td>
@@ -717,6 +723,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const formName = m.form || formFromMed(m) || m.unit;
         const perLabel = spec ? (spec.pack === 'unit' ? 'Units' : 'Units per ' + spec.pack) : 'Units per strip';
         const piece = spec ? spec.piecePlural : 'units';
+        const rxNeed = SCHEDULES[m.schedule] ? SCHEDULES[m.schedule].rx : !!m.rxRequired;
+        const packRow = spec && spec.whole
+          ? ['Pack', 'Sold as one complete ' + spec.pack]
+          : [perLabel, m.packQty ? mmTxt(m.packQty) + ' ' + piece : '—'];
         $('#mmViewBody').innerHTML = `
           <div class="mm-detail-hero">
             <div class="mm-detail-icon"><i class="bi bi-capsule"></i></div>
@@ -724,7 +734,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <div class="mm-detail-name">${MF.esc(m.name)}${m.brandRef ? ` <span>· ${MF.esc(m.brandRef)}</span>` : ''}</div>
               <div class="mm-detail-sub">${mmTxt(m.composition)} · ${mmTxt(m.category)} · ${mmTxt(m.manufacturer)}</div>
             </div>
-            <div class="mm-detail-badges">${MF.stockBadge(m)} ${m.rxRequired ? MF.badge('Schedule ' + m.schedule, 'purple') : MF.badge(m.schedule, 'secondary')} ${MF.badge(m.status || 'Active', m.status === 'Inactive' ? 'secondary' : 'success')}</div>
+            <div class="mm-detail-badges">${MF.stockBadge(m)} ${rxNeed ? MF.badge('Schedule ' + m.schedule, 'purple') : MF.badge(m.schedule, 'secondary')} ${MF.badge(m.status || 'Active', m.status === 'Inactive' ? 'secondary' : 'success')}</div>
           </div>
           <div class="mm-detail-stats">
             <div class="mm-stat"><span>Stock</span><strong>${MF.num(st)}</strong><small>${mmTxt(m.unit)}</small></div>
@@ -750,11 +760,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               ${mmPairs([
                 ['Form', mmTxt(formName)],
                 ['Pack', mmTxt(spec ? spec.unit : m.unit)],
-                [perLabel, m.packQty ? mmTxt(m.packQty) + ' ' + piece : '—'],
-                ['Loose sale', m.allowLoose ? 'Allowed' : 'No'],
+                packRow,
+                ['Loose sale', spec && spec.whole ? 'No' : (m.allowLoose ? 'Allowed' : 'No')],
                 ['Box', mmTxt([m.boxQty, m.boxUnit || 'Box'].filter((x) => x != null && x !== '').join(' '))],
                 ['Schedule', mmTxt(m.schedule)],
-                ['Rx required', m.rxRequired ? 'Yes' : 'No']
+                ['Rx required', rxNeed ? 'Yes' : 'No']
               ])}
             </section>
             <section class="mm-detail-card">
@@ -789,20 +799,20 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         editingId = m ? m.id : null;
         $('#mmFormTitle').textContent = m ? 'Edit Medicine — ' + m.name : 'Add Medicine';
         $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; $('#fComp').value = m?.composition || ''; $('#fBrand').value = m?.brandRef || '';
-        $('#fCategory').value = m?.category || D.categories[0]; $('#fMfg').value = m?.manufacturer || D.manufacturers[0];
+        $('#fCategory').value = m?.category || ''; $('#fMfg').value = m?.manufacturer || '';
         setGroups(m?.genericGroup || (!m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes))));
-        $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m ? formFromMed(m) : '';
+        $('#fHsn').value = m?.hsn || ''; $('#fUnit').value = m ? formFromMed(m) : '';
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
         $('#fBatchNo').value = m?.batchNo || (m ? (MF.batchesOf(m.id)[0]?.batchNo || '') : '');
         $('#fStockQty').value = m?.openingQty ?? '';
         syncPackUnit();
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
-        $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
+        $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC');
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
         $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fDisc').value = m?.defaultDiscount ?? 0; setDiscType(m?.discountType === 'rupee' ? 'rupee' : 'percent', false); $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 5; $('#fRack').value = m?.rack || '';
         $('#fExpiryAlert').value = m?.expiryAlertDays ?? '';
-        $('#fRx').checked = !!m?.rxRequired; $('#fActive').checked = m ? m.status === 'Active' : true;
+        $('#fActive').checked = m ? m.status === 'Active' : true;
         $('#fNameWarn').style.display = 'none'; $('#fBarcodeWarn').style.display = 'none';
         checkPrice();
         new bootstrap.Modal($('#mmFormModal')).show();
@@ -814,12 +824,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         H1: { hint: 'Needs a prescription and goes into the H1 register. Billing will require doctor and patient details.', rx: true },
         X: { hint: 'Restricted drug. Sale needs a prescription and special records.', rx: true }
       };
-      function setSchedule(code, syncRx) {
+      function setSchedule(code) {
         const key = SCHEDULES[code] ? code : 'OTC';
         $('#fSchedule').value = key;
         document.querySelectorAll('#fSchedGroup .mm-sched-opt').forEach((b) => b.classList.toggle('is-on', b.dataset.sched === key));
         $('#fSchedHint').textContent = SCHEDULES[key].hint;
-        if (syncRx) $('#fRx').checked = SCHEDULES[key].rx;
+        if ($('#fRx')) $('#fRx').checked = SCHEDULES[key].rx;
       }
       let groups = [];
       function renderGroups() {
@@ -841,16 +851,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         addGroup(text);
       }
       const FORM_PACK = {
-        Tablet: { pack: 'strip', packPlural: 'strips', piecePlural: 'tablets', unit: 'Strip', sub: 'Tablet', loose: true },
-        Capsule: { pack: 'strip', packPlural: 'strips', piecePlural: 'capsules', unit: 'Strip', sub: 'Capsule', loose: true },
-        Syrup: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'ml', unit: 'Bottle', sub: 'ml', loose: false },
-        Drops: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'drops', unit: 'Bottle', sub: 'Drop', loose: false },
-        Injection: { pack: 'vial', packPlural: 'vials', piecePlural: 'ml', unit: 'Vial', sub: 'ml', loose: false },
-        Ointment: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false },
-        Cream: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false },
-        Powder: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'g', unit: 'Sachet', sub: 'g', loose: false },
-        Sachet: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'sachets', unit: 'Sachet', sub: 'Sachet', loose: false },
-        Other: { pack: 'unit', packPlural: 'units', piecePlural: 'units', unit: 'Unit', sub: 'Unit', loose: false }
+        Tablet: { pack: 'strip', packPlural: 'strips', piecePlural: 'tablets', unit: 'Strip', sub: 'Tablet', loose: true, whole: false },
+        Capsule: { pack: 'capsule', packPlural: 'capsules', piecePlural: 'capsules', unit: 'Capsule', sub: 'Capsule', loose: true, whole: false },
+        Syrup: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'ml', unit: 'Bottle', sub: 'ml', loose: false, whole: true },
+        Drops: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'drops', unit: 'Bottle', sub: 'Drop', loose: false, whole: true },
+        Injection: { pack: 'vial', packPlural: 'vials', piecePlural: 'ml', unit: 'Vial', sub: 'ml', loose: false, whole: true },
+        Ointment: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false, whole: true },
+        Cream: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false, whole: true },
+        Powder: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'g', unit: 'Sachet', sub: 'g', loose: false, whole: true },
+        Sachet: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'sachets', unit: 'Sachet', sub: 'Sachet', loose: false, whole: true },
+        Other: { pack: 'unit', packPlural: 'units', piecePlural: 'units', unit: 'Unit', sub: 'Unit', loose: false, whole: false }
       };
       function packSpec(form) { return FORM_PACK[form] || null; }
       function formFromMed(m) {
@@ -875,6 +885,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if ($('#fPackQtyUnit')) $('#fPackQtyUnit').textContent = spec ? spec.piecePlural : 'units';
         if ($('#fStockQtyUnit')) $('#fStockQtyUnit').textContent = spec ? spec.packPlural : 'units';
         if ($('#fReorderUnit')) $('#fReorderUnit').textContent = spec ? spec.packPlural : 'units';
+        const whole = !!(spec && spec.whole);
+        if ($('#fPackQtyWrap')) $('#fPackQtyWrap').hidden = whole;
+        if ($('#fPackNoteWrap')) $('#fPackNoteWrap').hidden = !whole;
+        if (whole) {
+          if ($('#fPackNote')) $('#fPackNote').textContent = 'Sold as one complete ' + spec.pack + ' — no sub-units to enter.';
+          if ($('#fPackQty')) $('#fPackQty').value = 1;
+        }
         if ($('#fLooseWrap')) $('#fLooseWrap').hidden = !(spec && spec.loose);
         if ($('#fLooseHint') && spec && spec.loose) $('#fLooseHint').textContent = 'Sell single ' + spec.piecePlural;
         if ($('#fBoxHint')) {
@@ -984,7 +1001,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       $('#fSchedGroup').addEventListener('click', (e) => {
         const btn = e.target.closest('[data-sched]');
         if (!btn) return;
-        setSchedule(btn.dataset.sched, true);
+        setSchedule(btn.dataset.sched);
       });
       $('#fGroupInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ',') {
@@ -1029,14 +1046,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           substitutes: $('#fGenericGroup').value.trim(),
           barcode: $('#fBarcode').value.trim(),
           form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: +$('#fGst').value, schedule: $('#fSchedule').value,
-          packQty: +$('#fPackQty').value || 1, subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
+          packQty: spec.whole ? 1 : (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
           batchNo: $('#fBatchNo').value.trim(),
           openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
           defaultDiscount: $('#fDisc').value === '' ? 0 : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
           wholesaleRate: +$('#fWholesale').value || (+$('#fMrp').value * 0.9), minStock: +$('#fMin').value,
-          reorderLevel: +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: $('#fRx').checked, expiryAlertDays: $('#fExpiryAlert').value,
+          reorderLevel: +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
         if (MF.Api.live) {
@@ -1325,5 +1342,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bfe3cffa2dc57',t:'MTc5MDY5NTQ0OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42cac3b7995444f',t:'MTc5MDcwMjU3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
