@@ -335,19 +335,19 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             </div>
             <div class="col-md-6"><label class="form-label">Generic Name</label><input class="form-control" id="fGeneric" placeholder="e.g. Paracetamol"></div>
             <div class="col-md-6"><label class="form-label">Brand Name</label><input class="form-control" id="fBrand" placeholder="e.g. Crocin Advance"></div>
+            <div class="col-md-6"><label class="form-label" for="fComp">Composition</label><input class="form-control" id="fComp" placeholder="e.g. Paracetamol 500mg + Caffeine 32mg"></div>
             <div class="col-md-3"><label class="form-label">Category</label><select class="form-select" id="fCategory"></select></div>
             <div class="col-md-3"><label class="form-label">Manufacturer</label><select class="form-select" id="fMfg"></select></div>
-            <div class="col-md-6"><label class="form-label" for="fGenericGroup">Generic/composition group</label><input class="form-control" id="fGenericGroup" list="fGenericGroupList" placeholder="e.g. Telmisartan 40mg — leave blank if none"><datalist id="fGenericGroupList"></datalist><div class="mm-hint">Medicines sharing a group are treated as substitutes of each other</div></div>
             <div class="col-12">
-              <label class="form-label" for="fCompInput">Composition</label>
-              <div class="mm-chips" id="fCompBox">
-                <div class="mm-chip-list" id="fCompList"></div>
-                <input class="mm-chip-input" id="fCompInput" placeholder="Type a salt and press Enter" autocomplete="off">
+              <label class="form-label" for="fGroupInput">Generic/composition group</label>
+              <div class="mm-chips" id="fGroupBox">
+                <div class="mm-chip-list" id="fGroupList"></div>
+                <input class="mm-chip-input" id="fGroupInput" list="fGenericGroupList" placeholder="Type a salt and press Enter" autocomplete="off">
               </div>
-              <input type="hidden" id="fComp">
-              <div class="mm-hint">One chip per salt. Press Enter or comma to add.</div>
+              <input type="hidden" id="fGenericGroup">
+              <datalist id="fGenericGroupList"></datalist>
+              <div class="mm-hint">One chip per salt. Medicines with the same chips are substitutes of each other.</div>
             </div>
-            <div class="col-12"><label class="form-label" for="fSubstitutes">Substitutes</label><input class="form-control" id="fSubstitutes" placeholder="e.g. Crocin, Dolo 650, Calpol"><div class="mm-hint">Other medicine names that can be offered in place of this one</div></div>
             <div class="col-12">
               <label class="form-label">Drug schedule</label>
               <div class="mm-sched" id="fSchedGroup" role="radiogroup" aria-label="Drug schedule">
@@ -529,7 +529,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#mmMfg').innerHTML = '<option value="">All Manufacturers</option>' + D.manufacturers.map((m) => `<option>${m}</option>`).join('');
         $('#fCategory').innerHTML = D.categories.map((c) => `<option>${c}</option>`).join('');
         $('#fMfg').innerHTML = D.manufacturers.map((m) => `<option>${m}</option>`).join('');
-        const groups = [...new Set(D.medicines.map((m) => m.genericGroup).filter(Boolean))].sort();
+        const groups = [...new Set(D.medicines.flatMap((m) => String(m.genericGroup || '').split(/[,;]|\s+\+\s+/).map((s) => s.trim()).filter(Boolean)))].sort();
         $('#fGenericGroupList').innerHTML = groups.map((g) => `<option value="${MF.esc(g)}">`).join('');
       }
 
@@ -609,7 +609,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function openView(m) {
         viewingMed = m;
         const st = MF.stockOf(m.id);
-        const subs = !m.substitutes ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes));
         const pack = [m.unit, m.packSize].filter(Boolean).join(' · ');
         $('#mmViewBody').innerHTML = `
           <div class="mm-detail-hero">
@@ -636,8 +635,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 ['Category', mmTxt(m.category)],
                 ['HSN', mmTxt(m.hsn)],
                 ['Barcode', mmTxt(m.barcode)],
-                ['Generic group', mmTxt(m.genericGroup)],
-                ['Substitutes', mmTxt(subs)]
+                ['Generic/composition group', mmTxt(m.genericGroup)],
               ])}
             </section>
             <section class="mm-detail-card">
@@ -679,10 +677,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function openForm(m) {
         editingId = m ? m.id : null;
         $('#mmFormTitle').textContent = m ? 'Edit Medicine — ' + m.name : 'Add Medicine';
-        $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; setSalts(m?.composition || ''); $('#fBrand').value = m?.brandRef || '';
+        $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; $('#fComp').value = m?.composition || ''; $('#fBrand').value = m?.brandRef || '';
         $('#fCategory').value = m?.category || D.categories[0]; $('#fMfg').value = m?.manufacturer || D.manufacturers[0];
-        $('#fGenericGroup').value = m?.genericGroup || '';
-        $('#fSubstitutes').value = !m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes));
+        setGroups(m?.genericGroup || (!m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes))));
         $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m?.unit || 'Strip'; $('#fPack').value = m?.packSize || '';
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty || 1; $('#fSubUnit').value = m?.subUnit || ''; $('#fAllowLoose').checked = !!m?.allowLoose;
@@ -710,24 +707,24 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fSchedHint').textContent = SCHEDULES[key].hint;
         if (syncRx) $('#fRx').checked = SCHEDULES[key].rx;
       }
-      let salts = [];
-      function renderSalts() {
-        $('#fCompList').innerHTML = salts.map((s, i) => `<span class="mm-chip">${MF.esc(s)}<button type="button" data-salt="${i}" aria-label="Remove">&times;</button></span>`).join('');
-        $('#fComp').value = salts.join(', ');
-        $('#fCompList').querySelectorAll('[data-salt]').forEach((b) => b.addEventListener('click', () => {
-          salts.splice(+b.dataset.salt, 1);
-          renderSalts();
+      let groups = [];
+      function renderGroups() {
+        $('#fGroupList').innerHTML = groups.map((s, i) => `<span class="mm-chip">${MF.esc(s)}<button type="button" data-group="${i}" aria-label="Remove">&times;</button></span>`).join('');
+        $('#fGenericGroup').value = groups.join(', ');
+        $('#fGroupList').querySelectorAll('[data-group]').forEach((b) => b.addEventListener('click', () => {
+          groups.splice(+b.dataset.group, 1);
+          renderGroups();
         }));
       }
-      function addSalt(raw) {
+      function addGroup(raw) {
         String(raw || '').split(/[,;]|\s+\+\s+|\s*\/\s*/).map((s) => s.trim()).filter(Boolean).forEach((s) => {
-          if (!salts.some((x) => x.toLowerCase() === s.toLowerCase())) salts.push(s);
+          if (!groups.some((x) => x.toLowerCase() === s.toLowerCase())) groups.push(s);
         });
-        renderSalts();
+        renderGroups();
       }
-      function setSalts(text) {
-        salts = [];
-        addSalt(text);
+      function setGroups(text) {
+        groups = [];
+        addGroup(text);
       }
       function checkPrice() {
         const buy = parseFloat($('#fPtr').value);
@@ -797,33 +794,33 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (!btn) return;
         setSchedule(btn.dataset.sched, true);
       });
-      $('#fCompInput').addEventListener('keydown', (e) => {
+      $('#fGroupInput').addEventListener('keydown', (e) => {
         if (e.key === 'Enter' || e.key === ',') {
           e.preventDefault();
-          addSalt($('#fCompInput').value);
-          $('#fCompInput').value = '';
-        } else if (e.key === 'Backspace' && !$('#fCompInput').value && salts.length) {
-          salts.pop();
-          renderSalts();
+          addGroup($('#fGroupInput').value);
+          $('#fGroupInput').value = '';
+        } else if (e.key === 'Backspace' && !$('#fGroupInput').value && groups.length) {
+          groups.pop();
+          renderGroups();
         }
       });
-      $('#fCompInput').addEventListener('blur', () => {
-        if ($('#fCompInput').value.trim()) {
-          addSalt($('#fCompInput').value);
-          $('#fCompInput').value = '';
+      $('#fGroupInput').addEventListener('blur', () => {
+        if ($('#fGroupInput').value.trim()) {
+          addGroup($('#fGroupInput').value);
+          $('#fGroupInput').value = '';
         }
       });
       ['fPtr', 'fRetail', 'fMrp'].forEach((id) => $('#' + id).addEventListener('input', checkPrice));
 
       $('#mmFormSave').addEventListener('click', async () => {
-        if ($('#fCompInput').value.trim()) { addSalt($('#fCompInput').value); $('#fCompInput').value = ''; }
+        if ($('#fGroupInput').value.trim()) { addGroup($('#fGroupInput').value); $('#fGroupInput').value = ''; }
         if (!$('#fName').value.trim()) { MF.toast('Medicine name is required.', 'err', 'Validation'); return; }
         if (!$('#fMrp').value) { MF.toast('MRP is required.', 'err', 'Validation'); return; }
         const payload = {
           name: $('#fName').value.trim(), generic: $('#fGeneric').value, brandRef: $('#fBrand').value.trim(), composition: $('#fComp').value,
           category: $('#fCategory').value, manufacturer: $('#fMfg').value, hsn: $('#fHsn').value,
           genericGroup: $('#fGenericGroup').value.trim(),
-          substitutes: $('#fSubstitutes').value.split(',').map((s) => s.trim()).filter(Boolean).join(', '),
+          substitutes: $('#fGenericGroup').value.trim(),
           barcode: $('#fBarcode').value.trim(),
           unit: $('#fUnit').value, packSize: $('#fPack').value, gst: +$('#fGst').value, schedule: $('#fSchedule').value,
           packQty: +$('#fPackQty').value || 1, subUnit: $('#fSubUnit').value.trim(), allowLoose: $('#fAllowLoose').checked,
@@ -934,8 +931,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         bootstrap.Modal.getInstance(el)?.hide();
       });
       $('#mmExport').addEventListener('click', () => MF.exportCSV('medicines.csv',
-        ['Name', 'Generic', 'Brand', 'Category', 'Manufacturer', 'HSN', 'GST%', 'Unit', 'MRP', 'Purchase', 'Wholesale', 'Stock', 'Substitutes'],
-        filtered().map((m) => [m.name, m.generic, m.brandRef || '', m.category, m.manufacturer, m.hsn, m.gst, m.unit, m.mrp, m.purchaseRate, m.wholesaleRate, MF.stockOf(m.id), Array.isArray(m.substitutes) ? m.substitutes.join(', ') : (m.substitutes || '')])));
+        ['Name', 'Generic', 'Brand', 'Category', 'Manufacturer', 'HSN', 'GST%', 'Unit', 'MRP', 'Purchase', 'Wholesale', 'Stock', 'Generic/composition group'],
+        filtered().map((m) => [m.name, m.generic, m.brandRef || '', m.category, m.manufacturer, m.hsn, m.gst, m.unit, m.mrp, m.purchaseRate, m.wholesaleRate, MF.stockOf(m.id), m.genericGroup || ''])));
 
       /* Premium select menus. Native <option> popups ignore our CSS, so the list is ours
          and the closed field still uses the existing form-select / mm-input styles. */

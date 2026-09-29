@@ -110,10 +110,18 @@ window.MF = window.MF || {};
 
   /* Generic/substitute linking: other active medicines sharing the same generic
      group that currently have sellable stock — useful when the searched item is out. */
+  function groupKey(med) {
+    if (!med) return '';
+    const parts = String(med.genericGroup || '').split(/[,;+]|\s+\/\s+/).map((s) => s.trim().toLowerCase()).filter(Boolean).sort();
+    if (parts.length) return 'g:' + parts.join('|');
+    if (med.genericGroupId) return 'id:' + med.genericGroupId;
+    return '';
+  }
   MF.substitutesOf = (medId) => {
     const med = MF.med(medId);
-    if (!med || !med.genericGroupId) return [];
-    return D.medicines.filter((m) => m.genericGroupId === med.genericGroupId && m.id !== medId && MF.stockOf(m.id) > 0);
+    const key = groupKey(med);
+    if (!key) return [];
+    return D.medicines.filter((m) => m.id != medId && groupKey(m) === key && MF.stockOf(m.id) > 0);
   };
 
   MF.batchStatus = (b) => {
