@@ -70,6 +70,36 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-input.is-open { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-input.is-open .mm-select-caret { transform:rotate(180deg); color:#16325c; }
+    .mm-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
+    .mm-sched {
+      display:flex; flex-wrap:wrap; width:fit-content; max-width:100%;
+      border:1px solid #d7e0ea; border-radius:10px; overflow:hidden; background:#fff;
+    }
+    .mm-sched-opt {
+      border:0; background:#fff; color:#1b2430; font-weight:650; font-size:.84rem;
+      padding:8px 14px; border-right:1px solid #e3ebf4;
+    }
+    .mm-sched-opt:last-child { border-right:0; }
+    .mm-sched-opt.is-on { color:#fff; }
+    .mm-sched-opt.is-on.otc { background:#176B5B; }
+    .mm-sched-opt.is-on.h { background:#0369A1; }
+    .mm-sched-opt.is-on.h1 { background:#C2410C; }
+    .mm-sched-opt.is-on.x { background:#B42318; }
+    .mm-chips {
+      display:flex; flex-wrap:wrap; gap:6px; align-items:center;
+      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:6px 8px; min-height:42px;
+    }
+    .mm-chips:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
+    .mm-chip {
+      display:inline-flex; align-items:center; gap:4px; background:#E6F1EE; color:#0F4D42;
+      border-radius:999px; padding:2px 8px; font-size:.78rem; font-weight:700;
+    }
+    .mm-chip button { border:0; background:transparent; color:inherit; line-height:1; padding:0 2px; font-size:1rem; }
+    .mm-chip-input { border:0; outline:0; flex:1; min-width:160px; background:transparent; font-size:.9rem; }
+    .mm-price-warn {
+      display:flex; align-items:center; gap:8px; color:#B45309; background:#FEF3E2;
+      border:1px solid #f6d7a2; border-radius:10px; padding:8px 12px; font-size:.82rem; font-weight:650;
+    }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
     }
@@ -256,7 +286,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-6 col-md-2">
               <select class="form-select" id="mmSchedule">
                 <option value="">All Schedules</option>
-                <option>OTC</option><option>H</option><option>H1</option>
+                <option>OTC</option><option>H</option><option>H1</option><option>X</option>
               </select>
             </div>
             <div class="col-md-1"><button class="btn btn-light-mf w-100" id="mmClear"><i class="bi bi-x-lg"></i> Clear</button></div>
@@ -297,14 +327,38 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
           <div class="mm-section-title">Basic Details</div>
           <div class="row g-3">
-            <div class="col-md-6"><label class="form-label">Medicine Name <span class="req">*</span></label><input class="form-control" id="fName" placeholder="e.g. Paracetamol 500mg"><div id="fNameWarn" class="small mt-1" style="display:none"></div></div>
+            <div class="col-md-6">
+              <label class="form-label" for="fName">Medicine Name <span class="req">*</span></label>
+              <input class="form-control" id="fName" placeholder="e.g. Paracetamol 500mg">
+              <div id="fNameWarn" class="small mt-1" style="display:none"></div>
+              <div class="mm-hint">Include the strength in the name, so staff can tell items apart.</div>
+            </div>
             <div class="col-md-6"><label class="form-label">Generic Name</label><input class="form-control" id="fGeneric" placeholder="e.g. Paracetamol"></div>
-            <div class="col-md-6"><label class="form-label">Composition</label><input class="form-control" id="fComp"></div>
             <div class="col-md-6"><label class="form-label">Brand Name</label><input class="form-control" id="fBrand" placeholder="e.g. Crocin Advance"></div>
             <div class="col-md-3"><label class="form-label">Category</label><select class="form-select" id="fCategory"></select></div>
             <div class="col-md-3"><label class="form-label">Manufacturer</label><select class="form-select" id="fMfg"></select></div>
-            <div class="col-md-6"><label class="form-label">Generic Group</label><input class="form-control" id="fGenericGroup" list="fGenericGroupList" placeholder="e.g. Telmisartan 40mg — leave blank if none"><datalist id="fGenericGroupList"></datalist><div class="text-2 small mt-1">Medicines sharing a group are treated as substitutes of each other</div></div>
-            <div class="col-12"><label class="form-label" for="fSubstitutes">Substitutes (comma-separated)</label><input class="form-control" id="fSubstitutes" placeholder="e.g. Crocin, Dolo 650, Calpol"><div class="text-2 small mt-1">Other medicine names that can be offered in place of this one</div></div>
+            <div class="col-md-6"><label class="form-label" for="fGenericGroup">Generic/composition group</label><input class="form-control" id="fGenericGroup" list="fGenericGroupList" placeholder="e.g. Telmisartan 40mg — leave blank if none"><datalist id="fGenericGroupList"></datalist><div class="mm-hint">Medicines sharing a group are treated as substitutes of each other</div></div>
+            <div class="col-12">
+              <label class="form-label" for="fCompInput">Composition</label>
+              <div class="mm-chips" id="fCompBox">
+                <div class="mm-chip-list" id="fCompList"></div>
+                <input class="mm-chip-input" id="fCompInput" placeholder="Type a salt and press Enter" autocomplete="off">
+              </div>
+              <input type="hidden" id="fComp">
+              <div class="mm-hint">One chip per salt. Press Enter or comma to add.</div>
+            </div>
+            <div class="col-12"><label class="form-label" for="fSubstitutes">Substitutes</label><input class="form-control" id="fSubstitutes" placeholder="e.g. Crocin, Dolo 650, Calpol"><div class="mm-hint">Other medicine names that can be offered in place of this one</div></div>
+            <div class="col-12">
+              <label class="form-label">Drug schedule</label>
+              <div class="mm-sched" id="fSchedGroup" role="radiogroup" aria-label="Drug schedule">
+                <button type="button" class="mm-sched-opt otc is-on" data-sched="OTC">None (OTC)</button>
+                <button type="button" class="mm-sched-opt h" data-sched="H">Schedule H</button>
+                <button type="button" class="mm-sched-opt h1" data-sched="H1">Schedule H1</button>
+                <button type="button" class="mm-sched-opt x" data-sched="X">Schedule X</button>
+              </div>
+              <div class="mm-hint" id="fSchedHint">OTC items can be sold without a prescription.</div>
+              <input type="hidden" id="fSchedule" value="OTC">
+            </div>
           </div>
 
           <div class="mm-section-title">Packaging &amp; Identification</div>
@@ -312,21 +366,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-fingerprint"></i> Identification</div>
               <div class="row g-3">
-                <div class="col-md-4 col-6">
-                  <label class="form-label" for="fSchedule">Schedule</label>
-                  <div class="mm-input">
-                    <i class="bi bi-shield-check"></i>
-                    <select class="form-select" id="fSchedule"><option>OTC</option><option>H</option><option>H1</option></select>
-                  </div>
-                </div>
-                <div class="col-md-4 col-6">
-                  <label class="form-label" for="fHsn">HSN Code</label>
-                  <div class="mm-input">
-                    <i class="bi bi-hash"></i>
-                    <input class="form-control" id="fHsn" value="3004">
-                  </div>
-                </div>
-                <div class="col-md-4 col-12">
+                <div class="col-md-6 col-12">
                   <label class="form-label" for="fBarcode">Barcode</label>
                   <div class="mm-input">
                     <i class="bi bi-upc-scan"></i>
@@ -340,6 +380,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-capsule"></i> Pack contents</div>
               <div class="row g-3 align-items-start">
+                <div class="col-lg-2 col-md-4 col-6">
+                  <label class="form-label" for="fHsn">HSN Code</label>
+                  <div class="mm-input">
+                    <i class="bi bi-hash"></i>
+                    <input class="form-control" id="fHsn" value="3004">
+                  </div>
+                </div>
                 <div class="col-lg-2 col-md-4 col-6">
                   <label class="form-label" for="fUnit">Unit</label>
                   <div class="mm-input">
@@ -409,6 +456,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-md-3 col-6"><label class="form-label">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr"></div>
             <div class="col-md-3 col-6"><label class="form-label">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail"></div>
             <div class="col-md-3 col-6"><label class="form-label">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale"></div>
+            <div class="col-12" id="fPriceWarn" hidden>
+              <div class="mm-price-warn"><i class="bi bi-exclamation-triangle"></i>Purchase rate is above the selling price.</div>
+            </div>
           </div>
 
           <div class="mm-section-title">Stock &amp; Status</div>
@@ -629,7 +679,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function openForm(m) {
         editingId = m ? m.id : null;
         $('#mmFormTitle').textContent = m ? 'Edit Medicine — ' + m.name : 'Add Medicine';
-        $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; $('#fComp').value = m?.composition || ''; $('#fBrand').value = m?.brandRef || '';
+        $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; setSalts(m?.composition || ''); $('#fBrand').value = m?.brandRef || '';
         $('#fCategory').value = m?.category || D.categories[0]; $('#fMfg').value = m?.manufacturer || D.manufacturers[0];
         $('#fGenericGroup').value = m?.genericGroup || '';
         $('#fSubstitutes').value = !m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes));
@@ -637,13 +687,55 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty || 1; $('#fSubUnit').value = m?.subUnit || ''; $('#fAllowLoose').checked = !!m?.allowLoose;
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
-        $('#fGst').value = m ? String(m.gst) : '12'; $('#fSchedule').value = m?.schedule || 'OTC';
+        $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
         $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 100;
         $('#fExpiryAlert').value = m?.expiryAlertDays ?? '';
         $('#fRx').checked = !!m?.rxRequired; $('#fActive').checked = m ? m.status === 'Active' : true;
         $('#fNameWarn').style.display = 'none'; $('#fBarcodeWarn').style.display = 'none';
+        checkPrice();
         new bootstrap.Modal($('#mmFormModal')).show();
+      }
+
+      const SCHEDULES = {
+        OTC: { hint: 'OTC items can be sold without a prescription.', rx: false },
+        H: { hint: 'Needs a prescription. Billing will require the doctor name.', rx: true },
+        H1: { hint: 'Needs a prescription and goes into the H1 register. Billing will require doctor and patient details.', rx: true },
+        X: { hint: 'Restricted drug. Sale needs a prescription and special records.', rx: true }
+      };
+      function setSchedule(code, syncRx) {
+        const key = SCHEDULES[code] ? code : 'OTC';
+        $('#fSchedule').value = key;
+        document.querySelectorAll('#fSchedGroup .mm-sched-opt').forEach((b) => b.classList.toggle('is-on', b.dataset.sched === key));
+        $('#fSchedHint').textContent = SCHEDULES[key].hint;
+        if (syncRx) $('#fRx').checked = SCHEDULES[key].rx;
+      }
+      let salts = [];
+      function renderSalts() {
+        $('#fCompList').innerHTML = salts.map((s, i) => `<span class="mm-chip">${MF.esc(s)}<button type="button" data-salt="${i}" aria-label="Remove">&times;</button></span>`).join('');
+        $('#fComp').value = salts.join(', ');
+        $('#fCompList').querySelectorAll('[data-salt]').forEach((b) => b.addEventListener('click', () => {
+          salts.splice(+b.dataset.salt, 1);
+          renderSalts();
+        }));
+      }
+      function addSalt(raw) {
+        String(raw || '').split(/[,;]|\s+\+\s+|\s*\/\s*/).map((s) => s.trim()).filter(Boolean).forEach((s) => {
+          if (!salts.some((x) => x.toLowerCase() === s.toLowerCase())) salts.push(s);
+        });
+        renderSalts();
+      }
+      function setSalts(text) {
+        salts = [];
+        addSalt(text);
+      }
+      function checkPrice() {
+        const buy = parseFloat($('#fPtr').value);
+        const retail = parseFloat($('#fRetail').value);
+        const sell = !isNaN(retail) && retail > 0 ? retail : parseFloat($('#fMrp').value);
+        const over = !isNaN(buy) && buy > 0 && !isNaN(sell) && sell > 0 && buy > sell;
+        const el = $('#fPriceWarn');
+        if (el) el.hidden = !over;
       }
 
       /* Small edit-distance helper — used only to flag likely-duplicate medicine names as you type. */
@@ -700,8 +792,31 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       }
       $('#fName').addEventListener('input', checkNameDuplicate);
       $('#fBarcode').addEventListener('input', checkBarcodeConflict);
+      $('#fSchedGroup').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-sched]');
+        if (!btn) return;
+        setSchedule(btn.dataset.sched, true);
+      });
+      $('#fCompInput').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ',') {
+          e.preventDefault();
+          addSalt($('#fCompInput').value);
+          $('#fCompInput').value = '';
+        } else if (e.key === 'Backspace' && !$('#fCompInput').value && salts.length) {
+          salts.pop();
+          renderSalts();
+        }
+      });
+      $('#fCompInput').addEventListener('blur', () => {
+        if ($('#fCompInput').value.trim()) {
+          addSalt($('#fCompInput').value);
+          $('#fCompInput').value = '';
+        }
+      });
+      ['fPtr', 'fRetail', 'fMrp'].forEach((id) => $('#' + id).addEventListener('input', checkPrice));
 
       $('#mmFormSave').addEventListener('click', async () => {
+        if ($('#fCompInput').value.trim()) { addSalt($('#fCompInput').value); $('#fCompInput').value = ''; }
         if (!$('#fName').value.trim()) { MF.toast('Medicine name is required.', 'err', 'Validation'); return; }
         if (!$('#fMrp').value) { MF.toast('MRP is required.', 'err', 'Validation'); return; }
         const payload = {
