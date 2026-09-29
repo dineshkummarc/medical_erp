@@ -38,11 +38,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-pack-head {
       display:flex; align-items:center; gap:8px;
-      font-size:.78rem; font-weight:700; color:#176B5B; margin-bottom:10px;
+      font-size:.78rem; font-weight:700; color:#16325c; margin-bottom:10px;
     }
     .mm-pack-head i {
       width:26px; height:26px; border-radius:8px; display:grid; place-items:center;
-      background:#E6F1EE; font-size:.9rem;
+      background:#e8eef8; font-size:.9rem;
     }
     .mm-input {
       display:flex; align-items:center; gap:8px;
@@ -50,7 +50,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       padding:0 10px; min-height:42px;
       transition:border-color .15s ease, box-shadow .15s ease;
     }
-    .mm-input:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
+    .mm-input:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-input > i { color:#8aa0b8; font-size:1rem; flex:0 0 auto; }
     .mm-input .form-control,
     .mm-input .form-select {
@@ -68,8 +68,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       color:#8aa0b8; font-size:.72rem; pointer-events:none; margin-left:auto;
       transition:transform .15s ease, color .15s ease;
     }
-    .mm-input.is-open { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
-    .mm-input.is-open .mm-select-caret { transform:rotate(180deg); color:#176B5B; }
+    .mm-input.is-open { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
+    .mm-input.is-open .mm-select-caret { transform:rotate(180deg); color:#16325c; }
     .mm-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
     .mm-sched {
       display:flex; flex-wrap:wrap; width:fit-content; max-width:100%;
@@ -92,7 +92,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:8px 10px; min-height:42px;
     }
     .mm-chip-list { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    .mm-chips:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
+    .mm-chips:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-chip {
       display:inline-flex; align-items:center; gap:6px; background:#E6F1EE; color:#0F4D42;
       border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700;
@@ -107,7 +107,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:flex; align-items:center; gap:8px; width:100%;
       background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 12px;
     }
-    .mm-per:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
+    .mm-per:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-per input {
       border:0; outline:0; background:transparent; flex:1 1 auto; width:1%; min-width:0; min-height:40px; padding:0;
       font-size:1rem; color:#1b2430;
@@ -118,13 +118,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-align .form-control {
       min-height:42px; border-radius:10px; border-color:#e3e9f1;
     }
-    .mm-align .form-control:focus { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
+    .mm-align .form-control:focus { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-field-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
     .mm-disc-switch { display:flex; border:1px solid #e3e9f1; border-radius:8px; overflow:hidden; flex:0 0 auto; }
     .mm-disc-switch button {
       border:0; background:#fff; color:#6c757d; min-width:32px; height:28px; padding:0 8px; font-weight:700;
     }
-    .mm-disc-switch button.is-on { background:#176B5B; color:#fff; }
+    .mm-disc-switch button.is-on { background:#16325c; color:#fff; }
     .mm-price-cards { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
     .mm-price-card {
       background:#f6f8fb; border:1px solid #e7edf4; border-radius:12px; padding:12px 14px; min-width:0;
@@ -132,29 +132,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-price-card span { display:block; color:#6b7c90; font-size:.78rem; font-weight:600; margin-bottom:4px; }
     .mm-price-card strong { display:block; color:#1b2430; font-size:1.15rem; font-weight:750; letter-spacing:-.01em; }
     .mm-gst-note { color:#6b7c90; font-size:.82rem; margin-top:10px; }
-    .mm-form-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; }
-    .mm-form-actions { display:flex; flex-wrap:wrap; gap:10px; }
-    .mm-save, .mm-save-another, .mm-cancel {
-      border-radius:10px; font-weight:650; min-height:40px; padding:8px 16px;
-      display:inline-flex; align-items:center; justify-content:center; gap:10px;
-    }
-    .mm-save { background:#176B5B; border:0; color:#fff; padding-right:12px; }
-    .mm-save:hover, .mm-save:focus { background:#0F4D42; color:#fff; }
-    .mm-save kbd {
-      background:rgba(255,255,255,.18); color:#fff; border:0; border-radius:6px;
-      font-family:inherit; font-size:.72rem; font-weight:650; padding:2px 6px; line-height:1.4;
-    }
-    .mm-save-another { background:#E6F1EE; border:0; color:#176B5B; }
-    .mm-save-another:hover, .mm-save-another:focus { background:#D8EAE5; color:#0F4D42; }
-    .mm-cancel { background:#fff; border:1px solid #d7dee7; color:#1b2430; }
-    .mm-cancel:hover { background:#f8fafc; color:#1b2430; }
-    .mm-save.is-busy, .mm-save-another.is-busy { position:relative; overflow:hidden; pointer-events:none; }
-    .mm-save.is-busy::after, .mm-save-another.is-busy::after {
-      content:""; position:absolute; left:0; bottom:0; height:3px; width:35%;
-      background:#fff; animation:mm-load .8s ease-in-out infinite;
-    }
-    .mm-save-another.is-busy::after { background:#176B5B; }
-    @keyframes mm-load { 0% { transform:translateX(-120%); } 100% { transform:translateX(320%); } }
     @media (max-width: 700px) { .mm-price-cards { grid-template-columns:1fr; } }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
@@ -183,9 +160,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border:0; background:transparent; border-radius:8px; padding:.48rem .7rem;
       font:inherit; font-size:.84rem; font-weight:600; color:#1b2430; cursor:pointer; text-align:left;
     }
-    .mm-select-opt i { color:#176B5B; opacity:0; font-size:.95rem; }
+    .mm-select-opt i { color:#16325c; opacity:0; font-size:.95rem; }
     .mm-select-opt:hover, .mm-select-opt.is-hot { background:#f4f7fb; }
-    .mm-select-opt.is-on { background:#E6F1EE; color:#176B5B; }
+    .mm-select-opt.is-on { background:#e8eef8; color:#16325c; }
     .mm-select-opt.is-on i { opacity:1; }
     .mm-select-empty { padding:.6rem .7rem; color:#6c757d; font-size:.8rem; }
 
@@ -210,9 +187,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border-radius:50%; background:#fff; box-shadow:0 1px 2px rgba(16,32,64,.18);
       transition:transform .15s ease;
     }
-    .mm-switch input:checked { background:#176B5B; }
+    .mm-switch input:checked { background:#16325c; }
     .mm-switch input:checked::after { transform:translateX(18px); }
-    .mm-switch input:focus-visible { outline:2px solid #176B5B; outline-offset:2px; }
+    .mm-switch input:focus-visible { outline:2px solid #16325c; outline-offset:2px; }
     .mm-switch-compact { height:42px; padding:6px 10px; }
     .mm-switch-compact strong { font-size:.78rem; }
     .mm-switch-compact small { font-size:.68rem; }
@@ -231,7 +208,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:flex; align-items:center; gap:10px;
       font-size:.84rem; font-weight:600; border-radius:8px; padding:.48rem .65rem;
     }
-    .mm-act-menu .dropdown-item i { width:1.05rem; font-size:1rem; color:#176B5B; }
+    .mm-act-menu .dropdown-item i { width:1.05rem; font-size:1rem; color:#16325c; }
     .mm-act-menu .dropdown-item:hover { background:#f4f7fb; }
     .mm-act-menu .dropdown-item.text-danger i { color:inherit; }
     .mm-act-menu .dropdown-divider { margin:.35rem 0; }
@@ -245,7 +222,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-detail-hero { display:flex; align-items:flex-start; gap:14px; margin-bottom:14px; }
     .mm-detail-icon {
       width:52px; height:52px; border-radius:14px; flex:0 0 auto;
-      display:grid; place-items:center; background:#E6F1EE; color:#176B5B; font-size:1.35rem;
+      display:grid; place-items:center; background:#e8eef8; color:#16325c; font-size:1.35rem;
     }
     .mm-detail-name { font-size:1.12rem; font-weight:750; letter-spacing:-.02em; line-height:1.25; }
     .mm-detail-name span { color:#6c757d; font-weight:500; }
@@ -264,7 +241,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-kpi strong { font-size:1.2rem; }
     .mm-stat small, .mm-kpi small { display:block; margin-top:2px; color:#6c757d; font-size:.75rem; }
-    .mm-kpi.accent { background:#E6F1EE; border-color:#d5e8e3; }
+    .mm-kpi.accent { background:#e8eef8; border-color:#d7e2f2; }
     .mm-detail-cols { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:14px; }
     .mm-detail-card { border:1px solid #e7edf4; border-radius:14px; padding:12px 14px 4px; background:#fff; }
     .mm-detail-card .mm-pack-head { margin-bottom:4px; }
@@ -288,7 +265,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-stock-note.low { background:#fff6e4; color:#8a5a00; }
     .mm-stock-note.out { background:#fdeeee; color:#c62828; }
     .mm-batch {
-      display:inline-flex; align-items:center; gap:6px; background:#f4f7fb; color:#176B5B;
+      display:inline-flex; align-items:center; gap:6px; background:#f4f7fb; color:#16325c;
       border-radius:999px; padding:3px 8px; font-weight:700; font-size:.78rem;
     }
     .mm-exp { font-weight:650; }
@@ -581,12 +558,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           </div>
 
         </div>
-        <div class="modal-footer mm-form-footer">
-          <div class="mm-form-actions">
-            <button class="btn mm-save" id="mmFormSave" type="button">Save medicine <kbd>Ctrl+S</kbd></button>
-            <button class="btn mm-save-another" id="mmFormSaveAnother" type="button">Save and add another</button>
-          </div>
-          <button class="btn mm-cancel" data-bs-dismiss="modal" type="button">Cancel</button>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-mf" id="mmFormSave"><i class="bi bi-check2 me-1"></i>Save Medicine</button>
         </div>
       </div>
     </div>
@@ -1011,16 +985,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
       $('#fUnit').addEventListener('change', syncPackUnit);
 
-      let saving = false;
-      async function saveMedicine(addAnother) {
-        if (saving) return;
+      $('#mmFormSave').addEventListener('click', async () => {
         if ($('#fGroupInput').value.trim()) { addGroup($('#fGroupInput').value); $('#fGroupInput').value = ''; }
         if (!$('#fName').value.trim()) { MF.toast('Medicine name is required.', 'err', 'Validation'); return; }
         if (!$('#fUnit').value) { MF.toast('Select a form.', 'err', 'Validation'); return; }
         if (!$('#fMrp').value) { MF.toast('MRP is required.', 'err', 'Validation'); return; }
-        const busy = addAnother ? $('#mmFormSaveAnother') : $('#mmFormSave');
-        saving = true;
-        if (busy) busy.classList.add('is-busy');
         const spec = packSpec($('#fUnit').value);
         const payload = {
           name: $('#fName').value.trim(), generic: $('#fGeneric').value, brandRef: $('#fBrand').value.trim(), composition: $('#fComp').value,
@@ -1044,33 +1013,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             if (editingId) await MF.Api.put('medicines.php', { id: editingId, ...payload });
             else await MF.Api.post('medicines.php', payload);
             await MF.rehydrate();
-          } catch (e) {
-            MF.toast(e.message, 'err', 'Save failed');
-            return;
-          } finally {
-            saving = false;
-            if (busy) busy.classList.remove('is-busy');
-          }
+          } catch (e) { MF.toast(e.message, 'err', 'Save failed'); return; }
         } else if (editingId) {
           Object.assign(MF.med(editingId), payload);
         } else {
           D.medicines.unshift({ id: 'M' + String(100 + D.medicines.length), brandRef: '', ...payload });
         }
         MF.toast(payload.name + (editingId ? ' updated successfully.' : ' added to the medicine master.'), 'success', editingId ? 'Medicine saved' : 'Medicine created');
+        bootstrap.Modal.getInstance($('#mmFormModal')).hide();
         buildLookups();
         render();
-        if (addAnother) openForm(null);
-        else bootstrap.Modal.getInstance($('#mmFormModal')).hide();
-        saving = false;
-        if (busy) busy.classList.remove('is-busy');
-      }
-      $('#mmFormSave').addEventListener('click', () => saveMedicine(false));
-      $('#mmFormSaveAnother').addEventListener('click', () => saveMedicine(true));
-      document.addEventListener('keydown', (e) => {
-        if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's') return;
-        if (!$('#mmFormModal').classList.contains('show')) return;
-        e.preventDefault();
-        saveMedicine(false);
       });
 
       function openStock(m, detailed) {
@@ -1325,5 +1277,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bfe3cffa2dc57',t:'MTc5MDY5NTQ0OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bea36aa383396',t:'MTc5MDY5NDYyOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
