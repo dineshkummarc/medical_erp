@@ -104,15 +104,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border:1px solid #f6d7a2; border-radius:10px; padding:8px 12px; font-size:.82rem; font-weight:650;
     }
     .mm-per {
-      display:inline-flex; align-items:center; gap:6px; width:fit-content; max-width:100%;
-      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 10px 0 12px;
+      display:flex; align-items:center; gap:8px; width:100%;
+      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 12px;
     }
     .mm-per:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-per input {
-      border:0; outline:0; background:transparent; width:64px; min-height:40px; padding:0;
+      border:0; outline:0; background:transparent; flex:1 1 auto; width:1%; min-width:0; min-height:40px; padding:0;
       font-size:1rem; color:#1b2430;
     }
-    .mm-per-unit { color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
+    .mm-per-unit { flex:0 0 auto; color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
+    .mm-align > [class*="col-"] { display:flex; flex-direction:column; }
+    .mm-align .form-label { min-height:18px; margin-bottom:6px; line-height:1.2; }
+    .mm-align .form-control {
+      min-height:42px; border-radius:10px; border-color:#e3e9f1;
+    }
+    .mm-align .form-control:focus { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
+    .mm-field-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
     }
@@ -392,8 +399,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-capsule"></i> Pack contents</div>
-              <div class="row g-3 align-items-start">
-                <div class="col-lg-2 col-md-4 col-6">
+              <div class="row g-3 align-items-start mm-align">
+                <div class="col-lg-3 col-md-4 col-6">
                   <label class="form-label" for="fHsn">HSN Code</label>
                   <div class="mm-input">
                     <i class="bi bi-hash"></i>
@@ -419,7 +426,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     </select>
                   </div>
                 </div>
-                <div class="col-lg-4 col-md-6 col-12">
+                <div class="col-lg-3 col-md-4 col-12">
                   <label class="form-label" for="fPackQty"><span id="fPackQtyLabel">Units per strip</span> <span class="req">*</span></label>
                   <div class="mm-per">
                     <input type="number" min="1" id="fPackQty" value="">
@@ -427,7 +434,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   </div>
                 </div>
                 <div class="col-lg-3 col-md-6 col-12" id="fLooseWrap" hidden>
-                  <label class="form-label d-none d-lg-block" aria-hidden="true">&nbsp;</label>
+                  <label class="form-label" aria-hidden="true">&nbsp;</label>
                   <label class="mm-switch mm-switch-compact">
                     <input type="checkbox" id="fAllowLoose">
                     <span><strong>Allow loose sale</strong><small id="fLooseHint">Sell single tablets</small></span>
@@ -438,7 +445,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-box-seam"></i> Outer box</div>
-              <div class="row g-3">
+              <div class="row g-3 align-items-start mm-align">
                 <div class="col-md-4 col-6">
                   <label class="form-label" for="fBoxQty">Box Qty</label>
                   <div class="mm-input">
@@ -472,17 +479,34 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           </div>
 
           <div class="mm-section-title">Stock &amp; Status</div>
-          <div class="row g-3">
-            <div class="col-md-3 col-6">
+          <div class="row g-3 align-items-start mm-align">
+            <div class="col-md-4 col-6">
               <label class="form-label" for="fStockQty">Quantity</label>
               <div class="mm-per">
                 <input type="number" min="0" id="fStockQty" value="">
                 <span class="mm-per-unit" id="fStockQtyUnit">units</span>
               </div>
             </div>
-            <div class="col-md-3 col-6"><label class="form-label">Minimum Stock</label><input type="number" class="form-control" id="fMin" value="50"></div>
-            <div class="col-md-3 col-6"><label class="form-label">Reorder Level</label><input type="number" class="form-control" id="fReorder" value="100"></div>
-            <div class="col-md-3 col-12"><label class="form-label">Expiry Alert (days)</label><input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90"></div>
+            <div class="col-md-4 col-6">
+              <label class="form-label" for="fMin">Minimum Stock</label>
+              <input type="number" class="form-control" id="fMin" value="50">
+            </div>
+            <div class="col-md-4 col-12">
+              <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
+              <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
+            </div>
+            <div class="col-md-6 col-12">
+              <label class="form-label" for="fReorder">Reorder level</label>
+              <div class="mm-per">
+                <input type="number" min="0" id="fReorder" value="5">
+                <span class="mm-per-unit" id="fReorderUnit">units</span>
+              </div>
+              <div class="mm-field-hint">Shows "Low stock" at or below this.</div>
+            </div>
+            <div class="col-md-6 col-12">
+              <label class="form-label" for="fRack">Rack / shelf</label>
+              <input class="form-control" id="fRack" placeholder="e.g. A-3">
+            </div>
             <div class="col-12">
               <div class="mm-switch-row">
                 <label class="mm-switch">
@@ -558,8 +582,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           if (state.category && m.category !== state.category) return false;
           if (state.mfg && m.manufacturer !== state.mfg) return false;
           if (state.schedule && m.schedule !== state.schedule) return false;
-          if (state.stock === 'low' && st > m.minStock) return false;
-          if (state.stock === 'in' && st <= m.minStock) return false;
+          const lowAt = Number(m.reorderLevel ?? m.minStock ?? 0);
+          if (state.stock === 'low' && st > lowAt) return false;
+          if (state.stock === 'in' && st <= lowAt) return false;
           if (state.stock === 'out' && st !== 0) return false;
           return true;
         });
@@ -686,7 +711,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 ['Quantity', m.openingQty != null && m.openingQty !== '' ? MF.num(m.openingQty) + ' ' + (spec ? spec.packPlural : 'units') : '—'],
                 ['Current stock', MF.num(st) + ' ' + mmTxt(spec ? spec.packPlural : m.unit)],
                 ['Minimum stock', mmTxt(m.minStock)],
-                ['Reorder level', mmTxt(m.reorderLevel)],
+                ['Reorder level', m.reorderLevel != null && m.reorderLevel !== '' ? MF.num(m.reorderLevel) + ' ' + (spec ? spec.packPlural : 'units') : '—'],
+                ['Rack / shelf', mmTxt(m.rack)],
                 ['Expiry alert', m.expiryAlertDays ? mmTxt(m.expiryAlertDays) + ' days' : '—'],
                 ['Status', mmTxt(m.status || 'Active')]
               ])}
@@ -709,7 +735,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
         $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
-        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 100;
+        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 5; $('#fRack').value = m?.rack || '';
         $('#fExpiryAlert').value = m?.expiryAlertDays ?? '';
         $('#fRx').checked = !!m?.rxRequired; $('#fActive').checked = m ? m.status === 'Active' : true;
         $('#fNameWarn').style.display = 'none'; $('#fBarcodeWarn').style.display = 'none';
@@ -783,6 +809,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if ($('#fPackQtyLabel')) $('#fPackQtyLabel').textContent = label;
         if ($('#fPackQtyUnit')) $('#fPackQtyUnit').textContent = spec ? spec.piecePlural : 'units';
         if ($('#fStockQtyUnit')) $('#fStockQtyUnit').textContent = spec ? spec.packPlural : 'units';
+        if ($('#fReorderUnit')) $('#fReorderUnit').textContent = spec ? spec.packPlural : 'units';
         if ($('#fLooseWrap')) $('#fLooseWrap').hidden = !(spec && spec.loose);
         if ($('#fLooseHint') && spec && spec.loose) $('#fLooseHint').textContent = 'Sell single ' + spec.piecePlural;
         if ($('#fBoxHint')) {
@@ -897,7 +924,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
           wholesaleRate: +$('#fWholesale').value || (+$('#fMrp').value * 0.9), minStock: +$('#fMin').value,
-          reorderLevel: +$('#fReorder').value, rxRequired: $('#fRx').checked, expiryAlertDays: $('#fExpiryAlert').value,
+          reorderLevel: +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: $('#fRx').checked, expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
         if (MF.Api.live) {
@@ -927,8 +954,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const margin = mrpValue - purchValue;
         const note = total === 0
           ? `<div class="mm-stock-note out"><i class="bi bi-exclamation-circle"></i>Out of stock. Nothing can be billed until a batch is received.</div>`
-          : total <= (m.minStock || 0)
-            ? `<div class="mm-stock-note low"><i class="bi bi-exclamation-triangle"></i>Below minimum stock (${MF.num(m.minStock)} ${MF.esc(m.unit || '')}). Reorder level is ${MF.num(m.reorderLevel)}.</div>`
+          : total <= Number(m.reorderLevel ?? m.minStock ?? 0)
+            ? `<div class="mm-stock-note low"><i class="bi bi-exclamation-triangle"></i>Low stock. At or below reorder level (${MF.num(m.reorderLevel)} ${MF.esc(m.unit || '')}).</div>`
             : '';
         const rows = bs.map((b) => {
           const days = MF.daysTo(b.expiry);
@@ -1169,5 +1196,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bb9274986d81d',t:'MTc5MDY5MjYxOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
