@@ -104,15 +104,15 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border:1px solid #f6d7a2; border-radius:10px; padding:8px 12px; font-size:.82rem; font-weight:650;
     }
     .mm-per {
-      display:flex; align-items:center; gap:8px;
-      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 12px;
+      display:inline-flex; align-items:center; gap:6px; width:fit-content; max-width:100%;
+      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 10px 0 12px;
     }
     .mm-per:focus-within { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-per input {
-      border:0; outline:0; background:transparent; width:88px; min-height:40px; padding:0;
+      border:0; outline:0; background:transparent; width:64px; min-height:40px; padding:0;
       font-size:1rem; color:#1b2430;
     }
-    .mm-per-unit { margin-left:auto; color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
+    .mm-per-unit { color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
     }
@@ -400,40 +400,37 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     <input class="form-control" id="fHsn" value="3004">
                   </div>
                 </div>
-                <div class="col-lg-2 col-md-4 col-6">
+                <div class="col-lg-3 col-md-4 col-6">
                   <label class="form-label" for="fUnit">Form</label>
                   <div class="mm-input">
                     <i class="bi bi-tag"></i>
-                    <select class="form-select" id="fUnit"><option>Tablet</option><option>Capsule</option><option>Strip</option><option>Bottle</option><option>Tube</option><option>Sachet</option><option>Vial</option><option>Inhaler</option><option>Pen</option><option>Drop</option><option>Injection</option></select>
+                    <select class="form-select" id="fUnit">
+                      <option value="" selected>Select form</option>
+                      <option>Tablet</option>
+                      <option>Capsule</option>
+                      <option>Syrup</option>
+                      <option>Drops</option>
+                      <option>Injection</option>
+                      <option>Ointment</option>
+                      <option>Cream</option>
+                      <option>Powder</option>
+                      <option>Sachet</option>
+                      <option>Other</option>
+                    </select>
                   </div>
                 </div>
-                <div class="col-lg-3 col-md-4 col-6">
-                  <label class="form-label" for="fPack">Pack / Strip Size</label>
-                  <div class="mm-input">
-                    <i class="bi bi-card-text"></i>
-                    <input class="form-control" id="fPack" placeholder="e.g. 15 Tablets">
-                  </div>
-                  <div class="text-2 small mt-1">Total pieces in 1 pack</div>
-                </div>
-                <div class="col-lg-3 col-md-4 col-12">
-                  <label class="form-label" for="fPackQty">Units per strip <span class="req">*</span></label>
+                <div class="col-lg-4 col-md-6 col-12">
+                  <label class="form-label" for="fPackQty"><span id="fPackQtyLabel">Units per strip</span> <span class="req">*</span></label>
                   <div class="mm-per">
-                    <input type="number" min="1" id="fPackQty" value="15">
-                    <span class="mm-per-unit" id="fPackQtyUnit">tablets</span>
+                    <input type="number" min="1" id="fPackQty" value="">
+                    <span class="mm-per-unit" id="fPackQtyUnit">units</span>
                   </div>
                 </div>
-                <div class="col-lg-2 col-md-6 col-6">
-                  <label class="form-label" for="fSubUnit">Sub-unit</label>
-                  <div class="mm-input">
-                    <i class="bi bi-capsule"></i>
-                    <input class="form-control" id="fSubUnit" placeholder="e.g. Tablet">
-                  </div>
-                </div>
-                <div class="col-lg-3 col-md-6 col-12">
+                <div class="col-lg-3 col-md-6 col-12" id="fLooseWrap" hidden>
                   <label class="form-label d-none d-lg-block" aria-hidden="true">&nbsp;</label>
                   <label class="mm-switch mm-switch-compact">
                     <input type="checkbox" id="fAllowLoose">
-                    <span><strong>Allow loose sale</strong><small>Sell single sub-units</small></span>
+                    <span><strong>Allow loose sale</strong><small id="fLooseHint">Sell single tablets</small></span>
                   </label>
                 </div>
               </div>
@@ -448,7 +445,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     <i class="bi bi-123"></i>
                     <input type="number" min="1" class="form-control" id="fBoxQty" placeholder="e.g. 10">
                   </div>
-                  <div class="text-2 small mt-1">Packs / strips per box</div>
+                  <div class="text-2 small mt-1" id="fBoxHint">Packs per box</div>
                 </div>
                 <div class="col-md-4 col-6">
                   <label class="form-label" for="fBoxUnit">Box Unit</label>
@@ -476,9 +473,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
           <div class="mm-section-title">Stock &amp; Status</div>
           <div class="row g-3">
-            <div class="col-md-4 col-6"><label class="form-label">Minimum Stock</label><input type="number" class="form-control" id="fMin" value="50"></div>
-            <div class="col-md-4 col-6"><label class="form-label">Reorder Level</label><input type="number" class="form-control" id="fReorder" value="100"></div>
-            <div class="col-md-4 col-12"><label class="form-label">Expiry Alert (days)</label><input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90"></div>
+            <div class="col-md-3 col-6">
+              <label class="form-label" for="fStockQty">Quantity</label>
+              <div class="mm-per">
+                <input type="number" min="0" id="fStockQty" value="">
+                <span class="mm-per-unit" id="fStockQtyUnit">units</span>
+              </div>
+            </div>
+            <div class="col-md-3 col-6"><label class="form-label">Minimum Stock</label><input type="number" class="form-control" id="fMin" value="50"></div>
+            <div class="col-md-3 col-6"><label class="form-label">Reorder Level</label><input type="number" class="form-control" id="fReorder" value="100"></div>
+            <div class="col-md-3 col-12"><label class="form-label">Expiry Alert (days)</label><input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90"></div>
             <div class="col-12">
               <div class="mm-switch-row">
                 <label class="mm-switch">
@@ -622,7 +626,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function openView(m) {
         viewingMed = m;
         const st = MF.stockOf(m.id);
-        const pack = [m.unit, m.packSize].filter(Boolean).join(' · ');
+        const spec = packSpec(m.form || formFromMed(m));
+        const formName = m.form || formFromMed(m) || m.unit;
+        const perLabel = spec ? (spec.pack === 'unit' ? 'Units' : 'Units per ' + spec.pack) : 'Units per strip';
+        const piece = spec ? spec.piecePlural : 'units';
         $('#mmViewBody').innerHTML = `
           <div class="mm-detail-hero">
             <div class="mm-detail-icon"><i class="bi bi-capsule"></i></div>
@@ -654,9 +661,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <section class="mm-detail-card">
               <div class="mm-pack-head"><i class="bi bi-box-seam"></i> Packaging</div>
               ${mmPairs([
-                ['Form', mmTxt(m.unit)],
-                ['Units per strip', mmTxt(m.packQty)],
-                ['Sub-unit', mmTxt(m.subUnit)],
+                ['Form', mmTxt(formName)],
+                ['Pack', mmTxt(spec ? spec.unit : m.unit)],
+                [perLabel, m.packQty ? mmTxt(m.packQty) + ' ' + piece : '—'],
                 ['Loose sale', m.allowLoose ? 'Allowed' : 'No'],
                 ['Box', mmTxt([m.boxQty, m.boxUnit || 'Box'].filter((x) => x != null && x !== '').join(' '))],
                 ['Schedule', mmTxt(m.schedule)],
@@ -676,7 +683,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <section class="mm-detail-card">
               <div class="mm-pack-head"><i class="bi bi-boxes"></i> Stock rules</div>
               ${mmPairs([
-                ['Current stock', MF.num(st) + ' ' + mmTxt(m.unit)],
+                ['Quantity', m.openingQty != null && m.openingQty !== '' ? MF.num(m.openingQty) + ' ' + (spec ? spec.packPlural : 'units') : '—'],
+                ['Current stock', MF.num(st) + ' ' + mmTxt(spec ? spec.packPlural : m.unit)],
                 ['Minimum stock', mmTxt(m.minStock)],
                 ['Reorder level', mmTxt(m.reorderLevel)],
                 ['Expiry alert', m.expiryAlertDays ? mmTxt(m.expiryAlertDays) + ' days' : '—'],
@@ -693,9 +701,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; $('#fComp').value = m?.composition || ''; $('#fBrand').value = m?.brandRef || '';
         $('#fCategory').value = m?.category || D.categories[0]; $('#fMfg').value = m?.manufacturer || D.manufacturers[0];
         setGroups(m?.genericGroup || (!m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes))));
-        $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m?.unit || 'Strip'; $('#fPack').value = m?.packSize || '';
+        $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m ? formFromMed(m) : '';
         $('#fBarcode').value = m?.barcode || '';
-        $('#fPackQty').value = m?.packQty || 1; $('#fSubUnit').value = m?.subUnit || ''; $('#fAllowLoose').checked = !!m?.allowLoose;
+        $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
+        $('#fStockQty').value = m?.openingQty ?? '';
         syncPackUnit();
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
         $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
@@ -740,16 +749,48 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         groups = [];
         addGroup(text);
       }
-      function pieceWord(form) {
-        const word = String(form || 'tablet').trim().toLowerCase();
-        if (!word) return 'units';
-        if (/(s|x|ch|sh)$/.test(word)) return word + 'es';
-        if (word.endsWith('y') && !/[aeiou]y$/.test(word)) return word.slice(0, -1) + 'ies';
-        return word + 's';
+      const FORM_PACK = {
+        Tablet: { pack: 'strip', packPlural: 'strips', piecePlural: 'tablets', unit: 'Strip', sub: 'Tablet', loose: true },
+        Capsule: { pack: 'strip', packPlural: 'strips', piecePlural: 'capsules', unit: 'Strip', sub: 'Capsule', loose: true },
+        Syrup: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'ml', unit: 'Bottle', sub: 'ml', loose: false },
+        Drops: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'drops', unit: 'Bottle', sub: 'Drop', loose: false },
+        Injection: { pack: 'vial', packPlural: 'vials', piecePlural: 'ml', unit: 'Vial', sub: 'ml', loose: false },
+        Ointment: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false },
+        Cream: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false },
+        Powder: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'g', unit: 'Sachet', sub: 'g', loose: false },
+        Sachet: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'sachets', unit: 'Sachet', sub: 'Sachet', loose: false },
+        Other: { pack: 'unit', packPlural: 'units', piecePlural: 'units', unit: 'Unit', sub: 'Unit', loose: false }
+      };
+      function packSpec(form) { return FORM_PACK[form] || null; }
+      function formFromMed(m) {
+        if (!m) return '';
+        if (m.form && FORM_PACK[m.form]) return m.form;
+        if (FORM_PACK[m.unit]) return m.unit;
+        const sub = String(m.subUnit || '').toLowerCase();
+        if (sub === 'tablet' || sub === 'tab') return 'Tablet';
+        if (sub === 'capsule' || sub === 'cap') return 'Capsule';
+        const unit = String(m.unit || '').toLowerCase();
+        if (unit === 'vial') return 'Injection';
+        if (unit === 'tube') return 'Ointment';
+        if (unit === 'sachet') return 'Sachet';
+        if (unit === 'bottle') return 'Syrup';
+        if (unit === 'strip') return 'Tablet';
+        return '';
       }
       function syncPackUnit() {
-        const el = $('#fPackQtyUnit');
-        if (el) el.textContent = pieceWord($('#fUnit') && $('#fUnit').value);
+        const spec = packSpec($('#fUnit') && $('#fUnit').value);
+        const label = spec ? (spec.pack === 'unit' ? 'Units' : 'Units per ' + spec.pack) : 'Units per strip';
+        if ($('#fPackQtyLabel')) $('#fPackQtyLabel').textContent = label;
+        if ($('#fPackQtyUnit')) $('#fPackQtyUnit').textContent = spec ? spec.piecePlural : 'units';
+        if ($('#fStockQtyUnit')) $('#fStockQtyUnit').textContent = spec ? spec.packPlural : 'units';
+        if ($('#fLooseWrap')) $('#fLooseWrap').hidden = !(spec && spec.loose);
+        if ($('#fLooseHint') && spec && spec.loose) $('#fLooseHint').textContent = 'Sell single ' + spec.piecePlural;
+        if ($('#fBoxHint')) {
+          $('#fBoxHint').textContent = spec && spec.pack !== 'unit'
+            ? spec.packPlural.charAt(0).toUpperCase() + spec.packPlural.slice(1) + ' per box'
+            : 'Packs per box';
+        }
+        if (!(spec && spec.loose) && $('#fAllowLoose')) $('#fAllowLoose').checked = false;
       }
       function checkPrice() {
         const buy = parseFloat($('#fPtr').value);
@@ -841,15 +882,18 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       $('#mmFormSave').addEventListener('click', async () => {
         if ($('#fGroupInput').value.trim()) { addGroup($('#fGroupInput').value); $('#fGroupInput').value = ''; }
         if (!$('#fName').value.trim()) { MF.toast('Medicine name is required.', 'err', 'Validation'); return; }
+        if (!$('#fUnit').value) { MF.toast('Select a form.', 'err', 'Validation'); return; }
         if (!$('#fMrp').value) { MF.toast('MRP is required.', 'err', 'Validation'); return; }
+        const spec = packSpec($('#fUnit').value);
         const payload = {
           name: $('#fName').value.trim(), generic: $('#fGeneric').value, brandRef: $('#fBrand').value.trim(), composition: $('#fComp').value,
           category: $('#fCategory').value, manufacturer: $('#fMfg').value, hsn: $('#fHsn').value,
           genericGroup: $('#fGenericGroup').value.trim(),
           substitutes: $('#fGenericGroup').value.trim(),
           barcode: $('#fBarcode').value.trim(),
-          unit: $('#fUnit').value, packSize: $('#fPack').value, gst: +$('#fGst').value, schedule: $('#fSchedule').value,
-          packQty: +$('#fPackQty').value || 1, subUnit: $('#fSubUnit').value.trim(), allowLoose: $('#fAllowLoose').checked,
+          form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: +$('#fGst').value, schedule: $('#fSchedule').value,
+          packQty: +$('#fPackQty').value || 1, subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
+          openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
           wholesaleRate: +$('#fWholesale').value || (+$('#fMrp').value * 0.9), minStock: +$('#fMin').value,
