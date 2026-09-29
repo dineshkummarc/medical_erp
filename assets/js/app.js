@@ -129,7 +129,7 @@ window.MF = window.MF || {};
     if (days < 0) return 'Expired';
     if (days <= 90) return 'Near Expiry';
     const med = MF.med(b.medId);
-    if (med && MF.stockOf(med.id) <= med.minStock) return 'Low Stock';
+    if (med && MF.stockOf(med.id) <= Number(med.reorderLevel ?? med.minStock ?? 0)) return 'Low Stock';
     return 'Active';
   };
 
@@ -140,7 +140,7 @@ window.MF = window.MF || {};
   MF.stockBadge = (med) => {
     const st = MF.stockOf(med.id);
     if (st === 0) return MF.badge('Out of Stock', 'danger');
-    if (st <= med.minStock) return MF.badge('Low Stock', 'warning');
+    if (st <= Number(med.reorderLevel ?? med.minStock ?? 0)) return MF.badge('Low Stock', 'warning');
     return MF.badge('In Stock', 'success');
   };
 
