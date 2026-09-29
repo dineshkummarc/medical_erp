@@ -120,6 +120,19 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-align .form-control:focus { border-color:#16325c; box-shadow:0 0 0 3px rgba(22,50,92,.12); }
     .mm-field-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
+    .mm-disc-switch { display:flex; border:1px solid #e3e9f1; border-radius:8px; overflow:hidden; flex:0 0 auto; }
+    .mm-disc-switch button {
+      border:0; background:#fff; color:#6c757d; min-width:32px; height:28px; padding:0 8px; font-weight:700;
+    }
+    .mm-disc-switch button.is-on { background:#16325c; color:#fff; }
+    .mm-price-cards { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:12px; }
+    .mm-price-card {
+      background:#f6f8fb; border:1px solid #e7edf4; border-radius:12px; padding:12px 14px; min-width:0;
+    }
+    .mm-price-card span { display:block; color:#6b7c90; font-size:.78rem; font-weight:600; margin-bottom:4px; }
+    .mm-price-card strong { display:block; color:#1b2430; font-size:1.15rem; font-weight:750; letter-spacing:-.01em; }
+    .mm-gst-note { color:#6b7c90; font-size:.82rem; margin-top:10px; }
+    @media (max-width: 700px) { .mm-price-cards { grid-template-columns:1fr; } }
     .mm-select-hit {
       position:absolute; inset:0; border:0; background:transparent; cursor:pointer; z-index:2;
     }
@@ -466,15 +479,34 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           </div>
 
           <div class="mm-section-title">Pricing &amp; Tax</div>
-          <div class="row g-3">
+          <div class="row g-3 align-items-start mm-align">
             <div class="col-md-3 col-6"><label class="form-label">GST %</label>
               <select class="form-select" id="fGst"><option>5</option><option selected>12</option><option>18</option></select></div>
             <div class="col-md-3 col-6"><label class="form-label">MRP (₹)</label><input type="number" step="0.01" class="form-control" id="fMrp"></div>
             <div class="col-md-3 col-6"><label class="form-label">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr"></div>
             <div class="col-md-3 col-6"><label class="form-label">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail"></div>
             <div class="col-md-3 col-6"><label class="form-label">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale"></div>
+            <div class="col-md-3 col-6">
+              <label class="form-label" for="fDisc">Default discount</label>
+              <div class="mm-per">
+                <input type="number" min="0" step="0.01" id="fDisc" value="0" placeholder="0">
+                <div class="mm-disc-switch" id="fDiscSwitch" role="group" aria-label="Discount type">
+                  <button type="button" class="is-on" data-disc="percent" aria-pressed="true">%</button>
+                  <button type="button" data-disc="rupee" aria-pressed="false">₹</button>
+                </div>
+              </div>
+              <input type="hidden" id="fDiscType" value="percent">
+            </div>
             <div class="col-12" id="fPriceWarn" hidden>
               <div class="mm-price-warn"><i class="bi bi-exclamation-triangle"></i>Purchase rate is above the selling price.</div>
+            </div>
+            <div class="col-12">
+              <div class="mm-price-cards">
+                <div class="mm-price-card"><span id="fSellLabel">Selling price / strip</span><strong id="fSellValue">—</strong></div>
+                <div class="mm-price-card"><span>Price per unit</span><strong id="fUnitPrice">—</strong></div>
+                <div class="mm-price-card"><span>Margin</span><strong id="fMargin">—</strong></div>
+              </div>
+              <div class="mm-gst-note" id="fGstNote">GST is included in MRP.</div>
             </div>
           </div>
 
@@ -706,6 +738,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 ['Purchase rate', MF.fmt(m.purchaseRate, 2)],
                 ['Retail rate', MF.fmt(m.retailRate ?? m.mrp, 2)],
                 ['Wholesale rate', MF.fmt(m.wholesaleRate, 2)],
+                ['Default discount', m.defaultDiscount ? (m.discountType === 'rupee' ? MF.fmt(m.defaultDiscount, 2) : mmTxt(m.defaultDiscount) + '%') : '—'],
                 ['GST', mmTxt(m.gst) + '%']
               ])}
             </section>
@@ -741,7 +774,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
         $('#fGst').value = m ? String(m.gst) : '12'; setSchedule(m?.schedule || 'OTC', false);
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
-        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 5; $('#fRack').value = m?.rack || '';
+        $('#fWholesale').value = m?.wholesaleRate ?? ''; $('#fDisc').value = m?.defaultDiscount ?? 0; setDiscType(m?.discountType === 'rupee' ? 'rupee' : 'percent', false); $('#fMin').value = m?.minStock ?? 50; $('#fReorder').value = m?.reorderLevel ?? 5; $('#fRack').value = m?.rack || '';
         $('#fExpiryAlert').value = m?.expiryAlertDays ?? '';
         $('#fRx').checked = !!m?.rxRequired; $('#fActive').checked = m ? m.status === 'Active' : true;
         $('#fNameWarn').style.display = 'none'; $('#fBarcodeWarn').style.display = 'none';
@@ -824,14 +857,48 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             : 'Packs per box';
         }
         if (!(spec && spec.loose) && $('#fAllowLoose')) $('#fAllowLoose').checked = false;
+        checkPrice();
+      }
+      function setDiscType(type, refresh) {
+        const kind = type === 'rupee' ? 'rupee' : 'percent';
+        if ($('#fDiscType')) $('#fDiscType').value = kind;
+        document.querySelectorAll('#fDiscSwitch [data-disc]').forEach((b) => {
+          const on = b.dataset.disc === kind;
+          b.classList.toggle('is-on', on);
+          b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+        if (refresh !== false) checkPrice();
+      }
+      function sellingPrice() {
+        const retail = parseFloat($('#fRetail').value);
+        const mrp = parseFloat($('#fMrp').value);
+        let sell = !isNaN(retail) && retail > 0 ? retail : mrp;
+        const disc = parseFloat($('#fDisc') && $('#fDisc').value);
+        const kind = $('#fDiscType') ? $('#fDiscType').value : 'percent';
+        if (!isNaN(sell) && !isNaN(disc) && disc > 0) sell = kind === 'rupee' ? sell - disc : sell * (1 - disc / 100);
+        if (!isNaN(sell) && sell < 0) sell = 0;
+        return sell;
       }
       function checkPrice() {
         const buy = parseFloat($('#fPtr').value);
-        const retail = parseFloat($('#fRetail').value);
-        const sell = !isNaN(retail) && retail > 0 ? retail : parseFloat($('#fMrp').value);
-        const over = !isNaN(buy) && buy > 0 && !isNaN(sell) && sell > 0 && buy > sell;
-        const el = $('#fPriceWarn');
-        if (el) el.hidden = !over;
+        const sell = sellingPrice();
+        const warn = $('#fPriceWarn');
+        if (warn) warn.hidden = !(!isNaN(buy) && buy > 0 && !isNaN(sell) && sell > 0 && buy > sell);
+        const spec = packSpec($('#fUnit') && $('#fUnit').value);
+        const pack = spec ? spec.pack : 'strip';
+        const piece = spec ? String(spec.sub || 'unit').toLowerCase() : 'unit';
+        const mrp = parseFloat($('#fMrp').value);
+        const gst = parseFloat($('#fGst').value);
+        const qty = parseFloat($('#fPackQty').value);
+        const per = qty > 0 ? qty : 1;
+        if ($('#fSellLabel')) $('#fSellLabel').textContent = 'Selling price / ' + pack;
+        if ($('#fSellValue')) $('#fSellValue').textContent = isNaN(sell) ? '—' : MF.fmt(sell, 2);
+        if ($('#fUnitPrice')) $('#fUnitPrice').textContent = isNaN(sell) ? '—' : MF.fmt(sell / per, 2) + ' / ' + piece;
+        if ($('#fMargin')) $('#fMargin').textContent = isNaN(sell) || sell <= 0 || isNaN(buy) ? '—' : ((sell - buy) / sell * 100).toFixed(1) + '%';
+        if ($('#fGstNote')) {
+          if (isNaN(mrp) || mrp <= 0 || isNaN(gst)) $('#fGstNote').textContent = 'GST is included in MRP.';
+          else $('#fGstNote').textContent = 'GST is included in MRP: ' + MF.fmt(mrp * gst / (100 + gst), 2) + ' per ' + pack + ' at ' + gst + '%.';
+        }
       }
 
       /* Small edit-distance helper — used only to flag likely-duplicate medicine names as you type. */
@@ -909,7 +976,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           $('#fGroupInput').value = '';
         }
       });
-      ['fPtr', 'fRetail', 'fMrp'].forEach((id) => $('#' + id).addEventListener('input', checkPrice));
+      ['fPtr', 'fRetail', 'fMrp', 'fDisc', 'fPackQty'].forEach((id) => $('#' + id).addEventListener('input', checkPrice));
+      $('#fGst').addEventListener('change', checkPrice);
+      $('#fDiscSwitch').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-disc]');
+        if (!btn) return;
+        setDiscType(btn.dataset.disc);
+      });
       $('#fUnit').addEventListener('change', syncPackUnit);
 
       $('#mmFormSave').addEventListener('click', async () => {
@@ -930,6 +1003,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
+          defaultDiscount: $('#fDisc').value === '' ? 0 : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
           wholesaleRate: +$('#fWholesale').value || (+$('#fMrp').value * 0.9), minStock: +$('#fMin').value,
           reorderLevel: +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: $('#fRx').checked, expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
@@ -1203,5 +1277,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bccbc396e408d',t:'MTc5MDY5MzQyMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bea36aa383396',t:'MTc5MDY5NDYyOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

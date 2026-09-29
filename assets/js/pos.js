@@ -491,7 +491,13 @@
     const rate = pack ? sell : sell / packSize(med);
     const line = state.cart.find((l) => l.batchId == slot.id && (pack ? l.unit !== 'loose' : l.unit === 'loose'));
     if (line) line.qty++;
-    else state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct: 0, unit: pack ? 'pack' : 'loose' });
+    else {
+      const rawDisc = Number(med.defaultDiscount) || 0;
+      const discPct = med.discountType === 'rupee'
+        ? (rate > 0 ? Math.min(100, (rawDisc / rate) * 100) : 0)
+        : Math.min(100, rawDisc);
+      state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct, unit: pack ? 'pack' : 'loose' });
+    }
     if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
     rememberRecent(medId);
     renderCart();
