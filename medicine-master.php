@@ -1010,7 +1010,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           input.focus();
           input.setSelectionRange(input.value.length, input.value.length);
         }
-        selectMenu.querySelector('.is-on, .is-hot')?.scrollIntoView({ block: 'nearest' });
+        revealOption(selectMenu.querySelector('.is-on, .is-hot'));
+      }
+      function revealOption(el) {
+        if (!el) return;
+        const top = el.offsetTop;
+        const bottom = top + el.offsetHeight;
+        if (top < selectMenu.scrollTop) selectMenu.scrollTop = top;
+        else if (bottom > selectMenu.scrollTop + selectMenu.clientHeight) selectMenu.scrollTop = bottom - selectMenu.clientHeight;
       }
       function openSelectMenu(sel) {
         if (openSelect === sel) { closeSelectMenu(); return; }
@@ -1088,7 +1095,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             ? Math.min(buttons.length - 1, (cur < 0 ? -1 : cur) + 1)
             : Math.max(0, (cur < 0 ? 0 : cur) - 1);
           buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hotIndex));
-          buttons[hotIndex]?.scrollIntoView({ block: 'nearest' });
+          revealOption(buttons[hotIndex]);
         }
         if (e.key === 'Enter' && buttons.length) {
           e.preventDefault();
@@ -1096,8 +1103,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           chooseSelect(+hot.dataset.i);
         }
       });
-      window.addEventListener('resize', closeSelectMenu);
-      document.addEventListener('scroll', closeSelectMenu, true);
+      function followSelectMenu(e) {
+        if (!openSelect) return;
+        if (e && (e.target === selectMenu || selectMenu.contains(e.target))) return;
+        placeSelectMenu(openSelect);
+      }
+      window.addEventListener('resize', followSelectMenu);
+      document.addEventListener('scroll', followSelectMenu, true);
 
       document.addEventListener('DOMContentLoaded', async () => {
         await MF.boot();
