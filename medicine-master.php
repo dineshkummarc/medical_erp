@@ -480,18 +480,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
           <div class="mm-section-title">Stock &amp; Status</div>
           <div class="row g-3 align-items-start mm-align">
-            <div class="col-md-4 col-6">
+            <div class="col-md-3 col-6">
+              <label class="form-label" for="fBatchNo">Batch no</label>
+              <input class="form-control" id="fBatchNo" placeholder="e.g. B24091">
+            </div>
+            <div class="col-md-3 col-6">
               <label class="form-label" for="fStockQty">Quantity</label>
               <div class="mm-per">
                 <input type="number" min="0" id="fStockQty" value="">
                 <span class="mm-per-unit" id="fStockQtyUnit">units</span>
               </div>
             </div>
-            <div class="col-md-4 col-6">
+            <div class="col-md-3 col-6">
               <label class="form-label" for="fMin">Minimum Stock</label>
               <input type="number" class="form-control" id="fMin" value="50">
             </div>
-            <div class="col-md-4 col-12">
+            <div class="col-md-3 col-12">
               <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
               <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
             </div>
@@ -708,6 +712,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <section class="mm-detail-card">
               <div class="mm-pack-head"><i class="bi bi-boxes"></i> Stock rules</div>
               ${mmPairs([
+                ['Batch no', mmTxt(m.batchNo)],
                 ['Quantity', m.openingQty != null && m.openingQty !== '' ? MF.num(m.openingQty) + ' ' + (spec ? spec.packPlural : 'units') : '—'],
                 ['Current stock', MF.num(st) + ' ' + mmTxt(spec ? spec.packPlural : m.unit)],
                 ['Minimum stock', mmTxt(m.minStock)],
@@ -730,6 +735,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fHsn').value = m?.hsn || '3004'; $('#fUnit').value = m ? formFromMed(m) : '';
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
+        $('#fBatchNo').value = m?.batchNo || (m ? (MF.batchesOf(m.id)[0]?.batchNo || '') : '');
         $('#fStockQty').value = m?.openingQty ?? '';
         syncPackUnit();
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || 'Box';
@@ -920,6 +926,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           barcode: $('#fBarcode').value.trim(),
           form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: +$('#fGst').value, schedule: $('#fSchedule').value,
           packQty: +$('#fPackQty').value || 1, subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
+          batchNo: $('#fBatchNo').value.trim(),
           openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim() || 'Box',
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
@@ -1196,5 +1203,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bb9274986d81d',t:'MTc5MDY5MjYxOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42bccbc396e408d',t:'MTc5MDY5MzQyMQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
