@@ -339,7 +339,42 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:999px;
       background:#f3f4f6; color:#6b7280; font-size:.68rem; font-weight:650; line-height:1.4;
     }
-    #mmStockModal .modal-dialog { max-width:760px; }
+    #mmStockModal .modal-dialog { max-width:880px; }
+    .mm-stock-kpis { grid-template-columns:repeat(4, minmax(0, 1fr)); }
+    .mm-kpi { position:relative; overflow:hidden; }
+    .mm-kpi i.mm-kpi-ico { position:absolute; right:10px; top:10px; font-size:1rem; opacity:.55; }
+    .mm-kpi.on { background:#E6F1EE; border-color:#cfe4de; }
+    .mm-kpi.on strong { color:#176B5B; }
+    .mm-kpi.free { background:#eef8f1; border-color:#d4eadb; }
+    .mm-kpi.free strong { color:#157347; }
+    .mm-kpi.hold { background:#fff6e4; border-color:#f3e0b8; }
+    .mm-kpi.hold strong { color:#8a5a00; }
+    .mm-kpi.value { background:#f3f6fb; border-color:#dce5f1; }
+    .mm-kpi.value strong { color:#1d4f91; }
+    .mm-stock-meta { padding:0 16px 12px; color:#6c757d; font-size:.8rem; font-weight:600; }
+    .mm-rate { white-space:nowrap; }
+    .mm-cdot { color:#9aa8b8; padding:0 4px; }
+    .mm-activity { margin:0 16px 16px; border:1px solid #e7edf4; border-radius:12px; background:#fff; }
+    .mm-activity summary {
+      list-style:none; cursor:pointer; padding:10px 12px; font-size:.84rem; font-weight:700; color:#1b2430;
+    }
+    .mm-activity summary::-webkit-details-marker { display:none; }
+    .mm-activity summary .caret { display:inline-block; width:1rem; color:#6c757d; }
+    .mm-activity summary span { color:#6c757d; font-weight:600; }
+    .mm-activity:not([open]) summary .caret { transform:rotate(-90deg); }
+    .mm-act-row {
+      display:flex; align-items:center; gap:10px; padding:8px 12px; border-top:1px solid #f1f4f8; font-size:.82rem;
+    }
+    .mm-act-kind {
+      flex:0 0 auto; min-width:5.6rem; border-radius:999px; padding:2px 8px; font-size:.68rem; font-weight:700; text-align:center;
+    }
+    .mm-act-kind.sale { background:#fdeeee; color:#c62828; }
+    .mm-act-kind.purchase { background:#E6F1EE; color:#176B5B; }
+    .mm-act-kind.adjustment { background:#fff6e4; color:#8a5a00; }
+    .mm-act-row .grow { flex:1; min-width:0; }
+    .mm-act-row .qty { font-weight:750; font-variant-numeric:tabular-nums; }
+    .mm-act-row .qty.down { color:#c62828; }
+    .mm-act-row .qty.up { color:#157347; }
     #mmBatchModal .modal-dialog { max-width:980px; }
     #mmAdjustModal .modal-dialog { max-width:560px; }
     .mm-modal-hero { display:flex; align-items:flex-start; gap:12px; padding:16px 16px 0; }
@@ -1386,6 +1421,74 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         return Math.max(0, (Number(b.qty) || 0) - (Number(b.reserved) || 0));
       }
       function showModal(el) { bootstrap.Modal.getOrCreateInstance(el).show(); }
+      function packWord(m) {
+        const raw = String((m && m.unit) || 'strip').trim().toLowerCase();
+        if (raw.endsWith('s') && raw.length > 3) return raw.slice(0, -1);
+        return raw || 'strip';
+      }
+      function rateCell(b, m) {
+        const rate = Number(b.purchaseRate || b.purchase_rate || 0);
+        const mrp = Number(b.mrp || m.mrp || 0);
+        return `<span class="num">${MF.fmt(rate, 2)}</span> <span class="text-2">/ ${MF.esc(packWord(m))}</span><span class="mm-cdot">·</span><span class="text-2">MRP ${MF.fmt(mrp, 2)}</span>`;
+      }
+      function activityRows(rows, m) {
+        if (!rows.length) return '<div class="mm-act-row text-2">No sales, purchases, or adjustments yet.</div>';
+        const unit = packWord(m);
+        return rows.slice(0, 5).map((r) => {
+          const kind = r.kind || 'adjustment';
+          const qty = Number(r.qty || 0);
+          const sign = qty > 0 ? '+' : '';
+          const when = r.date ? MF.fmtDate(String(r.date).slice(0, 10)) : '—';
+          const ref = [r.ref, r.batch, r.party].filter(Boolean).join(' · ');
+          return `<div class="mm-act-row">
+            <span class="mm-act-kind ${MF.esc(kind)}">${MF.esc(kind === 'sale' ? 'Sale' : kind === 'purchase' ? 'Purchase' : 'Adjustment')}</span>
+            <span class="text-2">${MF.esc(when)}</span>
+            <span class="grow text-2">${MF.esc(ref || '—')}</span>
+            <span class="qty ${qty < 0 ? 'down' : 'up'}">${sign}${MF.num(qty)} ${MF.esc(unit)}</span>
+          </div>`;
+        }).join('');
+      }
+      function localActivity(medId) {
+        const events = [];
+        const medName = String((MF.med(medId) || {}).name || '');
+        const same = (row) => {
+          const id = row.medId || row.medicineId || row.medicine_id;
+          if (id != null && id !== '') return String(id) === String(medId);
+          const name = row.medicine_name || row.name || row.medicine || '';
+          return name !== '' && name === medName;
+        };
+        (D.sales || D.salesInvoices || []).forEach((inv) => {
+          (inv.items || inv.lines || []).forEach((it) => {
+            if (!same(it)) return;
+            events.push({ kind: 'sale', date: inv.sale_date || inv.date || inv.created_at || '', ref: inv.invoice_no || inv.no || '', batch: it.batch_no || it.batchNo || '', party: inv.customer_name || inv.customer || '', qty: -Math.abs(Number(it.qty) || 0), at: inv.created_at || inv.sale_date || inv.date || '' });
+          });
+        });
+        (D.purchases || D.purchaseInvoices || []).forEach((inv) => {
+          (inv.items || inv.lines || []).forEach((it) => {
+            if (!same(it)) return;
+            events.push({ kind: 'purchase', date: inv.invoice_date || inv.date || inv.created_at || '', ref: inv.invoice_no || inv.no || '', batch: it.batch_no || it.batchNo || '', party: inv.supplier_name || inv.supplier || '', qty: Math.abs(Number(it.qty) || 0), at: inv.created_at || inv.invoice_date || inv.date || '' });
+          });
+        });
+        (D.stockAdjustments || D.adjustments || []).forEach((a) => {
+          if (!same(a)) return;
+          events.push({ kind: 'adjustment', date: a.created_at || a.date || '', ref: a.reason || '', batch: a.batchNo || a.batch_no || '', party: a.adjustedBy || a.adjusted_by || '', qty: Number(a.qtyChange ?? a.qty_change) || 0, at: a.created_at || a.date || '' });
+        });
+        return events.sort((a, b) => String(b.at || b.date).localeCompare(String(a.at || a.date))).slice(0, 5);
+      }
+      async function loadActivity(m) {
+        const box = document.getElementById('mmActivityList');
+        if (!box) return;
+        let rows = [];
+        if (MF.Api.live) {
+          try {
+            const res = await MF.Api.get('stock-activity.php?medicineId=' + encodeURIComponent(m.id));
+            rows = Array.isArray(res.data) ? res.data : [];
+          } catch (_) {
+            rows = localActivity(m.id);
+          }
+        } else rows = localActivity(m.id);
+        if (document.getElementById('mmActivityList')) document.getElementById('mmActivityList').innerHTML = activityRows(rows, MF.med(m.id) || m);
+      }
       function openStock(m) {
         stockMed = m;
         const bs = MF.batchesOf(m.id);
@@ -1393,6 +1496,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const reserved = bs.reduce((s, b) => s + (Number(b.reserved) || 0), 0);
         const available = Math.max(0, total - reserved);
         const unit = m.unit || 'units';
+        const pack = packWord(m);
+        const purchValue = bs.reduce((s, b) => s + (Number(b.qty) || 0) * (Number(b.purchaseRate || b.purchase_rate) || 0), 0);
         const nearest = bs.filter((b) => b.expiry).sort((a, b) => String(a.expiry).localeCompare(String(b.expiry)))[0];
         const lowAt = Number(m.reorderLevel ?? m.minStock ?? 0);
         const note = total === 0
@@ -1400,31 +1505,43 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           : total <= lowAt
             ? `<div class="mm-stock-note low"><i class="bi bi-exclamation-triangle"></i>Low stock. At or below reorder level (${MF.num(m.reorderLevel ?? m.minStock ?? 0)} ${MF.esc(unit)}).</div>`
             : '';
-        const sits = bs.map((b) => `<div class="mm-sit-row"><span class="mm-batch"><i class="bi bi-upc"></i>${MF.esc(b.batchNo || '—')}</span><strong>${MF.num(b.qty)} ${MF.esc(unit)}</strong></div>`).join('');
+        const rows = bs.map((b) => {
+          const days = batchDays(b);
+          const expTone = days == null ? '' : days < 0 ? 'bad' : days <= 90 ? 'warn' : 'ok';
+          return `<tr>
+            <td><span class="mm-batch"><i class="bi bi-upc"></i>${MF.esc(b.batchNo || '—')}</span></td>
+            <td class="num mm-exp ${expTone}">${b.expiry ? MF.fmtMonthYear(b.expiry) : '—'}</td>
+            <td class="text-end num">${MF.num(b.qty)} <span class="text-2">${MF.esc(unit)}</span></td>
+            <td class="mm-rate">${rateCell(b, m)}</td>
+          </tr>`;
+        }).join('');
         $('#mmStockTitle').textContent = 'Stock';
         $('#mmStockBody').innerHTML = `
           <div class="mm-modal-hero stock">
             <div class="ico"><i class="bi bi-box-seam"></i></div>
-            <div><strong>${MF.esc(m.name)}</strong><span>On-hand position. Open Batches for dates, rates and status.</span></div>
+            <div><strong>${MF.esc(m.name)}</strong><span>On-hand position for this medicine.</span></div>
             <div class="ms-auto">${MF.stockBadge(m)}</div>
           </div>
           <div class="mm-stock-top"><div class="mm-stock-kpis">
-            <div class="mm-kpi accent"><span>On hand</span><strong>${MF.num(total)}</strong><small>${MF.esc(unit)}</small></div>
-            <div class="mm-kpi"><span>Available</span><strong>${MF.num(available)}</strong><small>After reserved</small></div>
-            <div class="mm-kpi"><span>Reserved</span><strong>${MF.num(reserved)}</strong></div>
-            <div class="mm-kpi"><span>Batches</span><strong>${MF.num(bs.length)}</strong></div>
+            <div class="mm-kpi on"><i class="bi bi-box-seam mm-kpi-ico"></i><span>On hand</span><strong>${MF.num(total)}</strong><small>${MF.esc(unit)}</small></div>
+            <div class="mm-kpi free"><i class="bi bi-check2-circle mm-kpi-ico"></i><span>Available</span><strong>${MF.num(available)}</strong><small>Ready to sell</small></div>
+            <div class="mm-kpi hold"><i class="bi bi-lock mm-kpi-ico"></i><span>Reserved</span><strong>${MF.num(reserved)}</strong><small>Held for bills</small></div>
+            <div class="mm-kpi value"><i class="bi bi-cash-coin mm-kpi-ico"></i><span>Purchase value</span><strong>${MF.fmt(purchValue)}</strong><small>At batch cost</small></div>
           </div></div>
+          <div class="mm-stock-meta">Reorder ${m.reorderLevel === '' || m.reorderLevel == null ? '—' : MF.num(m.reorderLevel) + ' ' + MF.esc(unit)} · Rack ${m.rack ? MF.esc(m.rack) : '—'} · Nearest expiry ${nearest ? MF.fmtMonthYear(nearest.expiry) : '—'}</div>
           ${note}
-          <div class="mm-facts">
-            <div class="mm-fact"><span>Reorder level</span><strong>${m.reorderLevel === '' || m.reorderLevel == null ? '—' : MF.num(m.reorderLevel) + ' ' + MF.esc(unit)}</strong></div>
-            <div class="mm-fact"><span>Rack / shelf</span><strong>${m.rack ? MF.esc(m.rack) : '—'}</strong></div>
-            <div class="mm-fact"><span>Nearest expiry</span><strong>${nearest ? MF.fmtMonthYear(nearest.expiry) : '—'}</strong></div>
-            <div class="mm-fact"><span>Minimum stock</span><strong>${m.minStock === '' || m.minStock == null ? '—' : MF.num(m.minStock) + ' ' + MF.esc(unit)}</strong></div>
-          </div>
-          <div class="mm-sit">${sits || '<div class="mm-sit-row text-2">No batches recorded.</div>'}</div>`;
+          <table class="table table-mf mm-stock-table mb-3">
+            <thead><tr><th>Batch</th><th>Expiry</th><th class="text-end">Qty</th><th>Purchase · MRP</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="4"><div class="empty-state" style="padding:22px 16px"><i class="bi bi-box-seam"></i>No batches recorded.</div></td></tr>'}</tbody>
+          </table>
+          <details class="mm-activity" open>
+            <summary><i class="bi bi-chevron-down caret"></i> Recent activity <span>(last sale, purchase, adjustment)</span></summary>
+            <div id="mmActivityList"><div class="mm-act-row text-2">Loading recent activity…</div></div>
+          </details>`;
         const btn = $('#mmStockAdjust');
         if (btn) btn.disabled = bs.length === 0;
         showModal($('#mmStockModal'));
+        loadActivity(m);
       }
       function openBatches(m) {
         const bs = MF.batchesOf(m.id).slice().sort((a, b) => String(a.expiry || '9999').localeCompare(String(b.expiry || '9999')));
@@ -1541,6 +1658,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             await MF.rehydrate();
           } else {
             batch.qty = (Number(batch.qty) || 0) + delta;
+            D.stockAdjustments = D.stockAdjustments || [];
+            D.stockAdjustments.unshift({ medicineId: m.id, medId: m.id, batchNo: batch.batchNo, qtyChange: delta, reason, notes, created_at: new Date().toISOString().slice(0, 10) });
           }
           const fresh = MF.med(m.id) || m;
           stockMed = fresh;
@@ -1769,5 +1888,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42ff6b51f7fc161',t:'MTc5MDczNzA4Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43252594fa94166',t:'MTc5MDc2MTgwOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
