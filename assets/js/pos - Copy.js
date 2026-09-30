@@ -16,7 +16,13 @@
     tender: null,        // { cashReceived, changeReturned } for the open bill
     tenderOpen: false,
     upiSig: '',
-    upiRef: ''
+    upiRef: '',
+    pick: 'quick',       // quick | recent | subs — left-column browse tabs
+    subSeed: null,       // medicine id the Substitutes tab is focused on (via "Order / substitute")
+    selIdx: 0,           // arrow-key selection index over the rendered result cards
+    selQuery: '',        // last search text — a new search resets the selection to card 1
+    printFmt: 'a4',      // 'a4' | 'thermal' — last chosen invoice print format
+    recent: []           // medicine ids, newest first
   };
 
   const $ = (s) => document.querySelector(s);
@@ -84,6 +90,57 @@
       .pos-exp.mid { background:#f6d36a; color:#6b4300; border-color:#e0b04a; }
       .pos-exp.near { background:#ffe1cc; color:#c2410c; border-color:#f5b183; }
       .pos-exp.urgent { background:#fde2e2; color:#b42318; border-color:#f3b4b4; }
+      .pos-pick-tabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 10px; }
+      .pos-pick-tab {
+        border:1px solid #d7ebe6; background:#fff; color:#516278; border-radius:999px;
+        font-size:.75rem; font-weight:700; padding:5px 12px; cursor:pointer;
+      }
+      .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
+      .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
+
+      /* Schedule chips on medicine cards (H / H1 / X / NDPS) — square, filled, same colors as the medicine form */
+      .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:0 6px; border-radius:4px;
+                 font-size:.6rem; font-weight:800; letter-spacing:.07em; line-height:1.7; vertical-align:2px; color:#fff; }
+      .pos-sch.h    { background:#0369A1; }
+      .pos-sch.h1   { background:#6D28D9; }
+      .pos-sch.x    { background:#B42318; }
+      .pos-sch.ndps { background:#7F1D1D; }
+
+      /* Out of stock — matte light red card (and the arrow-key ring goes red too) */
+      .pos-result.is-out { background:#FCEDED; border-color:#EFC7C7; }
+      .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
+
+      /* Inline substitute pills on an out-of-stock card */
+      .pos-oos-subs { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
+      .pos-oos-subs > span { font-size:.66rem; font-weight:700; color:#B4352F; letter-spacing:.01em; }
+      .pos-subadd {
+        border:1px solid #B5E1DC; background:#EAF7F5; color:#0F766E; border-radius:4px;
+        font-size:.68rem; font-weight:700; padding:2px 7px; display:inline-flex; align-items:center; gap:4px;
+        transition:background .12s ease, color .12s ease, border-color .12s ease;
+      }
+      .pos-subadd i { font-size:.62rem; }
+      .pos-subadd b { font-weight:800; }
+      .pos-subadd:hover { background:#0F766E; border-color:#0F766E; color:#fff; }
+      .pos-subadd:active { transform:translateY(1px); }
+
+      /* Out of stock — price greyed with a strike line */
+      .pos-price-out { color:#9aa6b2 !important; text-decoration:line-through; font-weight:600 !important; }
+
+      /* Substitute price-difference chip */
+      .pos-subdiff { display:inline-flex; align-items:center; gap:4px; margin-top:4px; padding:2px 8px; border-radius:4px;
+                     font-size:.68rem; font-weight:700; border:1px solid; }
+      .pos-subdiff.cheaper { background:#DCF0E2; color:#1E7A44; border-color:#BEE2CA; }
+      .pos-subdiff.dearer  { background:#FBE7D9; color:#B4451C; border-color:#F4CFB6; }
+      .pos-subdiff.same    { background:#E9EDF1; color:#4B5563; border-color:#D5DCE3; }
+
+      /* Summary — grand total in words + savings vs MRP */
+      .pos-sum-words { margin-top:4px; text-align:right; font-size:.72rem; font-style:italic; color:#516278; }
+      .pos-saved { display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:3px 10px;
+                   border-radius:999px; background:#DCF0E2; color:#146C43; border:1px solid #BEE2CA;
+                   font-size:.75rem; font-weight:800; }
+
+      /* Arrow-key selection on search cards */
+      .pos-result.is-active { border-color:var(--mf-accent); background:#F2FAF7; box-shadow:0 0 0 3px rgba(46,139,120,.16); }
 
       /* Cash tender on Complete sale */
       .pos-tender-dialog { max-width: 540px; }
@@ -330,15 +387,25 @@
   function stockBadge(m, live) {
     const stock = live ? live.strips : 0;
     const tablets = live ? live.tablets : 0;
-    const low = Number(m.minStock ?? m.reorderLevel ?? 10);
+    const low = Number(m.reorderLevel ?? m.minStock ?? 10);
     const st = tablets <= 0 ? ['out', 'Out of stock'] : stock <= low ? ['low', 'Low stock'] : ['in', 'In stock'];
     return `<span class="pos-stock-badge ${st[0]}">${st[1]}</span>`;
   }
 
   /* "Medicine name · Brand" — brand shown muted after a centre dot */
+  /* Schedule label (H / H1 / X / NDPS) — drives the card badge and the automatic Rx toggle. */
+  function rxSchedule(m) {
+    const s = String((m && m.schedule) || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
+    const hit = /^(H1|NDPS|X)(?![A-Z0-9])/.exec(s);
+    if (hit) return hit[1];
+    return /^H(?![A-Z0-9])/.test(s) ? 'H' : '';
+  }
+
   function nameLine(m) {
     const brand = m.brandRef ? ` <span class="text-2 fw-normal">· ${MF.esc(m.brandRef)}</span>` : '';
-    return `<div class="pr-name">${MF.esc(m.name)}${brand}</div>`;
+    const sch = rxSchedule(m);
+    const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">${sch}</span>` : '';
+    return `<div class="pr-name">${MF.esc(m.name)}${brand}${schChip}</div>`;
   }
 
   /* Batch + expiry only. Strip and tablet counts live on the stock line. */
@@ -352,11 +419,11 @@
       </div>`;
   }
 
-  /* Generic/substitute linking: shown only when a medicine has no sellable batch. */
+/* Generic/substitute linking: shown only when a medicine has no sellable batch. */
   function subsLine(m) {
-    const subs = MF.substitutesOf(m.id);
+    const subs = subsOf(m);
     if (!subs.length) return '';
-    return `<div class="pr-meta text-2 mt-1"><i class="bi bi-arrow-left-right"></i> Try instead: ${subs.map((s) => MF.esc(s.name)).join(', ')}</div>`;
+    return `<div class="pr-meta text-2 mt-1"><i class="bi bi-arrow-left-right"></i> Try instead: ${subs.slice(0, 4).map((s) => MF.esc(s.name)).join(', ')}</div>`;
   }
 
   /* Attach click → addToCart for BOTH search results and the "Fast moving" shortcuts */
@@ -366,7 +433,9 @@
     box.querySelectorAll('.pos-loose-add').forEach((btn) =>
       btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med, 'loose'); }));
     box.querySelectorAll('.pos-order-sub').forEach((btn) =>
-      btn.addEventListener('click', (e) => { e.stopPropagation(); MF.toast('Order / substitute isn\'t available yet.', 'info', 'Stock'); }));
+      btn.addEventListener('click', (e) => { e.stopPropagation(); showSubstitutes(btn.dataset.med); }));
+    box.querySelectorAll('.pos-subadd').forEach((btn) =>
+      btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med); }));
   }
 
   /* Left-column MRP line: shown as its own row right under the batch/expiry pills. */
@@ -402,26 +471,42 @@
          </button>` : '');
     return `
         ${mrpNote}
-        <div class="fw-bold num">${MF.fmt(sellPrice, 2)}</div>
+        <div class="fw-bold num${outOfStock ? ' pos-price-out' : ''}"${outOfStock ? ' title="Out of stock — price cannot be charged"' : ''}>${MF.fmt(sellPrice, 2)}</div>
         <div class="small-xs text-2 mt-1" title="Sellable strips and tablets left after this cart">${stockText(m, live)}</div>
         ${action}`;
   }
 
-  /* One quick-pick / search card. Stock (strips and tablets) is the only quantity shown. */
-  function resultCard(m) {
+  /* Price difference chip for a substitute vs the item it replaces. */
+  function subDiff(sub, src) {
+    const a = Number(sub.retailRate ?? sub.mrp) || 0;
+    const b = Number(src.retailRate ?? src.mrp) || 0;
+    const d = a - b;
+    const per = MF.esc(unitLabel(sub));
+    if (Math.abs(d) < 0.005) return `<span class="pos-subdiff same"><i class="bi bi-arrow-left-right"></i>Same price · ${MF.fmt(a, 2)}/${per}</span>`;
+    return d < 0
+      ? `<span class="pos-subdiff cheaper"><i class="bi bi-arrow-down"></i>₹${Math.abs(d).toFixed(2)}/${per} cheaper than ${MF.esc(src.name)}</span>`
+      : `<span class="pos-subdiff dearer"><i class="bi bi-arrow-up"></i>₹${d.toFixed(2)}/${per} more than ${MF.esc(src.name)}</span>`;
+  }
+
+  /* One quick-pick / search card. Stock (strips and tablets) is the only quantity shown.
+     `cmp` = the medicine this is a substitute for → shows the price difference. */
+  function resultCard(m, cmp) {
     const live = fefoState(m);
     // Earliest batch that still has anything to sell (loose pieces before a later sealed strip).
     const shown = live.nextLoose || live.nextStrip;
     const b = shown ? shown.batch : MF.pickBatch(m.id);
     const noPack = live.strips <= 0;
+    const out = live.tablets <= 0;
     return `
-      <div class="pos-result" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
-        <div class="kpi-icon tone-primary" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
+      <div class="pos-result${out ? ' is-out' : ''}" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
+        <div class="kpi-icon ${out ? 'tone-danger' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
         <div class="flex-grow-1 text-start">
           ${nameLine(m)}
           <div class="pr-meta">${MF.esc(m.composition)}</div>
+          ${cmp ? subDiff(m, cmp) : ''}
           ${b ? batchExpiryPills(b, m) : `<div class="pr-meta text-danger mt-1">No sellable batch (expired stock only)</div>${subsLine(m)}`}
           ${mrpLine(m, live)}
+          ${out ? outSubsStrip(m) : ''}
         </div>
         <div class="text-end">
           ${priceBlock(m, live)}
@@ -429,27 +514,88 @@
       </div>`;
   }
 
+  /* ---------------- Keyboard nav + barcode scan ---------------- */
+  function resultCards() { return Array.from(document.querySelectorAll('#posResults .pos-result')); }
+
+  function paintSel() {
+    const cards = resultCards();
+    if (!cards.length) { state.selIdx = 0; return; }
+    state.selIdx = Math.min(Math.max(state.selIdx, 0), cards.length - 1);
+    cards.forEach((c, i) => c.classList.toggle('is-active', i === state.selIdx));
+  }
+
+  /* An exact, non-empty barcode hit — scanners type the full code, so an exact match is a scan. */
+  function exactBarcodeMatch(q) {
+    q = String(q || '').trim();
+    if (!q) return null;
+    const hits = (D.medicines || []).filter((m) => m.barcode && String(m.barcode).trim() === q);
+    return hits[0] || null;
+  }
+
+  function resetSearch(box) {
+    box.value = '';
+    state.selIdx = 0;
+    state.selQuery = '';
+    searchMeds('');
+  }
+
+  function onSearchKeys(e) {
+    const cards = resultCards();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!cards.length) return;
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      state.selIdx = (state.selIdx + step + cards.length) % cards.length;
+      paintSel();
+      cards[state.selIdx].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const exact = exactBarcodeMatch(e.target.value);
+      if (exact) { addToCart(exact.id); resetSearch(e.target); return; }
+      const card = cards[state.selIdx] || cards[0];
+      if (!card) return;
+      if (card.hasAttribute('disabled')) { MF.toast('That medicine is out of stock — try Order / substitute.', 'warn', 'Stock'); return; }
+      addToCart(card.dataset.med);
+      paintSel();
+    }
+  }
+
   /* ---------------- Medicine search ---------------- */
   function searchMeds(q) {
-    q = q.trim().toLowerCase();
+    const qRaw = String(q || '');
+    if (qRaw !== state.selQuery) { state.selIdx = 0; state.selQuery = qRaw; }
+    q = qRaw.trim().toLowerCase();
     const box = $('#posResults');
-    if (!q) { box.innerHTML = emptySearch(); bindResultClicks(box); return; }
+    const tabs = $('#posPickTabs');
+    if (tabs) tabs.hidden = !!q;
+    if (!q) { box.innerHTML = emptySearch(); bindResultClicks(box); paintSel(); return; }
     const hits = D.medicines.filter((m) =>
       (m.name + ' ' + m.generic + ' ' + m.composition + ' ' + m.brandRef).toLowerCase().includes(q) ||
       MF.batchesOf(m.id).some((b) => b.batchNo.toLowerCase().includes(q))
     ).slice(0, 8);
     if (!hits.length) { box.innerHTML = `<div class="empty-state"><i class="bi bi-emoji-neutral"></i>No medicine matches “${MF.esc(q)}”.</div>`; return; }
-    box.innerHTML = hits.map(resultCard).join('');
+    box.innerHTML = hits.map((m) => resultCard(m)).join('');
     bindResultClicks(box);
+    paintSel();
   }
 
   function emptySearch() {
-    const picks = D.medicines.slice(0, 5);
+    if (state.pick === 'recent') {
+      const picks = recentMeds();
+      if (!picks.length) return `<div class="empty-state"><i class="bi bi-clock-history"></i>No recent medicines yet. Add one to the cart and it will show up here.</div>`;
+      return `${picks.map((m) => resultCard(m)).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-clock-history me-1"></i>Medicines added on this counter, newest first.</p>`;
+    }
+    if (state.pick === 'subs') {
+      const rows = substituteMeds();
+      const seed = state.subSeed ? MF.med(state.subSeed) : null;
+      if (!rows.length) return `<div class="empty-state"><i class="bi bi-arrow-left-right"></i>${seed ? `No in-stock substitute for ${MF.esc(seed.name)} with the same composition.` : 'No in-stock substitutes for the current cart.'}</div>`;
+      return `${rows.map((row) => `<div class="pos-sub-for">Instead of ${MF.esc(row.from.name)} · ${MF.fmt(row.from.retailRate ?? row.from.mrp, 2)}</div>${resultCard(row.med, row.from)}`).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-arrow-left-right me-1"></i>In stock, same composition or generic group — the price difference is shown against your item.</p>`;
+    }
+    const picks = (D.medicines || []).slice(0, 5);
     if (!picks.length) return `<div class="empty-state"><i class="bi bi-capsule"></i>No medicines yet — add some in Medicine Master.</div>`;
-    return `
-      <div class="sr-group-label">Quick picks</div>
-      ${picks.map(resultCard).join('')}
-      <p class="text-2 small mt-3 mb-0"><i class="bi bi-lightbulb me-1"></i>Search by medicine name, generic name, composition, batch no or barcode.</p>`;
+    return `${picks.map((m) => resultCard(m)).join('')}<p class="text-2 small mt-3 mb-0"><i class="bi bi-lightbulb me-1"></i>Search by medicine name, generic name, composition, batch no or barcode.</p>`;
   }
 
   /* ---------------- Cart ---------------- */
@@ -473,9 +619,135 @@
     const rate = pack ? sell : sell / packSize(med);
     const line = state.cart.find((l) => l.batchId == slot.id && (pack ? l.unit !== 'loose' : l.unit === 'loose'));
     if (line) line.qty++;
-    else state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct: 0, unit: pack ? 'pack' : 'loose' });
+    else {
+      const rawDisc = Number(med.defaultDiscount) || 0;
+      const discPct = med.discountType === 'rupee'
+        ? (rate > 0 ? Math.min(100, (rawDisc / rate) * 100) : 0)
+        : Math.min(100, rawDisc);
+      state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct, unit: pack ? 'pack' : 'loose' });
+    }
     if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
+    rememberRecent(medId);
     renderCart();
+  }
+
+  function rememberRecent(medId) {
+    const id = String(medId);
+    state.recent = [id, ...state.recent.filter((x) => String(x) !== id)].slice(0, 12);
+    try { sessionStorage.setItem('mf-pos-recent', JSON.stringify(state.recent)); } catch (e) { /* ignore */ }
+  }
+
+  function medBySaleLine(line) {
+    if (!line) return null;
+    const id = line.medId || line.medicineId || line.medicine_id;
+    if (id != null && MF.med(id)) return MF.med(id);
+    const name = line.medicine_name || line.name || line.medicine;
+    if (!name) return null;
+    return (D.medicines || []).find((m) => String(m.name).toLowerCase() === String(name).toLowerCase()) || null;
+  }
+
+  function recentMeds() {
+    const ids = [];
+    const push = (id) => {
+      if (id == null || id === '') return;
+      if (!ids.some((x) => String(x) === String(id))) ids.push(id);
+    };
+    state.recent.forEach(push);
+    const invoices = D.salesInvoices || D.sales || [];
+    invoices.slice().reverse().forEach((inv) => {
+      (inv.items || inv.lines || []).forEach((line) => {
+        const med = medBySaleLine(line);
+        if (med) push(med.id);
+      });
+    });
+    return ids.map((id) => MF.med(id)).filter(Boolean).slice(0, 8);
+  }
+
+  /* ---- Rich substitute matching -------------------------------------------------
+     Salts come from BOTH the Generic/composition group field (one chip per salt)
+     and the composition text. Two items are substitutes when they share a salt
+     (exact salt, or same salt root with a different strength). Only items with
+     sellable stock right now (FEFO) qualify; ranked by shared salts then price. */
+  function saltsOf(m) {
+    const raw = String((m && m.genericGroup) || '') + ';' + String((m && (m.composition || m.generic)) || '');
+    return [...new Set(raw.split(/[,;+]|\s+\/\s+/).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 3))];
+  }
+  function saltRoot(s) {
+    const t = String(s || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/)[0] || '';
+    return t.length >= 3 ? t : '';
+  }
+  function subsOf(med) {
+    const my = saltsOf(med);
+    if (!my.length) return [];
+    const myRoots = my.map(saltRoot).filter(Boolean);
+    const myKey = my.slice().sort().join('|');
+    const price = Number(med.retailRate ?? med.mrp) || 0;
+    const out = [];
+    (D.medicines || []).forEach((c) => {
+      if (String(c.id) === String(med.id)) return;
+      if (fefoState(c).tablets <= 0) return;               // no sellable stock → not a usable substitute
+      const cs = saltsOf(c);
+      if (!cs.length) return;
+      const cRoots = cs.map(saltRoot).filter(Boolean);
+      const shared = my.filter((s, i) => cs.includes(s) || (myRoots[i] && cRoots.includes(myRoots[i]))).length;
+      if (!shared) return;
+      const sameGroup = cs.slice().sort().join('|') === myKey;
+      const score = (sameGroup ? 100 : 0) + shared * 10 - Math.abs((Number(c.retailRate ?? c.mrp) || 0) - price) / 1000;
+      out.push({ med: c, score });
+    });
+    out.sort((a, b) => b.score - a.score);
+    return out.map((x) => x.med);
+  }
+
+  /* Small in-stock substitute pills shown right on an out-of-stock card. */
+  function subPill(s, src) {
+    const d = (Number(s.retailRate ?? s.mrp) || 0) - (Number(src.retailRate ?? src.mrp) || 0);
+    const diff = Math.abs(d) < 0.005 ? 'same price' : (d < 0 ? '−' + MF.fmt(Math.abs(d), 2) : '+' + MF.fmt(d, 2));
+    return `<button type="button" class="pos-subadd" data-med="${s.id}" title="Add ${MF.esc(s.name)} instead — ${diff}"><i class="bi bi-arrow-left-right"></i>${MF.esc(s.name)} <b>${diff}</b></button>`;
+  }
+  function outSubsStrip(m) {
+    const subs = subsOf(m).slice(0, 3);
+    if (!subs.length) return '';
+    return `<div class="pos-oos-subs"><span>Substitutes in stock:</span>${subs.map((s) => subPill(s, m)).join('')}</div>`;
+  }
+
+  function substituteMeds() {
+    if (state.subSeed) {
+      const seed = MF.med(state.subSeed);
+      return seed ? subsOf(seed).map((m) => ({ med: m, from: seed })).slice(0, 8) : [];
+    }
+    const seeds = [];
+    const pushSeed = (id) => {
+      const med = MF.med(id);
+      if (med && !seeds.some((m) => m.id == med.id)) seeds.push(med);
+    };
+    state.cart.forEach((l) => pushSeed(l.medId));
+    if (!seeds.length && state.recent.length) pushSeed(state.recent[0]);
+    const out = [];
+    const push = (m, from) => {
+      if (!m || seeds.some((s) => s.id == m.id) || out.some((x) => x.med.id == m.id)) return;
+      out.push({ med: m, from });
+    };
+    if (seeds.length) {
+      seeds.forEach((s) => subsOf(s).forEach((m) => push(m, s)));
+    } else {
+      (D.medicines || []).slice(0, 12).forEach((s) => subsOf(s).forEach((m) => push(m, s)));
+    }
+    return out.slice(0, 8);
+  }
+
+  /* "Order / substitute" tile on an out-of-stock card → Substitutes tab for that medicine. */
+  function showSubstitutes(medId) {
+    const med = MF.med(medId);
+    if (!med) return;
+    state.subSeed = String(medId);
+    state.pick = 'subs';
+    const tabs = $('#posPickTabs');
+    if (tabs) tabs.querySelectorAll('.pos-pick-tab').forEach((b) => b.classList.toggle('is-on', b.dataset.pick === 'subs'));
+    const input = $('#posSearch');
+    if (input) input.value = '';
+    searchMeds('');
+    if (!subsOf(med).length) MF.toast('No in-stock substitute for ' + med.name + ' with the same composition', 'info', 'Substitutes');
   }
 
   /* "2 Strips · 20 Tabs" (or just tablets, for a loose line) — recomputed from the stepper qty. */
@@ -573,6 +845,7 @@
     renderSummary();
     renderRxChip();
     refreshPicks();
+    refreshDraftBtn();
   }
 
   /* Redraw Quick picks / search cards so strip + tablet counts follow the cart. */
@@ -582,20 +855,84 @@
     searchMeds(input.value || '');
   }
 
+  /* "Rupees One Thousand Two Hundred Thirty-Four Only" — Indian numbering. */
+  function inrWords(n) {
+    const num = Math.round(Math.abs(Number(n) || 0));
+    if (!num) return '';
+    const ONES = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const TENS = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const two = (x) => (x < 20 ? ONES[x] : TENS[Math.floor(x / 10)] + (x % 10 ? '-' + ONES[x % 10] : ''));
+    const three = (x) => {
+      const h = Math.floor(x / 100), r = x % 100;
+      return (h ? ONES[h] + ' Hundred' + (r ? ' ' : '') : '') + (r ? two(r) : '');
+    };
+    let out = '';
+    const crore = Math.floor(num / 10000000);
+    const lakh = Math.floor(num / 100000) % 100;
+    const thou = Math.floor(num / 1000) % 100;
+    const rest = num % 1000;
+    if (crore) out += three(crore) + ' Crore ';
+    if (lakh) out += two(lakh) + ' Lakh ';
+    if (thou) out += two(thou) + ' Thousand ';
+    if (rest) out += three(rest);
+    return 'Rupees ' + out.trim() + ' Only';
+  }
+
+  /* Savings vs selling everything at full MRP (pack MRP prorated for loose lines). */
+  function savedVsMrp(t) {
+    let atMrp = 0;
+    state.cart.forEach((l) => {
+      const med = MF.med(l.medId);
+      const packMrp = Number(l.mrp) || Number(med && med.mrp) || 0;
+      atMrp += (l.unit === 'loose' && med) ? l.qty * (packMrp / packSize(med)) : l.qty * packMrp;
+    });
+    return Math.max(0, atMrp - t.grand);
+  }
+
   function renderSummary() {
     const t = calcTotals();
+    const saved = savedVsMrp(t);
     $('#posSummary').innerHTML = `
       <div class="sum-row"><span class="text-2">Subtotal (MRP)</span><span class="num">${MF.fmt(t.subtotal, 2)}</span></div>
       <div class="sum-row"><span class="text-2">Discount</span><span class="num text-danger">− ${MF.fmt(t.discount, 2)}</span></div>
       <div class="sum-row"><span class="text-2">GST included in MRP</span><span class="num">${MF.fmt(t.gst, 2)}</span></div>
       <div class="sum-row"><span class="text-2">Round off</span><span class="num">${t.roundOff >= 0 ? '+' : '−'} ${MF.fmt(Math.abs(t.roundOff), 2)}</span></div>
-      <div class="sum-row total"><span>Grand Total</span><span class="num text-primary">${MF.fmt(t.grand)}</span></div>`;
+      <div class="sum-row total"><span>Grand Total</span><span class="num text-primary">${MF.fmt(t.grand)}</span></div>
+      ${t.grand > 0 ? `<div class="pos-sum-words">${inrWords(t.grand)}</div>` : ''}
+      ${saved >= 0.5 ? `<div style="text-align:right"><span class="pos-saved"><i class="bi bi-piggy-bank"></i>You saved ${MF.fmt(saved, 2)}</span></div>` : ''}`;
+    const amt = $('#posCompleteAmt');
+    if (amt) amt.textContent = MF.fmt(t.grand);
     renderUpiPanel();
   }
 
   function needsRx(line) {
     const med = MF.med(line.medId);
-    return !!(med && med.rxRequired);
+    return !!(med && (med.rxRequired || rxSchedule(med)));
+  }
+
+  /* First Schedule H/H1/X/NDPS line in the cart → its schedule label, else ''. */
+  function autoRxSchedule() {
+    for (const l of state.cart) {
+      const med = MF.med(l.medId);
+      const sch = med && rxSchedule(med);
+      if (sch) return sch;
+    }
+    return '';
+  }
+
+  /* Turn the Rx switch on ourselves — scheduled drugs force it, OTC stays manual. */
+  function setRxOn(sch) {
+    const toggle = $('#posRxOn');
+    if (!toggle) return;
+    const wasOff = !toggle.checked;
+    toggle.checked = true;
+    const panel = $('#posRxPanel');
+    if (panel) panel.hidden = false;
+    if (wasOff) {
+      MF.toast('Schedule ' + sch + ' item in the cart — Rx verification is on for this bill.', 'info', 'Rx auto-verification');
+      loadRxOptions().then(() => { if (state._rxBill) wireRxAttachment(state._rxBill); }).catch(() => {});
+    }
   }
 
   function renderRxChip() {
@@ -608,9 +945,12 @@
       wrap.hidden = !show;
       wrap.classList.toggle('show', show);
     }
-    if (!show) {
+    const toggle = $('#posRxOn');
+    if (show) {
+      const sch = autoRxSchedule();
+      if (sch) setRxOn(sch);
+    } else {
       const panel = $('#posRxPanel');
-      const toggle = $('#posRxOn');
       if (panel) panel.hidden = true;
       if (toggle) toggle.checked = false;
     }
@@ -639,6 +979,7 @@
     }
     if (wanted) sel.value = String(wanted);
   }
+  MF.refillPosDoctors = fillDoctors;   // hook for the quick-add modal on the POS page
 
   /* ---------------- Payments ---------------- */
   function bindPayments() {
@@ -871,6 +1212,77 @@
   }
 
   /* ---------------- Held bills ---------------- */
+  const DRAFT_KEY = 'mf-pos-draft';
+
+  function refreshDraftBtn() {
+    const btn = $('#posDraft');
+    if (!btn) return;
+    let has = false;
+    try { has = !!localStorage.getItem(DRAFT_KEY); } catch (e) { has = false; }
+    const key = '<span class="badge bg-light text-dark border ms-1">F9</span>';
+    btn.innerHTML = (!state.cart.length && has)
+      ? `<i class="bi bi-folder2-open me-1"></i>Load Draft ${key}`
+      : `<i class="bi bi-save me-1"></i>Save Draft ${key}`;
+  }
+
+  function saveDraft() {
+    if (!state.cart.length) { loadDraft(); return; }
+    const draft = {
+      cart: state.cart,
+      customer: $('#posCustomer') ? $('#posCustomer').value : '',
+      doctor: $('#posDoctor') ? $('#posDoctor').value : '',
+      disc: $('#posGlobalDisc') ? $('#posGlobalDisc').value : '0',
+      payment: state.payment,
+    };
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }
+    catch (e) { MF.toast('Could not save the draft on this browser.', 'err', 'Save Draft'); return; }
+    refreshDraftBtn();
+    MF.toast('Draft saved on this counter. Clear the cart and press F9 to load it.', 'success', 'Save Draft');
+  }
+
+  function loadDraft() {
+    let draft = null;
+    try { draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || 'null'); } catch (e) { draft = null; }
+    if (!draft || !Array.isArray(draft.cart) || !draft.cart.length) {
+      MF.toast('No draft saved on this counter.', 'warn', 'Save Draft');
+      return;
+    }
+    state.cart = draft.cart;
+    if ($('#posCustomer') && draft.customer) $('#posCustomer').value = draft.customer;
+    if ($('#posDoctor') && draft.doctor) $('#posDoctor').value = draft.doctor;
+    if ($('#posGlobalDisc')) $('#posGlobalDisc').value = draft.disc || 0;
+    if (draft.payment) {
+      state.payment = draft.payment;
+      const radio = document.querySelector(`input[name="posPay"][value="${draft.payment}"]`);
+      if (radio) radio.checked = true;
+    }
+    renderCart();
+    MF.toast('Draft loaded into the cart.', 'success', 'Save Draft');
+  }
+
+  function printInvoice() {
+    if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
+    MF.printHtml(receiptHtml('DRAFT', calcTotals(), state.printFmt));
+  }
+
+  function paintPrintBtn() {
+    const lbl = $('#posPrintLbl');
+    if (lbl) lbl.textContent = state.printFmt === 'thermal' ? '80mm' : 'A4';
+  }
+
+  async function clearCart() {
+    if (!state.cart.length) return;
+    const ok = await MF.confirm({ title: 'Clear current bill?', message: 'All cart items will be removed.', confirmText: 'Clear', tone: 'danger' });
+    if (ok) { state.cart = []; renderCart(); }
+  }
+
+  function selectPay(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.checked = true;
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
   function holdBill() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to hold', 'warn'); return; }
     state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)) });
@@ -1160,14 +1572,14 @@
     });
   }
 
-  function receiptHtml(invNo, t) {
+  function receiptHtml(invNo, t, fmt) {
     const cust = MF.cust($('#posCustomer').value);
     const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: `Split (Cash ${MF.fmt(state.split.cash)} + UPI ${MF.fmt(state.split.upi)})` }[state.payment];
     const tenderRows = state.payment === 'cash' && state.tender
       ? `<div class="sum-row"><span class="text-2">Cash paid</span><span class="num">${MF.fmt(state.tender.cashReceived)}</span></div>
          <div class="sum-row"><span class="text-2">Change</span><span class="num">${MF.fmt(state.tender.changeReturned)}</span></div>`
       : '';
-    return `
+    const html = `
       <div class="text-center mb-3">
         <img src="assets/images/logo.svg" width="42" alt="">
         <h6 class="fw-bold mt-2 mb-0">${MF.esc(D.store.name)}</h6>
@@ -1192,11 +1604,31 @@
         ${tenderRows}
       </div>
       <p class="text-center text-2 small-xs mt-3 mb-0">Medicines once sold will not be taken back without valid reason · Get well soon!</p>`;
+    // Thermal 80mm roll → narrow, compact column; A4 → the normal width.
+    return fmt === 'thermal'
+      ? `<div style="width:72mm; margin:0 auto; font-size:11px; line-height:1.42;">${html}</div>`
+      : html;
   }
 
   async function completeSale() {
     if (state.tenderOpen) { document.getElementById('posTenderOk')?.click(); return; }
     if (!state.cart.length) { MF.toast('Cart is empty', 'warn', 'Cannot complete sale'); return; }
+    // Schedule H/H1/X/NDPS in the cart → doctor and patient details are mandatory.
+    const sch = autoRxSchedule();
+    if (sch) {
+      const doc = $('#posDoctor');
+      if (!doc || !String(doc.value || '').trim()) {
+        MF.toast('Pick the prescribing doctor — mandatory for Schedule ' + sch + ' items.', 'warn', 'Rx required');
+        if (doc) doc.focus();
+        return;
+      }
+      const cust = $('#posCustomer');
+      if (cust && String(cust.value) === String(walkInId())) {
+        MF.toast('Patient details are mandatory for Schedule ' + sch + ' — select or add the customer above.', 'warn', 'Rx required');
+        cust.focus();
+        return;
+      }
+    }
     const t = calcTotals();
     const tender = await openTender(t);
     if (!tender) return;
@@ -1214,7 +1646,7 @@
         changeReturned: tender.changeReturned,
         items: state.cart.map((l) => ({ medId: l.medId, batchId: l.batchId, qty: l.qty, rate: l.rate, discPct: l.discPct, unit: l.unit || 'pack' })),
       });
-      MF.printHtml(receiptHtml(res.invoiceNo, t));
+      MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
@@ -1452,21 +1884,48 @@
     if (!document.getElementById('posSearch')) return;
     await MF.boot();
 
-    $('#posSearch').addEventListener('input', (e) => searchMeds(e.target.value));
+    try {
+      const savedRecent = JSON.parse(sessionStorage.getItem('mf-pos-recent') || '[]');
+      if (Array.isArray(savedRecent)) state.recent = savedRecent.map(String);
+    } catch (e) { /* ignore */ }
+
+    $('#posSearch').addEventListener('input', (e) => {
+      state.subSeed = null;
+      const v = e.target.value.trim();
+      // Barcode scanner: a full, exact barcode typed in one burst adds the pack straight to the cart.
+      if (v.length >= 6) {
+        const exact = exactBarcodeMatch(v);
+        if (exact) { addToCart(exact.id); resetSearch(e.target); return; }
+      }
+      searchMeds(e.target.value);
+    });
+    $('#posSearch').addEventListener('keydown', onSearchKeys);
+    const pickTabs = $('#posPickTabs');
+    if (pickTabs) pickTabs.addEventListener('click', (e) => {
+      const btn = e.target.closest('[data-pick]');
+      if (!btn) return;
+      state.pick = btn.dataset.pick;
+      state.subSeed = null;
+      pickTabs.querySelectorAll('.pos-pick-tab').forEach((b) => b.classList.toggle('is-on', b === btn));
+      const input = $('#posSearch');
+      if (input && input.value) input.value = '';
+      searchMeds('');
+    });
     searchMeds('');
 
-    $('#posClearCart').addEventListener('click', async () => {
-      if (!state.cart.length) return;
-      const ok = await MF.confirm({ title: 'Clear current bill?', message: 'All cart items will be removed.', confirmText: 'Clear', tone: 'danger' });
-      if (ok) { state.cart = []; renderCart(); }
-    });
+    $('#posClearCart').addEventListener('click', clearCart);
     $('#posHold').addEventListener('click', holdBill);
-    $('#posDraft').addEventListener('click', () => MF.toast('Draft saving isn\'t available yet — use Hold Bill instead for now.', 'info', 'Save Draft'));
+    $('#posDraft').addEventListener('click', saveDraft);
     const held = $('#posHeldChip');
     if (held) held.addEventListener('click', () => { showHeldBills(); new bootstrap.Modal($('#posHeldModal')).show(); });
     const rxToggle = $('#posRxOn');
     if (rxToggle) {
       rxToggle.addEventListener('change', () => {
+        const sch = autoRxSchedule();
+        if (!rxToggle.checked && sch) {
+          rxToggle.checked = true;
+          MF.toast('Not while a Schedule ' + sch + ' item is in the cart — Rx verification stays on.', 'warn', 'Rx required');
+        }
         const panel = $('#posRxPanel');
         if (panel) panel.hidden = !rxToggle.checked;
         if (rxToggle.checked) loadRxOptions().then(() => { if (state._rxBill) wireRxAttachment(state._rxBill); }).catch(() => {});
@@ -1476,10 +1935,14 @@
     if (rxSel) rxSel.addEventListener('change', () => onRxPick().catch((e) => MF.toast(e.message, 'err', 'Prescription')));
     const custSel = $('#posCustomer');
     if (custSel) custSel.addEventListener('change', () => { if ($('#posRxOn') && $('#posRxOn').checked) loadRxOptions().catch(() => {}); });
-    $('#posPrint').addEventListener('click', () => {
-      if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
-      MF.printHtml(receiptHtml('DRAFT', calcTotals()));
-    });
+    $('#posPrint').addEventListener('click', printInvoice);
+    const printTh = $('#posPrintThermal');
+    if (printTh) printTh.addEventListener('click', () => { state.printFmt = 'thermal'; paintPrintBtn(); printInvoice(); });
+    const printA4 = $('#posPrintA4');
+    if (printA4) printA4.addEventListener('click', () => { state.printFmt = 'a4'; paintPrintBtn(); printInvoice(); });
+    const printCp = $('#posPrintComplete');
+    if (printCp) printCp.addEventListener('click', () => completeSale());
+    paintPrintBtn();
     $('#posComplete').addEventListener('click', completeSale);
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();
@@ -1490,10 +1953,19 @@
     setTimeout(applyRxBill, 400);
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'F2') { e.preventDefault(); $('#posSearch').focus(); }
-      else if (e.key === 'F3') { e.preventDefault(); $('#posPayCash').checked = true; $('#posPayCash').dispatchEvent(new Event('change')); }
-      else if (e.key === 'F4') { e.preventDefault(); $('#posPayUpi').checked = true; $('#posPayUpi').dispatchEvent(new Event('change')); }
-      else if (e.key === 'F10') { e.preventDefault(); completeSale(); }
+      if (!document.getElementById('posSearch')) return;
+      const key = e.key;
+      if (key === 'F2') { e.preventDefault(); $('#posSearch').focus(); }
+      else if (key === 'F3') { e.preventDefault(); selectPay('posPayCash'); }
+      else if (key === 'F4') { e.preventDefault(); selectPay('posPayUpi'); }
+      else if (key === 'F5') { e.preventDefault(); selectPay('posPayCard'); }
+      else if (key === 'F6') { e.preventDefault(); selectPay('posPayCredit'); }
+      else if (key === 'F7') { e.preventDefault(); selectPay('posPaySplit'); }
+      else if (key === 'F8') { e.preventDefault(); holdBill(); }
+      else if (key === 'F9') { e.preventDefault(); saveDraft(); }
+      else if (key === 'F10') { e.preventDefault(); completeSale(); }
+      else if ((e.ctrlKey || e.metaKey) && key.toLowerCase() === 'p' && !e.altKey) { e.preventDefault(); printInvoice(); }
+      else if (e.altKey && !e.ctrlKey && !e.metaKey && key.toLowerCase() === 'c') { e.preventDefault(); clearCart(); }
     });
   });
 })();

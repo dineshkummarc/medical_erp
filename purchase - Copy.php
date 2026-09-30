@@ -346,26 +346,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         }
       });
 
-      // Re-order pad handoff from Retail POS ("Order" on an out-of-stock card).
-      try {
-        const pad = JSON.parse(sessionStorage.getItem('mf-pos-order') || '[]');
-        if (Array.isArray(pad) && pad.length) {
-          let added = 0;
-          pad.forEach((r) => {
-            const m = MF.med(r.medId);
-            if (!m) return;
-            rows.push({ id: ++seq, medId: m.id, batch: '', expiry: '', qty: Math.max(1, parseInt(r.qty) || 1), freeQty: 0, rate: Number(m.purchaseRate) || 0, discPct: 0, gst: m.gst ?? 12 });
-            added += 1;
-          });
-          sessionStorage.removeItem('mf-pos-order');
-          if (added) MF.toast(added + ' line(s) loaded from the POS order pad — select the supplier and post the GRN.', 'success', 'Order pad');
-        }
-      } catch (e) { /* no order pad pending */ }
-
       fillSupplier();
       render();
     })();
     });
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a435e257efc29aa1',t:'MTc5MDc5OTE2NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>

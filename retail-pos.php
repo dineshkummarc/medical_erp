@@ -81,6 +81,18 @@ $user   = Auth::user();
     .pos-complete-btn:active { transform:translateY(0); box-shadow:none; }
     .pos-complete-btn:disabled { opacity:.6; }
     .pos-complete-amt { font-size:1.12rem; font-weight:800; font-variant-numeric:tabular-nums; }
+
+    /* Order pad chip (re-order list) beside the search label */
+    .pos-orderchip {
+      border:1px solid #b7ddd4; background:#fff; color:var(--mf-primary-dark); border-radius:999px;
+      font-weight:700; font-size:.72rem; padding:3px 10px; display:inline-flex; align-items:center; gap:5px;
+      transition:background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .pos-orderchip:hover { background:var(--mf-primary-soft); border-color:var(--mf-primary); transform:translateY(-1px); }
+    .pos-orderchip-cnt {
+      min-width:17px; height:17px; border-radius:999px; background:var(--mf-primary); color:#fff;
+      font-size:.66rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0 4px;
+    }
   </style>
 </head>
 <body data-page="retail-pos">
@@ -105,7 +117,12 @@ $user   = Auth::user();
           <div class="card-mf p-3">
             <label class="form-label d-flex justify-content-between" for="posSearch">
                <span>Search medicine</span>
-               <span class="badge bg-light text-dark border">F2</span>
+               <span class="d-inline-flex align-items-center gap-1">
+                 <button type="button" class="pos-orderchip" id="posOrderChip" title="Re-order pad — items queued for the next purchase">
+                   <i class="bi bi-cart-plus"></i>Order <span class="pos-orderchip-cnt" id="posOrderCount">0</span>
+                 </button>
+                 <span class="badge bg-light text-dark border">F2</span>
+               </span>
             </label>
             <div class="input-group mb-2">
               <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -212,6 +229,45 @@ $user   = Auth::user();
         </div>
 
       </main>
+    </div>
+  </div>
+
+  <!-- Order / substitute chooser -->
+  <div class="modal fade" id="posActionSheet" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-mf-sm">
+      <div class="modal-content">
+        <div class="modal-body p-3">
+          <h6 class="fw-bold mb-0" id="posSheetTitle"></h6>
+          <div class="text-2 small mb-3" id="posSheetStock"></div>
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-mf-soft text-start d-flex justify-content-between align-items-center" id="posSheetSub">
+              <span><i class="bi bi-arrow-left-right me-2"></i>Substitutes in stock</span>
+              <span class="badge badge-soft-primary cnt">0</span>
+            </button>
+            <button type="button" class="btn btn-mf text-start" id="posSheetOrder">
+              <i class="bi bi-cart-plus me-2"></i>Add to order pad — buy in the next purchase
+            </button>
+          </div>
+          <button type="button" class="btn btn-light-mf w-100 mt-2" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order pad (re-order list) -->
+  <div class="modal fade" id="posOrderPadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cart-plus me-2 text-success"></i>Order pad</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div id="posOrderBody"></div>
+          <div class="text-2 small-xs mt-2 border-top pt-2">“Open New Purchase” fills these lines for you — set supplier, batch, expiry and rates there.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf text-danger" id="posOrderClear" type="button">Clear</button>
+          <button class="btn btn-mf" id="posOrderOpen" type="button"><i class="bi bi-bag-plus me-1"></i>Open New Purchase</button>
+        </div>
+      </div>
     </div>
   </div>
 

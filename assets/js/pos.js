@@ -22,10 +22,12 @@
     selIdx: 0,           // arrow-key selection index over the rendered result cards
     selQuery: '',        // last search text — a new search resets the selection to card 1
     printFmt: 'a4',      // 'a4' | 'thermal' — last chosen invoice print format
+    orderPad: [],        // [{ medId, qty }] — re-order list handed off to New Purchase
     recent: []           // medicine ids, newest first
   };
 
   const $ = (s) => document.querySelector(s);
+  let actionSheet = null, orderModal = null;   // Order/substitute chooser + order pad modals
 
   /* Button styles that need :hover / :active (can't be done with inline styles) */
   if (!document.getElementById('pos-btn-styles')) {
@@ -433,7 +435,7 @@
     box.querySelectorAll('.pos-loose-add').forEach((btn) =>
       btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med, 'loose'); }));
     box.querySelectorAll('.pos-order-sub').forEach((btn) =>
-      btn.addEventListener('click', (e) => { e.stopPropagation(); showSubstitutes(btn.dataset.med); }));
+      btn.addEventListener('click', (e) => { e.stopPropagation(); openOrderOrSub(btn.dataset.med); }));
     box.querySelectorAll('.pos-subadd').forEach((btn) =>
       btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med); }));
   }
@@ -736,7 +738,86 @@
     return out.slice(0, 8);
   }
 
-  /* "Order / substitute" tile on an out-of-stock card → Substitutes tab for that medicine. */
+  /* ---------------- Order pad (re-order list for the next purchase) ---------------- */
+  function orderPadLoad() {
+    try {
+      const raw = JSON.parse(sessionStorage.getItem('mf-pos-order') || '[]');
+      state.orderPad = Array.isArray(raw) ? raw.filter((r) => r && r.medId != null && MF.med(r.medId)) : [];
+    } catch (e) { state.orderPad = []; }
+  }
+  function orderPadSave() {
+    try { sessionStorage.setItem('mf-pos-order', JSON.stringify(state.orderPad)); } catch (e) { /* ignore */ }
+  }
+  function paintOrderCount() {
+    const n = $('#posOrderCount');
+    if (n) n.textContent = String(state.orderPad.length);
+  }
+  /* Aim for ~2× the low-stock threshold (or 20 when none is set). */
+  function suggestedOrderQty(m) {
+    const low = Number(m.reorderLevel ?? m.minStock ?? 0) || 0;
+    const cur = MF.stockOf(m.id);
+    return Math.max(1, (low > 0 ? low * 2 : 20) - cur);
+  }
+  function addToOrderPad(medId, silent) {
+    const med = MF.med(medId);
+    if (!med) return;
+    if (!state.orderPad.some((r) => String(r.medId) === String(medId))) {
+      state.orderPad.push({ medId, qty: suggestedOrderQty(med) });
+      orderPadSave();
+      paintOrderCount();
+    }
+    if (!silent) MF.toast(med.name + ' added to the order pad.', 'success', 'Order pad');
+  }
+
+  function renderOrderPad() {
+    const box = $('#posOrderBody');
+    if (!box) return;
+    if (!state.orderPad.length) {
+      box.innerHTML = `<div class="empty-state"><i class="bi bi-cart-plus"></i>Nothing to order yet.<br><span class="small">Out-of-stock cards offer “Add to order pad”.</span></div>`;
+      return;
+    }
+    box.innerHTML = state.orderPad.map((r, i) => {
+      const med = MF.med(r.medId);
+      if (!med) return '';
+      const cur = MF.stockOf(r.medId);
+      return `<div class="d-flex align-items-center gap-2 py-2${i ? ' border-top' : ''}">
+        <div class="me-auto">
+          <div class="fw-semibold">${MF.esc(med.name)}</div>
+          <div class="text-2 small-xs">On hand ${MF.num(cur)}· re-order below ${MF.num(Number(med.reorderLevel ?? med.minStock ?? 0) || 0)}</div>
+        </div>
+        <input type="number" min="1" class="form-control form-control-sm pos-opad-qty num" data-i="${i}" value="${r.qty}" style="width:76px" title="Order quantity (strips)">
+        <button type="button" class="btn btn-icon btn-light-mf text-danger pos-opad-rm" data-i="${i}" title="Remove"><i class="bi bi-x-lg"></i></button>
+      </div>`;
+    }).join('');
+    box.querySelectorAll('.pos-opad-qty').forEach((el) => el.addEventListener('change', () => {
+      state.orderPad[+el.dataset.i].qty = Math.max(1, parseInt(el.value) || 1);
+      orderPadSave();
+    }));
+    box.querySelectorAll('.pos-opad-rm').forEach((el) => el.addEventListener('click', () => {
+      state.orderPad.splice(+el.dataset.i, 1);
+      orderPadSave(); paintOrderCount(); renderOrderPad();
+    }));
+  }
+
+  /* "Order / substitute" tile on an out-of-stock card → chooser (or straight to the pad). */
+  function openOrderOrSub(medId) {
+    const med = MF.med(medId);
+    if (!med) return;
+    const subs = subsOf(med);
+    if (!subs.length) {
+      addToOrderPad(medId);
+      MF.toast('No in-stock substitute — added to the order pad for the next purchase.', 'info', 'Order / substitute');
+      return;
+    }
+    $('#posSheetTitle').textContent = med.name;
+    $('#posSheetStock').textContent = 'Out of stock — sell a substitute now, or order this one.';
+    $('#posSheetSub').querySelector('.cnt').textContent = String(subs.length);
+    $('#posSheetSub').onclick = () => { actionSheet.hide(); showSubstitutes(medId); };
+    $('#posSheetOrder').onclick = () => { actionSheet.hide(); addToOrderPad(medId); };
+    actionSheet.show();
+  }
+
+  /* Jump to the Substitutes tab focused on one medicine. */
   function showSubstitutes(medId) {
     const med = MF.med(medId);
     if (!med) return;
@@ -1944,6 +2025,25 @@
     if (printCp) printCp.addEventListener('click', () => completeSale());
     paintPrintBtn();
     $('#posComplete').addEventListener('click', completeSale);
+
+    /* Order pad */
+    actionSheet = new bootstrap.Modal($('#posActionSheet'));
+    orderModal = new bootstrap.Modal($('#posOrderPadModal'));
+    orderPadLoad();
+    paintOrderCount();
+    const orderChip = $('#posOrderChip');
+    if (orderChip) orderChip.addEventListener('click', () => { renderOrderPad(); orderModal.show(); });
+    const orderClear = $('#posOrderClear');
+    if (orderClear) orderClear.addEventListener('click', async () => {
+      if (!state.orderPad.length) return;
+      const ok = await MF.confirm({ title: 'Clear the order pad?', message: 'All re-order lines will be removed.', confirmText: 'Clear', tone: 'danger' });
+      if (ok) { state.orderPad = []; orderPadSave(); paintOrderCount(); renderOrderPad(); }
+    });
+    const orderOpen = $('#posOrderOpen');
+    if (orderOpen) orderOpen.addEventListener('click', () => {
+      if (!state.orderPad.length) { MF.toast('Order pad is empty.', 'warn'); return; }
+      location.href = 'purchase.php';
+    });
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();
     renderCart();
