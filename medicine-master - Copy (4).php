@@ -339,24 +339,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:999px;
       background:#f3f4f6; color:#6b7280; font-size:.68rem; font-weight:650; line-height:1.4;
     }
-    /* colorful matte square badges — Batch column (same palette as Medicine Ledger) */
-    .mm-bdg {
-      display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:4px;
-      font-size:11.5px; font-weight:700; letter-spacing:.02em; line-height:1.45;
-      border:1px solid; white-space:nowrap;
-    }
-    .mm-bdg i { font-size:11px; }
-    .mm-bdg.teal   { background:#D9F0ED; color:#0F766E; border-color:#B5E1DC; }
-    .mm-bdg.blue   { background:#DDEBFA; color:#1D5FA8; border-color:#BED9F3; }
-    .mm-bdg.amber  { background:#F9EDD3; color:#9A6206; border-color:#F0DCAC; }
-    .mm-bdg.orange { background:#FBE7D9; color:#B4451C; border-color:#F4CFB6; }
-    .mm-bdg.purple { background:#EBE4F9; color:#6D3FC0; border-color:#D8C9F1; }
-    .mm-bdg.red    { background:#F9E0E0; color:#B4352F; border-color:#F2C2C2; }
-    .mm-bdg.green  { background:#DCF0E2; color:#1E7A44; border-color:#BEE2CA; }
-    .mm-bdg.pink   { background:#F8E0EC; color:#B03070; border-color:#EFBFD8; }
-    .mm-bdg.indigo { background:#E2E6FA; color:#4349B3; border-color:#C8CFF2; }
-    .mm-bdg.cyan   { background:#DCF0F6; color:#14708E; border-color:#BDE0EC; }
-    .mm-bdg.slate  { background:#E9EDF1; color:#4B5563; border-color:#D5DCE3; }
     #mmStockModal .modal-dialog { max-width:880px; }
     .mm-stock-kpis { grid-template-columns:repeat(4, minmax(0, 1fr)); }
     .mm-kpi { position:relative; overflow:hidden; }
@@ -875,17 +857,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (m.batchNo || m.expiry) return { batchNo: m.batchNo || '', expiry: m.expiry || '' };
         return batches[0] || null;
       }
-      /* matte square batch badge — colour is stable per batch no */
-      const MM_BADGE_TONES = ['teal', 'blue', 'amber', 'orange', 'purple', 'pink', 'green', 'indigo', 'cyan', 'red', 'slate'];
-      function mmBatchTone(no) {
-        let h = 0;
-        for (const c of String(no || '—')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
-        return MM_BADGE_TONES[h % MM_BADGE_TONES.length];
-      }
-      function mmBatchBdg(no) {
-        if (!no) return '<span class="text-2">—</span>';
-        return `<span class="mm-bdg ${mmBatchTone(no)}"><i class="bi bi-upc"></i>${MF.esc(no)}</span>`;
-      }
       function expiryTone(m) {
         const batch = leadBatch(m);
         if (!batch || !batch.expiry) return null;
@@ -920,7 +891,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <td>${m.brandRef ? MF.esc(m.brandRef) : '<span class="text-2">—</span>'}</td>
             <td class="text-2"><span class="mm-cat" title="${MF.esc(m.category || '')}">${m.category ? MF.esc(m.category) : '—'}</span></td>
             <td>${MF.esc(m.manufacturer)}</td>
-            <td>${mmBatchBdg(batchNo)}${freshIds.has(String(m.id)) ? '<span class="mm-new">new</span>' : ''}</td>
+            <td><span class="num">${batchNo ? MF.esc(batchNo) : '—'}</span>${freshIds.has(String(m.id)) ? '<span class="mm-new">new</span>' : ''}</td>
             <td>${m.unit || '—'}</td>
             <td class="text-end num">${MF.fmt(m.mrp, 2)}</td>
             <td class="text-end num">${MF.fmt(m.retailRate ?? m.mrp, 2)}</td>
@@ -1917,5 +1888,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43252594fa94166',t:'MTc5MDc2MTgwOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
