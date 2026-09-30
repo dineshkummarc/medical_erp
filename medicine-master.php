@@ -1534,8 +1534,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         busy.classList.add('is-busy');
         try {
           if (MF.Api.live) {
+            if (!batch.id) { MF.toast('This batch has no id, so it cannot be adjusted on the server.', 'err', 'Stock Adjustment'); return; }
             await MF.Api.post('stock-adjustments.php', {
-              medicineId: m.id, batchId: batch.id || '', batchNo: batch.batchNo, qtyChange: delta, reason, notes
+              medId: m.id, medicineId: m.id, batchId: batch.id, qtyChange: delta, reason, notes
             });
             await MF.rehydrate();
           } else {
@@ -1768,5 +1769,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42fe3fbee6eb8bf',t:'MTc5MDczNjMxNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42ff6b51f7fc161',t:'MTc5MDczNzA4Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
