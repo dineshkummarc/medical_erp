@@ -582,10 +582,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fMin">Minimum Stock</label>
               <input type="number" class="form-control" id="fMin" placeholder="e.g. 10">
             </div>
-            <div class="col-md-3 col-12">
-              <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
-              <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
-            </div>
+            <div class="w-100"></div>
             <div class="col-md-6 col-12">
               <label class="form-label" for="fReorder">Reorder level</label>
               <div class="mm-per">
@@ -597,6 +594,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-md-6 col-12">
               <label class="form-label" for="fRack">Rack / shelf</label>
               <input class="form-control" id="fRack" placeholder="e.g. A-3">
+            </div>
+            <div class="col-md-3 col-12">
+              <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
+              <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
             </div>
             <div class="col-md-6 col-12">
               <label class="mm-switch">
@@ -1444,5 +1445,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42cd5bc9c217eab',t:'MTc5MDcwNDI3NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42ef9aeed8c9a6f',t:'MTc5MDcyNjcxOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
