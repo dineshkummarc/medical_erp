@@ -51,33 +51,6 @@ window.MF = window.MF || {};
     del(p) { return this.request(p, 'DELETE'); },
   };
 
-  /* Fill medicine fields bootstrap may omit. medicines.php is the save contract. */
-  const MEDICINE_FIELDS = ['name', 'generic', 'brandRef', 'composition', 'category', 'manufacturer', 'hsn', 'gst', 'unit', 'form', 'packSize', 'packQty', 'subUnit', 'allowLoose', 'mrp', 'purchaseRate', 'retailRate', 'wholesaleRate', 'minStock', 'reorderLevel', 'schedule', 'rxRequired', 'barcode', 'genericGroup', 'genericGroupId', 'substitutes', 'expiryAlertDays', 'boxQty', 'boxUnit', 'rack', 'defaultDiscount', 'discountType', 'batchNo', 'openingQty', 'expiry', 'status'];
-  function mergeMedicineCatalog(data, json) {
-    const rows = json && Array.isArray(json.data) ? json.data : null;
-    if (!rows || !Array.isArray(data.medicines)) return;
-    const byId = new Map(rows.filter((m) => m && m.id != null && m.name != null).map((m) => [String(m.id), m]));
-    if (!byId.size) return;
-    data.medicines.forEach((m) => {
-      const row = byId.get(String(m.id));
-      if (!row) return;
-      MEDICINE_FIELDS.forEach((k) => { if (Object.prototype.hasOwnProperty.call(row, k)) m[k] = row[k]; });
-    });
-    rows.forEach((m) => {
-      if (m && m.id != null && m.name != null && !data.medicines.some((x) => String(x.id) === String(m.id))) data.medicines.unshift(m);
-    });
-    const batches = Array.isArray(json.batches) ? json.batches : [];
-    if (batches.length && Array.isArray(data.batches)) {
-      batches.forEach((b) => {
-        if (!b || b.medId == null || b.batchNo == null) return;
-        const idx = data.batches.findIndex((x) => String(x.medId) === String(b.medId) && String(x.batchNo) === String(b.batchNo));
-        if (idx >= 0) Object.assign(data.batches[idx], b);
-        else data.batches.push(b);
-      });
-    }
-  }
-  MF.mergeMedicineCatalog = mergeMedicineCatalog;
-
   /* Hydrate MF_DATA from the backend once (shape-compatible with data.js).
      Every page awaits MF.boot() before rendering; call MF.rehydrate() after
      any mutation to pull fresh server state. */
@@ -85,14 +58,7 @@ window.MF = window.MF || {};
     if (!MF.Api.live) return Promise.resolve(window.MF_DATA);
     if (!MF._bootP) {
       MF._bootP = MF.Api.get('bootstrap.php')
-        .then(async (res) => {
-          Object.assign(window.MF_DATA, res.data);
-          try {
-            const extra = await MF.Api.get('medicines.php');
-            mergeMedicineCatalog(window.MF_DATA, extra);
-          } catch (_) { /* bootstrap remains usable if the medicine endpoint is not deployed yet */ }
-          return window.MF_DATA;
-        })
+        .then((res) => { Object.assign(window.MF_DATA, res.data); return window.MF_DATA; })
         .catch((e) => {
           MF._bootP = null;
           if (e.message === 'Session expired') throw e; // redirect already issued

@@ -1202,40 +1202,25 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           genericGroup: $('#fGenericGroup').value.trim(),
           substitutes: $('#fGenericGroup').value.trim(),
           barcode: $('#fBarcode').value.trim(),
-          form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: $('#fGst').value === '' ? '' : +$('#fGst').value, schedule: $('#fSchedule').value,
+          form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: +$('#fGst').value, schedule: $('#fSchedule').value,
           packQty: spec.whole ? 1 : (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
           batchNo: $('#fBatchNo').value.trim(),
           openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim(),
           expiry: fieldToExpiry($('#fExpiry').value),
-          mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: $('#fPtr').value === '' ? '' : +$('#fPtr').value,
-          defaultDiscount: $('#fDisc').value === '' ? '' : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
+          mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: +$('#fPtr').value || 0,
+          defaultDiscount: $('#fDisc').value === '' ? 0 : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
           wholesaleRate: $('#fWholesale').value === '' ? '' : +$('#fWholesale').value, minStock: $('#fMin').value === '' ? '' : +$('#fMin').value,
           reorderLevel: $('#fReorder').value === '' ? '' : +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
         const wasNew = !editingId;
         const knownIds = new Set((D.medicines || []).map((m) => String(m.id)));
-        let saved = null;
         if (MF.Api.live) {
           try {
-            saved = editingId
-              ? await MF.Api.put('medicines.php', { id: editingId, ...payload })
-              : await MF.Api.post('medicines.php', payload);
+            if (editingId) await MF.Api.put('medicines.php', { id: editingId, ...payload });
+            else await MF.Api.post('medicines.php', payload);
             await MF.rehydrate();
-            const med = saved && (saved.medicine || (saved.data && !Array.isArray(saved.data) ? saved.data : null));
-            if (med && med.id != null) {
-              const local = MF.med(med.id);
-              if (local) Object.assign(local, payload, med);
-              else D.medicines.unshift(Object.assign({}, payload, med));
-              if (wasNew) freshIds.add(String(med.id));
-            }
-            if (saved && saved.batch && Array.isArray(D.batches)) {
-              const batch = saved.batch;
-              const idx = D.batches.findIndex((b) => String(b.medId) === String(batch.medId) && String(b.batchNo) === String(batch.batchNo));
-              if (idx >= 0) Object.assign(D.batches[idx], batch);
-              else D.batches.push(batch);
-            }
           } catch (e) {
             MF.toast(e.message, 'err', 'Save failed');
             return;
@@ -1520,5 +1505,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42f9b95edd87a19',t:'MTc5MDczMzM1MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42f3794cbf64461',t:'MTc5MDcyOTI1NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
