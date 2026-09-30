@@ -318,7 +318,27 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       font-size:.72rem; letter-spacing:.04em; text-transform:uppercase; color:#6c757d;
       font-weight:700; background:#f8fafc;
     }
-    .mm-stock-empty { padding:28px 16px; }
+    .mm-cat {
+      display:inline-block; max-width:9.5rem; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;
+    }
+    .mm-sch {
+      display:inline-flex; align-items:center; margin-left:4px; padding:1px 6px; border-radius:999px;
+      color:#fff; font-size:.62rem; font-weight:700; letter-spacing:.02em; line-height:1.4;
+    }
+    .mm-sch.otc { background:#176B5B; }
+    .mm-sch.h { background:#0369A1; }
+    .mm-sch.h1 { background:#6D28D9; }
+    .mm-sch.x { background:#B42318; }
+    .mm-exp-chip {
+      display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:999px;
+      font-size:.68rem; font-weight:700; line-height:1.4; white-space:nowrap;
+    }
+    .mm-exp-chip.red { background:#fdeeee; color:#c62828; }
+    .mm-exp-chip.amber { background:#fff6e4; color:#b45309; }
+    .mm-new {
+      display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:999px;
+      background:#f3f4f6; color:#6b7280; font-size:.68rem; font-weight:650; line-height:1.4;
+    }
   </style>
 </head>
 <body data-page="medicine-master">
@@ -356,6 +376,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 <option value="low">Low Stock</option>
                 <option value="in">In Stock</option>
                 <option value="out">Out of Stock</option>
+                <option value="expiring">Expiring soon</option>
               </select>
             </div>
             <div class="col-6 col-md-2">
@@ -374,8 +395,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <table class="table table-mf">
               <thead>
                 <tr>
-                  <th>Medicine Name</th><th>Generic Name</th><th>Brand</th><th>Category</th><th>Manufacturer</th>
-                  <th>HSN</th><th class="text-center">GST</th><th>Unit</th>
+                  <th>Medicine Name</th><th>Brand</th><th>Category</th><th>MFR</th><th>Batch</th><th>Unit</th>
                   <th class="text-end">MRP</th><th class="text-end">Retail</th><th class="text-end">Wholesale</th>
                   <th class="text-end">Stock</th><th>Status</th><th class="text-end">Actions</th>
                 </tr>
@@ -676,10 +696,43 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           if (state.stock === 'low' && st > lowAt) return false;
           if (state.stock === 'in' && st <= lowAt) return false;
           if (state.stock === 'out' && st !== 0) return false;
+          if (state.stock === 'expiring' && !expiringSoon(m)) return false;
           return true;
         });
       }
 
+      const freshIds = new Set();
+      function soonDays(m) {
+        const n = Number(m && m.expiryAlertDays);
+        return n > 0 ? n : 90;
+      }
+      function leadBatch(m) {
+        const batches = MF.batchesOf(m.id) || [];
+        const dated = batches.filter((b) => b && b.expiry);
+        if (dated.length) {
+          dated.sort((a, b) => MF.daysTo(a.expiry) - MF.daysTo(b.expiry));
+          return dated[0];
+        }
+        if (m.batchNo || m.expiry) return { batchNo: m.batchNo || '', expiry: m.expiry || '' };
+        return batches[0] || null;
+      }
+      function expiryTone(m) {
+        const batch = leadBatch(m);
+        if (!batch || !batch.expiry) return null;
+        const days = MF.daysTo(batch.expiry);
+        if (days < 0) return { tone: 'red', label: 'Exp: expired' };
+        if (days <= 30) return { tone: 'red', label: 'Exp: ' + days + (days === 1 ? ' day' : ' days') };
+        if (days <= soonDays(m)) return { tone: 'amber', label: 'Exp: ' + days + (days === 1 ? ' day' : ' days') };
+        return null;
+      }
+      function expiringSoon(m) { return !!expiryTone(m); }
+      function scheduleChip(code) {
+        const key = String(code || '').toUpperCase();
+        if (!key) return '';
+        const cls = key === 'H1' ? 'h1' : key === 'H' ? 'h' : key === 'X' ? 'x' : key === 'OTC' ? 'otc' : '';
+        if (!cls) return '';
+        return `<span class="mm-sch ${cls}">${MF.esc(key)}</span>`;
+      }
       function render() {
         const list = filtered();
         const pages = Math.max(1, Math.ceil(list.length / state.per));
@@ -688,20 +741,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#mmCount').textContent = `${list.length} of ${D.medicines.length} medicines · batch & expiry linked`;
         $('#mmBody').innerHTML = slice.map((m) => {
           const st = MF.stockOf(m.id);
+          const batch = leadBatch(m);
+          const exp = expiryTone(m);
+          const rx = SCHEDULES[m.schedule] ? SCHEDULES[m.schedule].rx : m.rxRequired;
+          const batchNo = batch && (batch.batchNo || batch.batch_no) ? (batch.batchNo || batch.batch_no) : '';
           return `<tr>
-            <td><div class="td-title">${MF.esc(m.name)}</div><div class="td-sub">${MF.esc(m.composition)}${(SCHEDULES[m.schedule] ? SCHEDULES[m.schedule].rx : m.rxRequired) ? ' · <span class="rx-chip" style="font-size:.6rem">Rx</span>' : ''}</div></td>
-            <td>${MF.esc(m.generic)}</td>
+            <td><div class="td-title">${MF.esc(m.name)}</div><div class="td-sub">${MF.esc(m.composition)}${scheduleChip(m.schedule)}${rx ? ' <span class="rx-chip" style="font-size:.6rem">Rx</span>' : ''}</div></td>
             <td>${m.brandRef ? MF.esc(m.brandRef) : '<span class="text-2">—</span>'}</td>
-            <td class="text-2">${m.category}</td>
+            <td class="text-2"><span class="mm-cat" title="${MF.esc(m.category || '')}">${m.category ? MF.esc(m.category) : '—'}</span></td>
             <td>${MF.esc(m.manufacturer)}</td>
-            <td class="num text-2">${m.hsn}</td>
-            <td class="text-center">${m.gst}%</td>
-            <td>${m.unit}</td>
+            <td><span class="num">${batchNo ? MF.esc(batchNo) : '—'}</span>${freshIds.has(String(m.id)) ? '<span class="mm-new">new</span>' : ''}</td>
+            <td>${m.unit || '—'}</td>
             <td class="text-end num">${MF.fmt(m.mrp, 2)}</td>
             <td class="text-end num">${MF.fmt(m.retailRate ?? m.mrp, 2)}</td>
             <td class="text-end num">${MF.fmt(m.wholesaleRate, 2)}</td>
             <td class="text-end num fw-semibold">${MF.num(st)}</td>
-            <td>${MF.stockBadge(m)}</td>
+            <td>${MF.stockBadge(m)}${exp ? `<span class="mm-exp-chip ${exp.tone}">${MF.esc(exp.label)}</span>` : ''}</td>
             <td class="text-end mm-act">
               <div class="dropdown">
                 <button type="button" class="btn btn-icon btn-light-mf mm-kebab" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-label="Actions"><i class="bi bi-three-dots-vertical"></i></button>
@@ -716,7 +771,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               </div>
             </td>
           </tr>`;
-        }).join('') || `<tr><td colspan="14"><div class="empty-state"><i class="bi bi-search"></i>No medicines match the current filters.</div></td></tr>`;
+        }).join('') || `<tr><td colspan="12"><div class="empty-state"><i class="bi bi-search"></i>No medicines match the current filters.</div></td></tr>`;
 
         $('#mmPageInfo').textContent = `Showing ${slice.length ? (state.page - 1) * state.per + 1 : 0}–${(state.page - 1) * state.per + slice.length} of ${list.length}`;
         $('#mmPager').innerHTML = Array.from({ length: pages }, (_, i) =>
@@ -1159,6 +1214,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           reorderLevel: $('#fReorder').value === '' ? '' : +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
+        const wasNew = !editingId;
+        const knownIds = new Set((D.medicines || []).map((m) => String(m.id)));
         if (MF.Api.live) {
           try {
             if (editingId) await MF.Api.put('medicines.php', { id: editingId, ...payload });
@@ -1174,8 +1231,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         } else if (editingId) {
           Object.assign(MF.med(editingId), payload);
         } else {
-          D.medicines.unshift({ id: 'M' + String(100 + D.medicines.length), brandRef: '', ...payload });
+          const id = 'M' + String(100 + D.medicines.length);
+          D.medicines.unshift({ id, brandRef: '', ...payload });
+          freshIds.add(id);
         }
+        if (wasNew) (D.medicines || []).forEach((m) => { if (!knownIds.has(String(m.id))) freshIds.add(String(m.id)); });
         MF.toast(payload.name + (editingId ? ' updated successfully.' : ' added to the medicine master.'), 'success', editingId ? 'Medicine saved' : 'Medicine created');
         buildLookups();
         render();
@@ -1445,5 +1505,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42f0089dc5c9361',t:'MTc5MDcyNzAwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42f3794cbf64461',t:'MTc5MDcyOTI1NQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
