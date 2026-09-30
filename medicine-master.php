@@ -684,6 +684,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 <input type="number" min="0" id="fStockQty" value="" placeholder="e.g. 20">
                 <span class="mm-per-unit" id="fStockQtyUnit">units</span>
               </div>
+              <div class="mm-field-hint" id="fStockQtyHint"></div>
             </div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fMin">Minimum Stock</label>
@@ -1043,6 +1044,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         new bootstrap.Modal($('#mmViewModal')).show();
       }
 
+      /* On edit, Quantity shows the live TOTAL strips on hand — the same number as the
+         Stock column. Stock grows one batch per purchase line and is corrected through
+         Stock Adjustment, so on edit this field is display-only and saving sends the
+         quantity blank (the medicines API then leaves every batch untouched). */
+      function stockQtyForForm(m) {
+        const batches = MF.batchesOf(m.id) || [];
+        if (batches.length) return String(MF.stockOf(m.id));
+        return m.openingQty ?? '';
+      }
+
       function openForm(m) {
         editingId = m ? m.id : null;
         $('#mmFormTitle').textContent = m ? 'Edit Medicine — ' + m.name : 'Add Medicine';
@@ -1053,7 +1064,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
         $('#fBatchNo').value = m?.batchNo || (m ? (MF.batchesOf(m.id)[0]?.batchNo || '') : '');
-        $('#fStockQty').value = m?.openingQty ?? '';
+        $('#fStockQty').value = m ? stockQtyForForm(m) : '';
+        $('#fStockQty').readOnly = !!m;
+        $('#fStockQty').title = m ? 'On-hand stock — add stock from New Purchase, correct it from Stock Adjustment.' : '';
+        const qtyHint = $('#fStockQtyHint');
+        if (qtyHint) qtyHint.textContent = m ? 'On-hand stock. Add more from New Purchase; correct it from Stock Adjustment.' : 'Opening stock for the first batch.';
         syncPackUnit();
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || '';
         $('#fGst').value = m && m.gst != null && m.gst !== '' ? String(m.gst) : ''; setSchedule(m?.schedule || 'OTC');
@@ -1375,7 +1390,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: $('#fGst').value === '' ? '' : +$('#fGst').value, schedule: $('#fSchedule').value,
           packQty: spec.whole ? 1 : (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
           batchNo: $('#fBatchNo').value.trim(),
-          openingQty: $('#fStockQty').value === '' ? '' : +$('#fStockQty').value,
+          // On edit the read-only field shows TOTAL on-hand stock, so never send that
+          // to the batch writer — echo the stored opening qty instead. The API only
+          // rewrites a batch when the qty differs from what it stored, so this is a no-op.
+          openingQty: editingId ? (((MF.med(editingId) || {}).openingQty) ?? '') : ($('#fStockQty').value === '' ? '' : +$('#fStockQty').value),
           boxQty: $('#fBoxQty').value, boxUnit: $('#fBoxUnit').value.trim(),
           expiry: fieldToExpiry($('#fExpiry').value),
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: $('#fPtr').value === '' ? '' : +$('#fPtr').value,
@@ -1917,5 +1935,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a435979ccee73df7',t:'MTc5MDc5NjEwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
