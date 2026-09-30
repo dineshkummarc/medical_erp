@@ -339,6 +339,40 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:999px;
       background:#f3f4f6; color:#6b7280; font-size:.68rem; font-weight:650; line-height:1.4;
     }
+    #mmStockModal .modal-dialog { max-width:760px; }
+    #mmBatchModal .modal-dialog { max-width:980px; }
+    #mmAdjustModal .modal-dialog { max-width:560px; }
+    .mm-modal-hero { display:flex; align-items:flex-start; gap:12px; padding:16px 16px 0; }
+    .mm-modal-hero .ico {
+      width:42px; height:42px; border-radius:12px; display:grid; place-items:center; flex:0 0 auto; font-size:1.15rem;
+    }
+    .mm-modal-hero.stock .ico { background:#E6F1EE; color:#176B5B; }
+    .mm-modal-hero.batch .ico { background:#eef3fb; color:#1d4f91; }
+    .mm-modal-hero strong { display:block; font-size:1.02rem; letter-spacing:-.02em; }
+    .mm-modal-hero span { display:block; color:#6c757d; font-size:.8rem; margin-top:2px; }
+    .mm-sit { margin:0 16px 16px; border:1px solid #e7edf4; border-radius:12px; overflow:hidden; }
+    .mm-sit-row {
+      display:flex; align-items:center; justify-content:space-between; gap:12px;
+      padding:10px 12px; border-top:1px solid #f1f4f8; font-size:.86rem;
+    }
+    .mm-sit-row:first-child { border-top:0; }
+    .mm-facts { display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:0 16px 14px; }
+    .mm-fact { background:#f8fafc; border:1px solid #e7edf4; border-radius:12px; padding:10px 12px; }
+    .mm-fact span { display:block; color:#6c757d; font-size:.72rem; font-weight:700; letter-spacing:.04em; text-transform:uppercase; }
+    .mm-fact strong { display:block; margin-top:3px; font-size:.95rem; }
+    .mm-batch-chips { display:flex; flex-wrap:wrap; gap:8px; padding:0 16px 14px; }
+    .mm-batch-chip {
+      display:inline-flex; align-items:center; gap:6px; border-radius:999px; padding:4px 10px;
+      background:#eef3fb; color:#1d4f91; font-size:.78rem; font-weight:700;
+    }
+    .mm-batch-chip.bad { background:#fdeeee; color:#c62828; }
+    .mm-batch-chip.warn { background:#fff6e4; color:#a86400; }
+    .mm-adj-switch { display:flex; border:1px solid #e3e9f1; border-radius:10px; overflow:hidden; }
+    .mm-adj-switch button { flex:1; border:0; background:#fff; color:#6c757d; min-height:40px; font-weight:700; }
+    .mm-adj-switch button.is-on.add { background:#176B5B; color:#fff; }
+    .mm-adj-switch button.is-on.remove { background:#c62828; color:#fff; }
+    .mm-adj-preview { margin-top:8px; font-size:.82rem; font-weight:650; color:#176B5B; }
+    .mm-adj-preview.remove { color:#c62828; }
   </style>
 </head>
 <body data-page="medicine-master">
@@ -654,12 +688,84 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     </div>
   </div>
 
-  <!-- Stock / Batches modal -->
+  <!-- Stock position -->
   <div class="modal fade" id="mmStockModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title" id="mmStockTitle">Stock</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body p-0" id="mmStockBody"></div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
+          <button class="btn btn-mf" id="mmStockAdjust" type="button"><i class="bi bi-sliders me-1"></i>Stock Adjustment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Batch ledger -->
+  <div class="modal fade" id="mmBatchModal" tabindex="-1">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title" id="mmStockTitle">Stock Summary</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body p-0" id="mmStockBody"></div>
+        <div class="modal-header"><h5 class="modal-title" id="mmBatchTitle">Batches</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body p-0" id="mmBatchBody"></div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Stock adjustment -->
+  <div class="modal fade" id="mmAdjustModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Stock Adjustment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mm-modal-hero stock" style="padding:0 0 14px">
+            <div class="ico"><i class="bi bi-sliders"></i></div>
+            <div>
+              <strong id="mmAdjName">Medicine</strong>
+              <span id="mmAdjSub">Change on-hand quantity for one batch.</span>
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-12">
+              <label class="form-label" for="mmAdjBatch">Batch</label>
+              <select class="form-select" id="mmAdjBatch"></select>
+            </div>
+            <div class="col-12">
+              <label class="form-label">Direction</label>
+              <div class="mm-adj-switch" id="mmAdjDir">
+                <button type="button" data-dir="add" class="is-on add">Add stock</button>
+                <button type="button" data-dir="remove">Remove stock</button>
+              </div>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="mmAdjQty">Quantity</label>
+              <input type="number" min="1" class="form-control" id="mmAdjQty" placeholder="e.g. 2">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="mmAdjReason">Reason</label>
+              <select class="form-select" id="mmAdjReason">
+                <option value="">Select reason</option>
+                <option>Damage</option>
+                <option>Expired Write-off</option>
+                <option>Theft / Loss</option>
+                <option>Stock Recount</option>
+                <option>Other</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label" for="mmAdjNotes">Notes</label>
+              <input class="form-control" id="mmAdjNotes" placeholder="Optional note for the audit trail" maxlength="255">
+              <div class="mm-adj-preview" id="mmAdjPreview">Select a batch to see the new on-hand quantity.</div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Cancel</button>
+          <button class="btn mm-save" id="mmAdjSave" type="button"><i class="bi bi-check2"></i>Save adjustment</button>
+        </div>
       </div>
     </div>
   </div>
@@ -782,8 +888,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           const m = MF.med(b.dataset.id), a = b.dataset.a;
           if (a === 'view') openView(m);
           if (a === 'edit') openForm(m);
-          if (a === 'stock') openStock(m, false);
-          if (a === 'batches') openStock(m, true);
+          if (a === 'stock') openStock(m);
+          if (a === 'batches') openBatches(m);
           if (a === 'del') removeMed(m);
         }));
       }
@@ -1268,56 +1374,198 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         saveMedicine(false);
       });
 
-      function openStock(m, detailed) {
+      let stockMed = null;
+      let adjustReturn = null;
+      let adjustDir = 'add';
+      function batchDays(b) {
+        if (!b || !b.expiry) return null;
+        const days = MF.daysTo(b.expiry);
+        return Number.isFinite(days) ? days : null;
+      }
+      function batchAvailable(b) {
+        return Math.max(0, (Number(b.qty) || 0) - (Number(b.reserved) || 0));
+      }
+      function showModal(el) { bootstrap.Modal.getOrCreateInstance(el).show(); }
+      function openStock(m) {
+        stockMed = m;
         const bs = MF.batchesOf(m.id);
-        $('#mmStockTitle').textContent = (detailed ? 'Batches — ' : 'Stock Summary — ') + m.name;
         const total = MF.stockOf(m.id);
         const reserved = bs.reduce((s, b) => s + (Number(b.reserved) || 0), 0);
-        const purchValue = bs.reduce((s, b) => s + b.qty * b.purchaseRate, 0);
-        const mrpValue = bs.reduce((s, b) => s + b.qty * b.mrp, 0);
-        const margin = mrpValue - purchValue;
+        const available = Math.max(0, total - reserved);
+        const unit = m.unit || 'units';
+        const nearest = bs.filter((b) => b.expiry).sort((a, b) => String(a.expiry).localeCompare(String(b.expiry)))[0];
+        const lowAt = Number(m.reorderLevel ?? m.minStock ?? 0);
         const note = total === 0
           ? `<div class="mm-stock-note out"><i class="bi bi-exclamation-circle"></i>Out of stock. Nothing can be billed until a batch is received.</div>`
-          : total <= Number(m.reorderLevel ?? m.minStock ?? 0)
-            ? `<div class="mm-stock-note low"><i class="bi bi-exclamation-triangle"></i>Low stock. At or below reorder level (${MF.num(m.reorderLevel)} ${MF.esc(m.unit || '')}).</div>`
+          : total <= lowAt
+            ? `<div class="mm-stock-note low"><i class="bi bi-exclamation-triangle"></i>Low stock. At or below reorder level (${MF.num(m.reorderLevel ?? m.minStock ?? 0)} ${MF.esc(unit)}).</div>`
             : '';
+        const sits = bs.map((b) => `<div class="mm-sit-row"><span class="mm-batch"><i class="bi bi-upc"></i>${MF.esc(b.batchNo || '—')}</span><strong>${MF.num(b.qty)} ${MF.esc(unit)}</strong></div>`).join('');
+        $('#mmStockTitle').textContent = 'Stock';
+        $('#mmStockBody').innerHTML = `
+          <div class="mm-modal-hero stock">
+            <div class="ico"><i class="bi bi-box-seam"></i></div>
+            <div><strong>${MF.esc(m.name)}</strong><span>On-hand position. Open Batches for dates, rates and status.</span></div>
+            <div class="ms-auto">${MF.stockBadge(m)}</div>
+          </div>
+          <div class="mm-stock-top"><div class="mm-stock-kpis">
+            <div class="mm-kpi accent"><span>On hand</span><strong>${MF.num(total)}</strong><small>${MF.esc(unit)}</small></div>
+            <div class="mm-kpi"><span>Available</span><strong>${MF.num(available)}</strong><small>After reserved</small></div>
+            <div class="mm-kpi"><span>Reserved</span><strong>${MF.num(reserved)}</strong></div>
+            <div class="mm-kpi"><span>Batches</span><strong>${MF.num(bs.length)}</strong></div>
+          </div></div>
+          ${note}
+          <div class="mm-facts">
+            <div class="mm-fact"><span>Reorder level</span><strong>${m.reorderLevel === '' || m.reorderLevel == null ? '—' : MF.num(m.reorderLevel) + ' ' + MF.esc(unit)}</strong></div>
+            <div class="mm-fact"><span>Rack / shelf</span><strong>${m.rack ? MF.esc(m.rack) : '—'}</strong></div>
+            <div class="mm-fact"><span>Nearest expiry</span><strong>${nearest ? MF.fmtMonthYear(nearest.expiry) : '—'}</strong></div>
+            <div class="mm-fact"><span>Minimum stock</span><strong>${m.minStock === '' || m.minStock == null ? '—' : MF.num(m.minStock) + ' ' + MF.esc(unit)}</strong></div>
+          </div>
+          <div class="mm-sit">${sits || '<div class="mm-sit-row text-2">No batches recorded.</div>'}</div>`;
+        const btn = $('#mmStockAdjust');
+        if (btn) btn.disabled = bs.length === 0;
+        showModal($('#mmStockModal'));
+      }
+      function openBatches(m) {
+        const bs = MF.batchesOf(m.id).slice().sort((a, b) => String(a.expiry || '9999').localeCompare(String(b.expiry || '9999')));
+        const expired = bs.filter((b) => { const d = batchDays(b); return d != null && d < 0; }).length;
+        const soon = bs.filter((b) => { const d = batchDays(b); return d != null && d >= 0 && d <= 90; }).length;
         const rows = bs.map((b) => {
-          const days = MF.daysTo(b.expiry);
-          const expTone = days < 0 ? 'bad' : days <= 90 ? 'warn' : 'ok';
+          const days = batchDays(b);
+          const expTone = days == null ? '' : days < 0 ? 'bad' : days <= 90 ? 'warn' : 'ok';
           return `<tr>
-            <td><span class="mm-batch"><i class="bi bi-upc"></i>${MF.esc(b.batchNo)}</span></td>
-            <td class="num">${MF.fmtDate(b.purchaseDate)}</td>
-            <td class="num mm-exp ${expTone}">${MF.fmtMonthYear(b.expiry)}</td>
+            <td><span class="mm-batch"><i class="bi bi-upc"></i>${MF.esc(b.batchNo || '—')}</span></td>
+            <td class="num">${b.purchaseDate ? MF.fmtDate(b.purchaseDate) : '—'}</td>
+            <td class="num mm-exp ${expTone}">${b.expiry ? MF.fmtMonthYear(b.expiry) : '—'}</td>
             <td class="text-end num">${MF.num(b.qty)}</td>
-            <td class="text-end num text-2">${MF.num(b.reserved)}</td>
-            <td class="text-end num">${MF.fmt(b.purchaseRate, 2)}</td>
-            <td class="text-end num">${MF.fmt(b.mrp, 2)}</td>
+            <td class="text-end num text-2">${MF.num(b.reserved || 0)}</td>
+            <td class="text-end num">${MF.fmt(b.purchaseRate || 0, 2)}</td>
+            <td class="text-end num">${MF.fmt(b.mrp || 0, 2)}</td>
             <td>${MF.statusBadge(MF.batchStatus(b))}</td>
           </tr>`;
         }).join('');
-        $('#mmStockBody').innerHTML = `
-          <div class="mm-stock-top">
-            <div class="mm-stock-kpis">
-              <div class="mm-kpi accent"><span>Total qty</span><strong>${MF.num(total)}</strong><small>${MF.esc(m.unit || 'units')}${reserved ? ' · ' + MF.num(reserved) + ' reserved' : ''}</small></div>
-              <div class="mm-kpi"><span>Purchase value</span><strong>${MF.fmt(purchValue)}</strong></div>
-              <div class="mm-kpi"><span>MRP value</span><strong>${MF.fmt(mrpValue)}</strong><small>Margin ${MF.fmt(margin)}</small></div>
-              <div class="mm-kpi"><span>Batches</span><strong>${MF.num(bs.length)}</strong><small>${detailed ? 'Full batch list' : 'FEFO order not changed'}</small></div>
-            </div>
+        $('#mmBatchTitle').textContent = 'Batches';
+        $('#mmBatchBody').innerHTML = `
+          <div class="mm-modal-hero batch">
+            <div class="ico"><i class="bi bi-collection"></i></div>
+            <div><strong>${MF.esc(m.name)}</strong><span>Purchase and expiry ledger. Quantity changes are made from Stock.</span></div>
           </div>
-          ${note}
-          <div class="mm-stock-bar">
-            <div class="text-2 small">${detailed ? 'Every batch on this medicine' : 'Sellable and held stock by batch'}</div>
-            <button class="btn btn-mf-soft btn-sm" id="mmStockAdjust" type="button"><i class="bi bi-sliders me-1"></i>Stock Adjustment</button>
+          <div class="mm-batch-chips">
+            <span class="mm-batch-chip">${MF.num(bs.length)} batches</span>
+            <span class="mm-batch-chip warn">${MF.num(soon)} expiring within 90 days</span>
+            <span class="mm-batch-chip bad">${MF.num(expired)} expired</span>
           </div>
           <table class="table table-mf mm-stock-table mb-0">
             <thead><tr><th>Batch No</th><th>Purchase Date</th><th>Expiry</th><th class="text-end">Qty</th><th class="text-end">Reserved</th><th class="text-end">Purchase Rate</th><th class="text-end">MRP</th><th>Status</th></tr></thead>
-            <tbody>${rows || '<tr><td colspan="8"><div class="empty-state mm-stock-empty"><i class="bi bi-box-seam"></i>No batches recorded.</div></td></tr>'}</tbody>
+            <tbody>${rows || '<tr><td colspan="8"><div class="empty-state" style="padding:28px 16px"><i class="bi bi-collection"></i>No batches recorded.</div></td></tr>'}</tbody>
           </table>`;
-        new bootstrap.Modal($('#mmStockModal')).show();
-        $('#mmStockBody').querySelector('#mmStockAdjust').addEventListener('click', () => {
-          MF.toast('Opening adjustment slip for ' + m.name + ' (Stage 2 workflow)', 'info', 'Stock Adjustment');
-        });
+        showModal($('#mmBatchModal'));
       }
+      function selectedAdjustBatch() {
+        if (!stockMed) return null;
+        const key = $('#mmAdjBatch').value;
+        return MF.batchesOf(stockMed.id).find((b) => String(b.id || b.batchNo) === key) || null;
+      }
+      function setAdjustDir(dir) {
+        adjustDir = dir === 'remove' ? 'remove' : 'add';
+        document.querySelectorAll('#mmAdjDir button').forEach((b) => {
+          const on = b.dataset.dir === adjustDir;
+          b.classList.toggle('is-on', on);
+          b.classList.toggle('add', on && adjustDir === 'add');
+          b.classList.toggle('remove', on && adjustDir === 'remove');
+        });
+        previewAdjust();
+      }
+      function previewAdjust() {
+        const el = $('#mmAdjPreview');
+        const batch = selectedAdjustBatch();
+        const qty = Math.floor(Number($('#mmAdjQty').value));
+        if (!batch) { el.className = 'mm-adj-preview'; el.textContent = 'Select a batch to see the new on-hand quantity.'; return; }
+        const have = Number(batch.qty) || 0;
+        const free = batchAvailable(batch);
+        if (!qty || qty < 1) {
+          el.className = 'mm-adj-preview';
+          el.textContent = `On hand ${MF.num(have)}. Available to remove ${MF.num(free)}.`;
+          return;
+        }
+        if (adjustDir === 'remove' && qty > free) {
+          el.className = 'mm-adj-preview remove';
+          el.textContent = `Only ${MF.num(free)} can be removed. ${MF.num(batch.reserved || 0)} is reserved.`;
+          return;
+        }
+        const next = adjustDir === 'remove' ? have - qty : have + qty;
+        el.className = 'mm-adj-preview' + (adjustDir === 'remove' ? ' remove' : '');
+        el.textContent = `On hand becomes ${MF.num(next)} ${stockMed && stockMed.unit ? stockMed.unit : ''}`.trim() + '.';
+      }
+      function openAdjust(m) {
+        const bs = MF.batchesOf(m.id);
+        if (!bs.length) { MF.toast('Add a batch before adjusting stock.', 'warn', 'Stock Adjustment'); return; }
+        stockMed = m;
+        $('#mmAdjName').textContent = m.name;
+        $('#mmAdjSub').textContent = 'Change on-hand quantity for one batch. This is written to the adjustment register.';
+        $('#mmAdjBatch').innerHTML = bs.map((b) => `<option value="${MF.esc(b.id || b.batchNo)}">${MF.esc(b.batchNo || 'Batch')} · ${MF.num(b.qty)} on hand</option>`).join('');
+        $('#mmAdjQty').value = '';
+        $('#mmAdjReason').value = '';
+        $('#mmAdjNotes').value = '';
+        setAdjustDir('add');
+        adjustReturn = m;
+        const stockEl = $('#mmStockModal');
+        if (stockEl.classList.contains('show')) {
+          stockEl.addEventListener('hidden.bs.modal', () => setTimeout(() => showModal($('#mmAdjustModal')), 0), { once: true });
+          bootstrap.Modal.getOrCreateInstance(stockEl).hide();
+        } else showModal($('#mmAdjustModal'));
+      }
+      async function saveAdjust() {
+        const m = stockMed;
+        const batch = selectedAdjustBatch();
+        const qty = Math.floor(Number($('#mmAdjQty').value));
+        const reason = $('#mmAdjReason').value;
+        const notes = $('#mmAdjNotes').value.trim();
+        if (!m || !batch) { MF.toast('Select a batch.', 'err', 'Stock Adjustment'); return; }
+        if (!qty || qty < 1) { MF.toast('Enter a quantity of at least 1.', 'err', 'Stock Adjustment'); return; }
+        if (!reason) { MF.toast('Select a reason.', 'err', 'Stock Adjustment'); return; }
+        if (adjustDir === 'remove' && qty > batchAvailable(batch)) {
+          MF.toast('That quantity is more than the available stock.', 'err', 'Stock Adjustment');
+          return;
+        }
+        const delta = adjustDir === 'remove' ? -qty : qty;
+        const busy = $('#mmAdjSave');
+        if (busy.classList.contains('is-busy')) return;
+        busy.classList.add('is-busy');
+        try {
+          if (MF.Api.live) {
+            await MF.Api.post('stock-adjustments.php', {
+              medicineId: m.id, batchId: batch.id || '', batchNo: batch.batchNo, qtyChange: delta, reason, notes
+            });
+            await MF.rehydrate();
+          } else {
+            batch.qty = (Number(batch.qty) || 0) + delta;
+          }
+          const fresh = MF.med(m.id) || m;
+          stockMed = fresh;
+          adjustReturn = fresh;
+          render();
+          MF.toast(m.name + ' stock updated.', 'success', 'Stock Adjustment');
+          bootstrap.Modal.getOrCreateInstance($('#mmAdjustModal')).hide();
+        } catch (e) {
+          MF.toast(e.message, 'err', 'Stock Adjustment');
+        } finally {
+          busy.classList.remove('is-busy');
+        }
+      }
+      $('#mmStockAdjust').addEventListener('click', () => { if (stockMed) openAdjust(stockMed); });
+      $('#mmAdjDir').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-dir]');
+        if (btn) setAdjustDir(btn.dataset.dir);
+      });
+      ['mmAdjBatch', 'mmAdjQty'].forEach((id) => $('#' + id).addEventListener('input', previewAdjust));
+      $('#mmAdjBatch').addEventListener('change', previewAdjust);
+      $('#mmAdjSave').addEventListener('click', saveAdjust);
+      $('#mmAdjustModal').addEventListener('hidden.bs.modal', () => {
+        const m = adjustReturn;
+        adjustReturn = null;
+        if (m) setTimeout(() => openStock(MF.med(m.id) || m), 0);
+      });
 
       async function removeMed(m) {
         const ok = await MF.confirm({ title: `Delete ${m.name}?`, message: 'This removes the item from the master. Sales history is preserved (soft delete in production).', confirmText: 'Delete', tone: 'danger' });
@@ -1520,5 +1768,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42f9b95edd87a19',t:'MTc5MDczMzM1MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a42fe3fbee6eb8bf',t:'MTc5MDczNjMxNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

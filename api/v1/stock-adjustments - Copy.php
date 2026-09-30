@@ -33,7 +33,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
-    $medId    = (int) ($input['medId'] ?? $input['medicineId'] ?? 0);
+    $medId    = (int) ($input['medId'] ?? 0);
     $batchId  = (int) ($input['batchId'] ?? 0);
     $qtyChange = (int) ($input['qtyChange'] ?? 0);
     $reason   = $input['reason'] ?? '';
