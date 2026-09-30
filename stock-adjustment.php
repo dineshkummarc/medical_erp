@@ -18,6 +18,26 @@ $user   = Auth::user();
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
+  <style>
+    /* colorful matte square badges — Batch column (same palette as Medicine Ledger) */
+    .sa-bdg {
+      display:inline-flex; align-items:center; gap:5px; padding:3px 8px; border-radius:4px;
+      font-size:11.5px; font-weight:700; letter-spacing:.02em; line-height:1.45;
+      border:1px solid; white-space:nowrap;
+    }
+    .sa-bdg i { font-size:11px; }
+    .sa-bdg.teal   { background:#D9F0ED; color:#0F766E; border-color:#B5E1DC; }
+    .sa-bdg.blue   { background:#DDEBFA; color:#1D5FA8; border-color:#BED9F3; }
+    .sa-bdg.amber  { background:#F9EDD3; color:#9A6206; border-color:#F0DCAC; }
+    .sa-bdg.orange { background:#FBE7D9; color:#B4451C; border-color:#F4CFB6; }
+    .sa-bdg.purple { background:#EBE4F9; color:#6D3FC0; border-color:#D8C9F1; }
+    .sa-bdg.red    { background:#F9E0E0; color:#B4352F; border-color:#F2C2C2; }
+    .sa-bdg.green  { background:#DCF0E2; color:#1E7A44; border-color:#BEE2CA; }
+    .sa-bdg.pink   { background:#F8E0EC; color:#B03070; border-color:#EFBFD8; }
+    .sa-bdg.indigo { background:#E2E6FA; color:#4349B3; border-color:#C8CFF2; }
+    .sa-bdg.cyan   { background:#DCF0F6; color:#14708E; border-color:#BDE0EC; }
+    .sa-bdg.slate  { background:#E9EDF1; color:#4B5563; border-color:#D5DCE3; }
+  </style>
 </head>
 <body data-page="stock-adjustment">
   <div class="mf-layout">
@@ -115,15 +135,27 @@ $user   = Auth::user();
           `<option value="${b.id}">${b.batchNo} — Qty ${b.qty} · Exp ${MF.fmtMonthYear(b.expiry)}</option>`).join('');
       });
 
+      const SA_BADGE_TONES = ['teal', 'blue', 'amber', 'orange', 'purple', 'pink', 'green', 'indigo', 'cyan', 'red', 'slate'];
+      function saBatchTone(no) {
+        let h = 0;
+        for (const c of String(no || '—')) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+        return SA_BADGE_TONES[h % SA_BADGE_TONES.length];
+      }
+      const saBatchBdg = (no) => no
+        ? `<span class="sa-bdg ${saBatchTone(no)}"><i class="bi bi-upc"></i>${MF.esc(no)}</span>`
+        : '<span class="text-2">—</span>';
+      // API returns created_at ("YYYY-MM-DD HH:MM:SS") — fmtDate wants just the date part
+      const saDate = (v) => MF.fmtDate(String(v || '').slice(0, 10));
+
       async function loadLog() {
         try {
           const res = await MF.Api.get('stock-adjustments.php');
           const rows = res.data || [];
           $('#saLogBody').innerHTML = rows.length ? rows.map((r) => `
             <tr>
-              <td class="num">${MF.fmtDate(r.date)}</td>
+              <td class="num">${saDate(r.date)}</td>
               <td>${MF.esc(r.medicine)}</td>
-              <td class="num">${MF.esc(r.batch)}</td>
+              <td>${saBatchBdg(r.batch)}</td>
               <td class="text-end num ${r.qtyChange > 0 ? 'text-success' : 'text-danger'}">${r.qtyChange > 0 ? '+' : ''}${r.qtyChange}</td>
               <td>${MF.esc(r.reason)}</td>
               <td class="text-2">${MF.esc(r.notes || '—')}</td>
@@ -159,5 +191,5 @@ $user   = Auth::user();
       });
     });
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4343dce9f4a9a96',t:'MTc5MDc4MTkzOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
