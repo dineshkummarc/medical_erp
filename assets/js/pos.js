@@ -110,6 +110,19 @@
       .pos-result.is-out { background:#FCEDED; border-color:#EFC7C7; }
       .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
 
+      /* Inline substitute pills on an out-of-stock card */
+      .pos-oos-subs { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
+      .pos-oos-subs > span { font-size:.66rem; font-weight:700; color:#B4352F; letter-spacing:.01em; }
+      .pos-subadd {
+        border:1px solid #B5E1DC; background:#EAF7F5; color:#0F766E; border-radius:4px;
+        font-size:.68rem; font-weight:700; padding:2px 7px; display:inline-flex; align-items:center; gap:4px;
+        transition:background .12s ease, color .12s ease, border-color .12s ease;
+      }
+      .pos-subadd i { font-size:.62rem; }
+      .pos-subadd b { font-weight:800; }
+      .pos-subadd:hover { background:#0F766E; border-color:#0F766E; color:#fff; }
+      .pos-subadd:active { transform:translateY(1px); }
+
       /* Out of stock — price greyed with a strike line */
       .pos-price-out { color:#9aa6b2 !important; text-decoration:line-through; font-weight:600 !important; }
 
@@ -406,11 +419,11 @@
       </div>`;
   }
 
-  /* Generic/substitute linking: shown only when a medicine has no sellable batch. */
+/* Generic/substitute linking: shown only when a medicine has no sellable batch. */
   function subsLine(m) {
-    const subs = MF.substitutesOf(m.id);
+    const subs = subsOf(m);
     if (!subs.length) return '';
-    return `<div class="pr-meta text-2 mt-1"><i class="bi bi-arrow-left-right"></i> Try instead: ${subs.map((s) => MF.esc(s.name)).join(', ')}</div>`;
+    return `<div class="pr-meta text-2 mt-1"><i class="bi bi-arrow-left-right"></i> Try instead: ${subs.slice(0, 4).map((s) => MF.esc(s.name)).join(', ')}</div>`;
   }
 
   /* Attach click → addToCart for BOTH search results and the "Fast moving" shortcuts */
@@ -421,6 +434,8 @@
       btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med, 'loose'); }));
     box.querySelectorAll('.pos-order-sub').forEach((btn) =>
       btn.addEventListener('click', (e) => { e.stopPropagation(); showSubstitutes(btn.dataset.med); }));
+    box.querySelectorAll('.pos-subadd').forEach((btn) =>
+      btn.addEventListener('click', (e) => { e.stopPropagation(); addToCart(btn.dataset.med); }));
   }
 
   /* Left-column MRP line: shown as its own row right under the batch/expiry pills. */
@@ -491,6 +506,7 @@
           ${cmp ? subDiff(m, cmp) : ''}
           ${b ? batchExpiryPills(b, m) : `<div class="pr-meta text-danger mt-1">No sellable batch (expired stock only)</div>${subsLine(m)}`}
           ${mrpLine(m, live)}
+          ${out ? outSubsStrip(m) : ''}
         </div>
         <div class="text-end">
           ${priceBlock(m, live)}
@@ -647,18 +663,52 @@
     return ids.map((id) => MF.med(id)).filter(Boolean).slice(0, 8);
   }
 
-  /* Same composition (or same generic group) AND sellable stock right now. */
-  function normComp(m) {
-    return String((m && (m.composition || m.generic)) || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  /* ---- Rich substitute matching -------------------------------------------------
+     Salts come from BOTH the Generic/composition group field (one chip per salt)
+     and the composition text. Two items are substitutes when they share a salt
+     (exact salt, or same salt root with a different strength). Only items with
+     sellable stock right now (FEFO) qualify; ranked by shared salts then price. */
+  function saltsOf(m) {
+    const raw = String((m && m.genericGroup) || '') + ';' + String((m && (m.composition || m.generic)) || '');
+    return [...new Set(raw.split(/[,;+]|\s+\/\s+/).map((s) => s.trim().toLowerCase()).filter((s) => s.length >= 3))];
   }
-  function sameSubsBase(a, b) {
-    if (MF.substitutesOf(a.id).some((x) => String(x.id) === String(b.id))) return true;
-    const ca = normComp(a), cb = normComp(b);
-    return ca !== '' && ca === cb;
+  function saltRoot(s) {
+    const t = String(s || '').toLowerCase().replace(/[^a-z ]/g, ' ').trim().split(/\s+/)[0] || '';
+    return t.length >= 3 ? t : '';
   }
   function subsOf(med) {
-    return (D.medicines || []).filter((c) =>
-      c.id != med.id && sameSubsBase(med, c) && fefoState(c).tablets > 0);
+    const my = saltsOf(med);
+    if (!my.length) return [];
+    const myRoots = my.map(saltRoot).filter(Boolean);
+    const myKey = my.slice().sort().join('|');
+    const price = Number(med.retailRate ?? med.mrp) || 0;
+    const out = [];
+    (D.medicines || []).forEach((c) => {
+      if (String(c.id) === String(med.id)) return;
+      if (fefoState(c).tablets <= 0) return;               // no sellable stock → not a usable substitute
+      const cs = saltsOf(c);
+      if (!cs.length) return;
+      const cRoots = cs.map(saltRoot).filter(Boolean);
+      const shared = my.filter((s, i) => cs.includes(s) || (myRoots[i] && cRoots.includes(myRoots[i]))).length;
+      if (!shared) return;
+      const sameGroup = cs.slice().sort().join('|') === myKey;
+      const score = (sameGroup ? 100 : 0) + shared * 10 - Math.abs((Number(c.retailRate ?? c.mrp) || 0) - price) / 1000;
+      out.push({ med: c, score });
+    });
+    out.sort((a, b) => b.score - a.score);
+    return out.map((x) => x.med);
+  }
+
+  /* Small in-stock substitute pills shown right on an out-of-stock card. */
+  function subPill(s, src) {
+    const d = (Number(s.retailRate ?? s.mrp) || 0) - (Number(src.retailRate ?? src.mrp) || 0);
+    const diff = Math.abs(d) < 0.005 ? 'same price' : (d < 0 ? '−' + MF.fmt(Math.abs(d), 2) : '+' + MF.fmt(d, 2));
+    return `<button type="button" class="pos-subadd" data-med="${s.id}" title="Add ${MF.esc(s.name)} instead — ${diff}"><i class="bi bi-arrow-left-right"></i>${MF.esc(s.name)} <b>${diff}</b></button>`;
+  }
+  function outSubsStrip(m) {
+    const subs = subsOf(m).slice(0, 3);
+    if (!subs.length) return '';
+    return `<div class="pos-oos-subs"><span>Substitutes in stock:</span>${subs.map((s) => subPill(s, m)).join('')}</div>`;
   }
 
   function substituteMeds() {
