@@ -98,17 +98,13 @@
       .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
       .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
 
-      /* Schedule chips on medicine cards (H / H1 / X / NDPS) — square, filled, same colors as the medicine form */
+      /* Schedule chips on medicine cards (H / H1 / X / NDPS) */
       .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:0 6px; border-radius:4px;
-                 font-size:.6rem; font-weight:800; letter-spacing:.07em; line-height:1.7; vertical-align:2px; color:#fff; }
-      .pos-sch.h    { background:#0369A1; }
-      .pos-sch.h1   { background:#6D28D9; }
-      .pos-sch.x    { background:#B42318; }
-      .pos-sch.ndps { background:#7F1D1D; }
-
-      /* Out of stock — matte light red card (and the arrow-key ring goes red too) */
-      .pos-result.is-out { background:#FCEDED; border-color:#EFC7C7; }
-      .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
+                 font-size:.6rem; font-weight:800; letter-spacing:.07em; line-height:1.7; vertical-align:2px; }
+      .pos-sch.h    { background:#FBE7D9; color:#B4451C; border:1px solid #F4CFB6; }
+      .pos-sch.h1   { background:#6D28D9; color:#fff; }
+      .pos-sch.x    { background:#B42318; color:#fff; }
+      .pos-sch.ndps { background:#3B0A12; color:#fff; }
 
       /* Out of stock — price greyed with a strike line */
       .pos-price-out { color:#9aa6b2 !important; text-decoration:line-through; font-weight:600 !important; }
@@ -392,7 +388,7 @@
     const brand = m.brandRef ? ` <span class="text-2 fw-normal">· ${MF.esc(m.brandRef)}</span>` : '';
     const sch = rxSchedule(m);
     const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">${sch}</span>` : '';
-    return `<div class="pr-name">${MF.esc(m.name)}${brand}${schChip}</div>`;
+    return `<div class="pr-name">${MF.esc(m.name)}${schChip}${brand}</div>`;
   }
 
   /* Batch + expiry only. Strip and tablet counts live on the stock line. */
@@ -481,10 +477,9 @@
     const shown = live.nextLoose || live.nextStrip;
     const b = shown ? shown.batch : MF.pickBatch(m.id);
     const noPack = live.strips <= 0;
-    const out = live.tablets <= 0;
     return `
-      <div class="pos-result${out ? ' is-out' : ''}" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
-        <div class="kpi-icon ${out ? 'tone-danger' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
+      <div class="pos-result" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
+        <div class="kpi-icon tone-primary" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
         <div class="flex-grow-1 text-start">
           ${nameLine(m)}
           <div class="pr-meta">${MF.esc(m.composition)}</div>
@@ -929,7 +924,6 @@
     }
     if (wanted) sel.value = String(wanted);
   }
-  MF.refillPosDoctors = fillDoctors;   // hook for the quick-add modal on the POS page
 
   /* ---------------- Payments ---------------- */
   function bindPayments() {

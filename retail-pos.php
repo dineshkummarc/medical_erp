@@ -141,9 +141,12 @@ $user   = Auth::user();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label" for="posDoctor">Prescribing Doctor</label>
-                  <select class="form-select" id="posDoctor">
-                    <option value="">— Walk-in / none —</option>
-                  </select>
+                  <div class="d-flex gap-2">
+                    <select class="form-select" id="posDoctor">
+                      <option value="">— Walk-in / none —</option>
+                    </select>
+                    <button class="btn btn-light-mf" type="button" id="posAddDoctor" title="Add new doctor"><i class="bi bi-plus-lg"></i></button>
+                  </div>
                 </div>
               </div>
               <div class="pos-rx-verify" id="posRxToggleWrap">
@@ -246,31 +249,39 @@ $user   = Auth::user();
     </div>
   </div>
 
-  <!-- Add Customer modal -->
-  <div class="modal fade" id="addCustomerModal" tabindex="-1">
+  <!-- Quick add — one modal serves both Customer and Doctor -->
+  <div class="modal fade" id="quickAddModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title">Add Customer</h5>
+          <h5 class="modal-title" id="qaTitle">Add Customer</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
           <div class="mb-2">
-            <label class="form-label">Name <span class="req">*</span></label>
-            <input class="form-control" id="pcName" placeholder="e.g. Ramesh Kumar">
+            <label class="form-label"><span id="qaNameLbl">Name</span> <span class="req">*</span></label>
+            <input class="form-control" id="qaName" placeholder="e.g. Ramesh Kumar">
+          </div>
+          <div class="mb-2" id="qaRegRow" hidden>
+            <label class="form-label">Registration no. <span class="req">*</span></label>
+            <input class="form-control" id="qaReg" placeholder="e.g. BMC-45231">
+          </div>
+          <div class="mb-2" id="qaSpecRow" hidden>
+            <label class="form-label">Speciality</label>
+            <input class="form-control" id="qaSpec" placeholder="e.g. General Physician">
           </div>
           <div class="mb-2">
             <label class="form-label">Phone</label>
-            <input class="form-control" id="pcPhone">
+            <input class="form-control" id="qaPhone" placeholder="e.g. 98765 43210">
           </div>
-          <div class="mb-2">
+          <div class="mb-2" id="qaAddrRow">
             <label class="form-label">Address</label>
-            <input class="form-control" id="pcAddress">
+            <input class="form-control" id="qaAddr" placeholder="e.g. Ward 4, Madhepura">
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-mf" id="pcSave">Save Customer</button>
+          <button class="btn btn-mf" id="qaSave"><i class="bi bi-check2 me-1"></i>Save</button>
         </div>
       </div>
     </div>
@@ -285,6 +296,7 @@ $user   = Auth::user();
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
       const D = window.MF_DATA;
+      const $ = (s) => document.querySelector(s);
 
       function renderCustomers() {
         const custSel = document.getElementById('posCustomer');
@@ -293,26 +305,76 @@ $user   = Auth::user();
       }
       renderCustomers();
 
-      document.getElementById('posAddCustomer').addEventListener('click', () => {
-        ['pcName', 'pcPhone', 'pcAddress'].forEach((id) => document.getElementById(id).value = '');
-        new bootstrap.Modal('#addCustomerModal').show();
+      /* One quick-add modal serves both Customer (+ beside Customer) and Doctor (+ beside Doctor). */
+      const qaModal = new bootstrap.Modal('#quickAddModal');
+      let qaType = 'customer';
+      function qaSetType(t) {
+        qaType = t;
+        const doctor = t === 'doctor';
+        $('#qaTitle').innerHTML = doctor
+          ? '<i class="bi bi-heart-pulse me-1 text-success"></i>Add Doctor'
+          : '<i class="bi bi-person-plus me-1 text-success"></i>Add Customer';
+        $('#qaNameLbl').textContent = doctor ? 'Doctor name' : 'Name';
+        $('#qaRegRow').hidden = !doctor;
+        $('#qaSpecRow').hidden = !doctor;
+        $('#qaAddrRow').hidden = doctor;
+        ['qaName', 'qaReg', 'qaSpec', 'qaPhone', 'qaAddr'].forEach((id) => $('#' + id).value = '');
+      }
+      $('#posAddCustomer').addEventListener('click', () => {
+        qaSetType('customer');
+        qaModal.show();
+        setTimeout(() => $('#qaName').focus(), 250);
       });
-      document.getElementById('pcSave').addEventListener('click', async () => {
-        const name = document.getElementById('pcName').value.trim();
-        if (!name) { MF.toast('Customer name is required.', 'warn'); return; }
+      $('#posAddDoctor').addEventListener('click', () => {
+        qaSetType('doctor');
+        qaModal.show();
+        setTimeout(() => $('#qaName').focus(), 250);
+      });
+
+      $('#qaSave').addEventListener('click', async () => {
+        const name = $('#qaName').value.trim();
+        if (!name) { MF.toast('Name is required.', 'warn'); return; }
+        const btn = $('#qaSave');
+        const idle = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
         try {
+          if (qaType === 'doctor') {
+            const reg = $('#qaReg').value.trim();
+            if (!reg) { MF.toast('Registration number is required.', 'warn'); return; }
+            const payload = { name, reg_no: reg, specialty: $('#qaSpec').value.trim(), phone: $('#qaPhone').value.trim(), status: 'Active' };
+            let id;
+            const res = await MF.Api.post('doctors.php', payload);
+            id = res.id;
+            if (!id) id = 'N' + Date.now();            // demo mode — no real id comes back
+            (D.doctors = D.doctors || []).push({ id, name, specialty: payload.specialty, phone: payload.phone, reg_no: reg, status: 'Active' });
+            await MF.rehydrate().catch(() => {});
+            if (MF.refillPosDoctors) await MF.refillPosDoctors();
+            $('#posDoctor').value = id;
+            qaModal.hide();
+            MF.toast('Doctor added.', 'success');
+            return;
+          }
           const res = await MF.Api.post('customers.php', {
             name,
-            phone: document.getElementById('pcPhone').value.trim(),
-            address: document.getElementById('pcAddress').value.trim(),
+            phone: $('#qaPhone').value.trim(),
+            address: $('#qaAddr').value.trim(),
           });
-          await MF.rehydrate();
+          let id = res.id;
+          if (!id) {
+            id = 'C' + Date.now();                     // demo fallback
+            (D.customers = D.customers || []).push({ id, name, phone: $('#qaPhone').value.trim(), address: $('#qaAddr').value.trim() });
+          }
+          await MF.rehydrate().catch(() => {});
           renderCustomers();
-          document.getElementById('posCustomer').value = res.id;
-          bootstrap.Modal.getInstance(document.getElementById('addCustomerModal')).hide();
+          $('#posCustomer').value = id;
+          qaModal.hide();
           MF.toast('Customer added.', 'success');
         } catch (err) {
-          MF.toast(err.message || 'Could not add customer.', 'danger');
+          MF.toast(err.message || 'Could not save.', 'danger');
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = idle;
         }
       });
     });
