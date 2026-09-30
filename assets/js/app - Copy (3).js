@@ -51,6 +51,33 @@ window.MF = window.MF || {};
     del(p) { return this.request(p, 'DELETE'); },
   };
 
+  /* Fill medicine fields bootstrap may omit. medicines.php is the save contract. */
+  const MEDICINE_FIELDS = ['name', 'generic', 'brandRef', 'composition', 'category', 'manufacturer', 'hsn', 'gst', 'unit', 'form', 'packSize', 'packQty', 'subUnit', 'allowLoose', 'mrp', 'purchaseRate', 'retailRate', 'wholesaleRate', 'minStock', 'reorderLevel', 'schedule', 'rxRequired', 'barcode', 'genericGroup', 'genericGroupId', 'substitutes', 'expiryAlertDays', 'boxQty', 'boxUnit', 'rack', 'defaultDiscount', 'discountType', 'batchNo', 'openingQty', 'expiry', 'status'];
+  function mergeMedicineCatalog(data, json) {
+    const rows = json && Array.isArray(json.data) ? json.data : null;
+    if (!rows || !Array.isArray(data.medicines)) return;
+    const byId = new Map(rows.filter((m) => m && m.id != null && m.name != null).map((m) => [String(m.id), m]));
+    if (!byId.size) return;
+    data.medicines.forEach((m) => {
+      const row = byId.get(String(m.id));
+      if (!row) return;
+      MEDICINE_FIELDS.forEach((k) => { if (Object.prototype.hasOwnProperty.call(row, k)) m[k] = row[k]; });
+    });
+    rows.forEach((m) => {
+      if (m && m.id != null && m.name != null && !data.medicines.some((x) => String(x.id) === String(m.id))) data.medicines.unshift(m);
+    });
+    const batches = Array.isArray(json.batches) ? json.batches : [];
+    if (batches.length && Array.isArray(data.batches)) {
+      batches.forEach((b) => {
+        if (!b || b.medId == null || b.batchNo == null) return;
+        const idx = data.batches.findIndex((x) => String(x.medId) === String(b.medId) && String(x.batchNo) === String(b.batchNo));
+        if (idx >= 0) Object.assign(data.batches[idx], b);
+        else data.batches.push(b);
+      });
+    }
+  }
+  MF.mergeMedicineCatalog = mergeMedicineCatalog;
+
   /* Hydrate MF_DATA from the backend once (shape-compatible with data.js).
      Every page awaits MF.boot() before rendering; call MF.rehydrate() after
      any mutation to pull fresh server state. */
@@ -58,7 +85,14 @@ window.MF = window.MF || {};
     if (!MF.Api.live) return Promise.resolve(window.MF_DATA);
     if (!MF._bootP) {
       MF._bootP = MF.Api.get('bootstrap.php')
-        .then((res) => { Object.assign(window.MF_DATA, res.data); return window.MF_DATA; })
+        .then(async (res) => {
+          Object.assign(window.MF_DATA, res.data);
+          try {
+            const extra = await MF.Api.get('medicines.php');
+            mergeMedicineCatalog(window.MF_DATA, extra);
+          } catch (_) { /* bootstrap remains usable if the medicine endpoint is not deployed yet */ }
+          return window.MF_DATA;
+        })
         .catch((e) => {
           MF._bootP = null;
           if (e.message === 'Session expired') throw e; // redirect already issued
@@ -110,10 +144,18 @@ window.MF = window.MF || {};
 
   /* Generic/substitute linking: other active medicines sharing the same generic
      group that currently have sellable stock — useful when the searched item is out. */
+  function groupKey(med) {
+    if (!med) return '';
+    const parts = String(med.genericGroup || '').split(/[,;+]|\s+\/\s+/).map((s) => s.trim().toLowerCase()).filter(Boolean).sort();
+    if (parts.length) return 'g:' + parts.join('|');
+    if (med.genericGroupId) return 'id:' + med.genericGroupId;
+    return '';
+  }
   MF.substitutesOf = (medId) => {
     const med = MF.med(medId);
-    if (!med || !med.genericGroupId) return [];
-    return D.medicines.filter((m) => m.genericGroupId === med.genericGroupId && m.id !== medId && MF.stockOf(m.id) > 0);
+    const key = groupKey(med);
+    if (!key) return [];
+    return D.medicines.filter((m) => m.id != medId && groupKey(m) === key && MF.stockOf(m.id) > 0);
   };
 
   MF.batchStatus = (b) => {
@@ -121,7 +163,7 @@ window.MF = window.MF || {};
     if (days < 0) return 'Expired';
     if (days <= 90) return 'Near Expiry';
     const med = MF.med(b.medId);
-    if (med && MF.stockOf(med.id) <= med.minStock) return 'Low Stock';
+    if (med && MF.stockOf(med.id) <= Number(med.reorderLevel ?? med.minStock ?? 0)) return 'Low Stock';
     return 'Active';
   };
 
@@ -132,7 +174,7 @@ window.MF = window.MF || {};
   MF.stockBadge = (med) => {
     const st = MF.stockOf(med.id);
     if (st === 0) return MF.badge('Out of Stock', 'danger');
-    if (st <= med.minStock) return MF.badge('Low Stock', 'warning');
+    if (st <= Number(med.reorderLevel ?? med.minStock ?? 0)) return MF.badge('Low Stock', 'warning');
     return MF.badge('In Stock', 'success');
   };
 
@@ -333,7 +375,8 @@ window.MF = window.MF || {};
         { label: 'Prescriptions', icon: 'file-medical', page: 'prescriptions', href: 'prescriptions.php' },
         { label: 'Doctors', icon: 'heart-pulse', page: 'doctors', href: 'doctors.php' },
         { label: 'Manufacturers', icon: 'buildings', page: 'manufacturers', href: 'manufacturers.php' },
-        { label: 'Medicine Categories', icon: 'tags', page: 'categories', href: 'categories.php' }
+        { label: 'Medicine Categories', icon: 'tags', page: 'categories', href: 'categories.php' },
+        { label: 'Schedule / Class', icon: 'shield-check', page: 'schedules', href: 'schedules.php' }
       ]
     },
     {

@@ -363,6 +363,7 @@ window.MF = window.MF || {};
       label: 'Inventory', icon: 'boxes', items: [
         { label: 'Products / Medicines', icon: 'capsule', page: 'medicine-master', href: 'medicine-master.php' },
         { label: 'Stock Overview', icon: 'box-seam', page: 'stock-overview', href: 'stock-overview.php' },
+        { label: 'Medicine Ledger', icon: 'journal-text', page: 'medicine-ledger', href: 'medicine-ledger.php' },
         { label: 'Batch Management', icon: 'collection', page: 'batch-management', href: 'batch-management.php' },
         { label: 'Expiry Management', icon: 'calendar2-x', page: 'expiry-management', href: 'expiry-management.php' },
         { label: 'Low Stock', icon: 'exclamation-triangle', href: 'medicine-master.php?stock=low' },
