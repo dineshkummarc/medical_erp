@@ -19,6 +19,9 @@
     upiRef: '',
     pick: 'quick',       // quick | recent | subs — left-column browse tabs
     subSeed: null,       // medicine id the Substitutes tab is focused on (via "Order / substitute")
+    selIdx: 0,           // arrow-key selection index over the rendered result cards
+    selQuery: '',        // last search text — a new search resets the selection to card 1
+    printFmt: 'a4',      // 'a4' | 'thermal' — last chosen invoice print format
     recent: []           // medicine ids, newest first
   };
 
@@ -118,6 +121,9 @@
       .pos-saved { display:inline-flex; align-items:center; gap:5px; margin-top:6px; padding:3px 10px;
                    border-radius:999px; background:#DCF0E2; color:#146C43; border:1px solid #BEE2CA;
                    font-size:.75rem; font-weight:800; }
+
+      /* Arrow-key selection on search cards */
+      .pos-result.is-active { border-color:var(--mf-accent); background:#F2FAF7; box-shadow:0 0 0 3px rgba(46,139,120,.16); }
 
       /* Cash tender on Complete sale */
       .pos-tender-dialog { max-width: 540px; }
@@ -487,13 +493,63 @@
       </div>`;
   }
 
+  /* ---------------- Keyboard nav + barcode scan ---------------- */
+  function resultCards() { return Array.from(document.querySelectorAll('#posResults .pos-result')); }
+
+  function paintSel() {
+    const cards = resultCards();
+    if (!cards.length) { state.selIdx = 0; return; }
+    state.selIdx = Math.min(Math.max(state.selIdx, 0), cards.length - 1);
+    cards.forEach((c, i) => c.classList.toggle('is-active', i === state.selIdx));
+  }
+
+  /* An exact, non-empty barcode hit — scanners type the full code, so an exact match is a scan. */
+  function exactBarcodeMatch(q) {
+    q = String(q || '').trim();
+    if (!q) return null;
+    const hits = (D.medicines || []).filter((m) => m.barcode && String(m.barcode).trim() === q);
+    return hits[0] || null;
+  }
+
+  function resetSearch(box) {
+    box.value = '';
+    state.selIdx = 0;
+    state.selQuery = '';
+    searchMeds('');
+  }
+
+  function onSearchKeys(e) {
+    const cards = resultCards();
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!cards.length) return;
+      e.preventDefault();
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      state.selIdx = (state.selIdx + step + cards.length) % cards.length;
+      paintSel();
+      cards[state.selIdx].scrollIntoView({ block: 'nearest' });
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const exact = exactBarcodeMatch(e.target.value);
+      if (exact) { addToCart(exact.id); resetSearch(e.target); return; }
+      const card = cards[state.selIdx] || cards[0];
+      if (!card) return;
+      if (card.hasAttribute('disabled')) { MF.toast('That medicine is out of stock — try Order / substitute.', 'warn', 'Stock'); return; }
+      addToCart(card.dataset.med);
+      paintSel();
+    }
+  }
+
   /* ---------------- Medicine search ---------------- */
   function searchMeds(q) {
-    q = (q || '').trim().toLowerCase();
+    const qRaw = String(q || '');
+    if (qRaw !== state.selQuery) { state.selIdx = 0; state.selQuery = qRaw; }
+    q = qRaw.trim().toLowerCase();
     const box = $('#posResults');
     const tabs = $('#posPickTabs');
     if (tabs) tabs.hidden = !!q;
-    if (!q) { box.innerHTML = emptySearch(); bindResultClicks(box); return; }
+    if (!q) { box.innerHTML = emptySearch(); bindResultClicks(box); paintSel(); return; }
     const hits = D.medicines.filter((m) =>
       (m.name + ' ' + m.generic + ' ' + m.composition + ' ' + m.brandRef).toLowerCase().includes(q) ||
       MF.batchesOf(m.id).some((b) => b.batchNo.toLowerCase().includes(q))
@@ -501,6 +557,7 @@
     if (!hits.length) { box.innerHTML = `<div class="empty-state"><i class="bi bi-emoji-neutral"></i>No medicine matches “${MF.esc(q)}”.</div>`; return; }
     box.innerHTML = hits.map((m) => resultCard(m)).join('');
     bindResultClicks(box);
+    paintSel();
   }
 
   function emptySearch() {
@@ -789,6 +846,8 @@
       <div class="sum-row total"><span>Grand Total</span><span class="num text-primary">${MF.fmt(t.grand)}</span></div>
       ${t.grand > 0 ? `<div class="pos-sum-words">${inrWords(t.grand)}</div>` : ''}
       ${saved >= 0.5 ? `<div style="text-align:right"><span class="pos-saved"><i class="bi bi-piggy-bank"></i>You saved ${MF.fmt(saved, 2)}</span></div>` : ''}`;
+    const amt = $('#posCompleteAmt');
+    if (amt) amt.textContent = MF.fmt(t.grand);
     renderUpiPanel();
   }
 
@@ -1147,7 +1206,12 @@
 
   function printInvoice() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
-    MF.printHtml(receiptHtml('DRAFT', calcTotals()));
+    MF.printHtml(receiptHtml('DRAFT', calcTotals(), state.printFmt));
+  }
+
+  function paintPrintBtn() {
+    const lbl = $('#posPrintLbl');
+    if (lbl) lbl.textContent = state.printFmt === 'thermal' ? '80mm' : 'A4';
   }
 
   async function clearCart() {
@@ -1452,14 +1516,14 @@
     });
   }
 
-  function receiptHtml(invNo, t) {
+  function receiptHtml(invNo, t, fmt) {
     const cust = MF.cust($('#posCustomer').value);
     const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: `Split (Cash ${MF.fmt(state.split.cash)} + UPI ${MF.fmt(state.split.upi)})` }[state.payment];
     const tenderRows = state.payment === 'cash' && state.tender
       ? `<div class="sum-row"><span class="text-2">Cash paid</span><span class="num">${MF.fmt(state.tender.cashReceived)}</span></div>
          <div class="sum-row"><span class="text-2">Change</span><span class="num">${MF.fmt(state.tender.changeReturned)}</span></div>`
       : '';
-    return `
+    const html = `
       <div class="text-center mb-3">
         <img src="assets/images/logo.svg" width="42" alt="">
         <h6 class="fw-bold mt-2 mb-0">${MF.esc(D.store.name)}</h6>
@@ -1484,6 +1548,10 @@
         ${tenderRows}
       </div>
       <p class="text-center text-2 small-xs mt-3 mb-0">Medicines once sold will not be taken back without valid reason · Get well soon!</p>`;
+    // Thermal 80mm roll → narrow, compact column; A4 → the normal width.
+    return fmt === 'thermal'
+      ? `<div style="width:72mm; margin:0 auto; font-size:11px; line-height:1.42;">${html}</div>`
+      : html;
   }
 
   async function completeSale() {
@@ -1522,7 +1590,7 @@
         changeReturned: tender.changeReturned,
         items: state.cart.map((l) => ({ medId: l.medId, batchId: l.batchId, qty: l.qty, rate: l.rate, discPct: l.discPct, unit: l.unit || 'pack' })),
       });
-      MF.printHtml(receiptHtml(res.invoiceNo, t));
+      MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
@@ -1765,7 +1833,17 @@
       if (Array.isArray(savedRecent)) state.recent = savedRecent.map(String);
     } catch (e) { /* ignore */ }
 
-    $('#posSearch').addEventListener('input', (e) => { state.subSeed = null; searchMeds(e.target.value); });
+    $('#posSearch').addEventListener('input', (e) => {
+      state.subSeed = null;
+      const v = e.target.value.trim();
+      // Barcode scanner: a full, exact barcode typed in one burst adds the pack straight to the cart.
+      if (v.length >= 6) {
+        const exact = exactBarcodeMatch(v);
+        if (exact) { addToCart(exact.id); resetSearch(e.target); return; }
+      }
+      searchMeds(e.target.value);
+    });
+    $('#posSearch').addEventListener('keydown', onSearchKeys);
     const pickTabs = $('#posPickTabs');
     if (pickTabs) pickTabs.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-pick]');
@@ -1802,6 +1880,13 @@
     const custSel = $('#posCustomer');
     if (custSel) custSel.addEventListener('change', () => { if ($('#posRxOn') && $('#posRxOn').checked) loadRxOptions().catch(() => {}); });
     $('#posPrint').addEventListener('click', printInvoice);
+    const printTh = $('#posPrintThermal');
+    if (printTh) printTh.addEventListener('click', () => { state.printFmt = 'thermal'; paintPrintBtn(); printInvoice(); });
+    const printA4 = $('#posPrintA4');
+    if (printA4) printA4.addEventListener('click', () => { state.printFmt = 'a4'; paintPrintBtn(); printInvoice(); });
+    const printCp = $('#posPrintComplete');
+    if (printCp) printCp.addEventListener('click', () => completeSale());
+    paintPrintBtn();
     $('#posComplete').addEventListener('click', completeSale);
     $('#posGlobalDisc').addEventListener('input', renderSummary);
     bindPayments();

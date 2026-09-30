@@ -65,6 +65,22 @@ $user   = Auth::user();
     .pos-rx-panel { margin-top:8px; padding:10px 12px; border:1px solid #d7ebe6; border-radius:12px; background:#f7fbfa; }
     .pos-rx-meta { margin-top:8px; color:#516278; font-size:.82rem; line-height:1.45; }
     .pos-rx-meta strong { color:#1b2430; }
+
+    /* Complete Sale — full-width, sticky at the bottom of the invoice card */
+    .pos-complete-bar {
+      position:sticky; bottom:0; z-index:30; margin:14px -16px -16px; padding:10px 16px 14px;
+      background:rgba(255,255,255,.94); backdrop-filter:blur(6px); border-top:1px solid #E4EBF4;
+    }
+    .pos-complete-btn {
+      width:100%; display:flex; align-items:center; justify-content:center; gap:8px;
+      font-size:1.02rem; font-weight:700; padding:12px 16px; border-radius:12px;
+      box-shadow:0 8px 20px -8px rgba(23,107,91,.45);
+      transition:transform .12s ease, box-shadow .15s ease, filter .15s ease;
+    }
+    .pos-complete-btn:hover { transform:translateY(-1px); box-shadow:0 12px 26px -10px rgba(23,107,91,.5); filter:brightness(1.04); }
+    .pos-complete-btn:active { transform:translateY(0); box-shadow:none; }
+    .pos-complete-btn:disabled { opacity:.6; }
+    .pos-complete-amt { font-size:1.12rem; font-weight:800; font-variant-numeric:tabular-nums; }
   </style>
 </head>
 <body data-page="retail-pos">
@@ -167,9 +183,26 @@ $user   = Auth::user();
               <div class="d-flex flex-wrap gap-2">
                 <button class="btn btn-light-mf" id="posHold" type="button"><i class="bi bi-hourglass-split me-1"></i>Hold Bill <span class="badge bg-light text-dark border ms-1">F8</span></button>
                 <button class="btn btn-light-mf" id="posDraft" type="button"><i class="bi bi-save me-1"></i>Save Draft <span class="badge bg-light text-dark border ms-1">F9</span></button>
-                <button class="btn btn-light-mf" id="posPrint" type="button"><i class="bi bi-printer me-1"></i>Print Invoice <span class="badge bg-light text-dark border ms-1">Ctrl+P</span></button>
+                <div class="btn-group">
+                  <button class="btn btn-light-mf" id="posPrint" type="button"><i class="bi bi-printer me-1"></i>Print · <span id="posPrintLbl">A4</span> <span class="badge bg-light text-dark border ms-1">Ctrl+P</span></button>
+                  <button class="btn btn-light-mf dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Print options"><span class="visually-hidden">Print options</span></button>
+                  <ul class="dropdown-menu">
+                    <li><button class="dropdown-item" id="posPrintThermal" type="button"><i class="bi bi-receipt me-2"></i>Thermal 80mm</button></li>
+                    <li><button class="dropdown-item" id="posPrintA4" type="button"><i class="bi bi-file-earmark-ruled me-2"></i>A4</button></li>
+                    <li><hr class="dropdown-divider"></li>
+                    <li><button class="dropdown-item" id="posPrintComplete" type="button"><i class="bi bi-check2-circle me-2"></i>Complete &amp; Print <span class="text-2 small-xs ms-1">F10</span></button></li>
+                  </ul>
+                </div>
                 <button class="btn btn-light-mf text-danger ms-auto" id="posClearCart" type="button"><i class="bi bi-trash3 me-1"></i>Clear <span class="badge bg-light text-dark border ms-1">Alt+C</span></button>
-                <button class="btn btn-mf px-4" id="posComplete"><i class="bi bi-check2-circle me-1"></i>Complete Sale <span class="badge bg-white text-success ms-2">F10</span></button>
+              </div>
+
+              <div class="pos-complete-bar">
+                <button class="btn btn-mf pos-complete-btn" id="posComplete" type="button">
+                  <i class="bi bi-check2-circle"></i>
+                  <span>Complete Sale ·</span>
+                  <span class="pos-complete-amt" id="posCompleteAmt">₹0</span>
+                  <span class="badge bg-white text-success">F10</span>
+                </button>
               </div>
             </div>
           </div>
