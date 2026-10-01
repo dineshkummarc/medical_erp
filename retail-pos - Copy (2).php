@@ -97,10 +97,9 @@ if ($cashier === '') $cashier = 'Cashier';
     .pos-orderchip.has-pending { border-color:#0d9488; animation:posOrderPulse 2.2s ease-in-out infinite; }
     @keyframes posOrderPulse { 0%,100% { box-shadow:0 0 0 0 rgba(13,148,136,.35); } 50% { box-shadow:0 0 0 6px rgba(13,148,136,0); } }
 
-    /* Bill context strip — lives in the page head, right side, outside the Current Invoice panel */
-    .pos-meta-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; padding:6px 10px; margin:0; max-width:100%;
-                    border:1px solid #e3e9f0; background:#fff; border-radius:9px; font-size:.74rem; color:#64748B;
-                    box-shadow:0 1px 2px rgba(15,23,42,.05); }
+    /* Bill context strip — Invoice · date/time · cashier · counter · connection */
+    .pos-meta-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-bottom:8px; padding:6px 10px;
+                    border:1px solid #e3e9f0; background:#f8fafc; border-radius:9px; font-size:.74rem; color:#64748B; }
     .pos-meta-bar strong { color:#1f2a37; font-weight:700; }
     .pos-meta-bar .num { font-variant-numeric:tabular-nums; }
     .pos-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#16A34A; margin-right:4px; vertical-align:1px; }
@@ -152,12 +151,8 @@ if ($cashier === '') $cashier = 'Cashier';
             <h1 class="page-title"><i class="bi bi-cart3 me-2 text-success"></i>Retail POS</h1>
             <p class="page-sub">Counter billing · FEFO batch picking · GST-inclusive MRP pricing</p>
           </div>
-          <div class="ms-auto pos-meta-bar" id="posMetaBar" aria-label="Bill context">
-            <span class="pos-meta-item">Invoice <strong class="num" id="posMetaInv">— auto —</strong></span>
-            <span class="pos-meta-item"><strong id="posMetaDate">—</strong> · <strong id="posMetaTime">—</strong></span>
-            <span class="pos-meta-item">Cashier <strong><?= htmlspecialchars($cashier) ?></strong></span>
-            <span class="pos-meta-item">Counter <strong id="posMetaCounter" class="num">1</strong></span>
-            <span class="pos-meta-item" id="posMetaNet" title="Connection status"><span class="pos-dot"></span><strong id="posMetaNetTxt">Online</strong></span>
+          <div class="ms-auto d-flex align-items-center gap-2">
+            <span class="badge badge-soft-secondary"><i class="bi bi-person me-1"></i><?= htmlspecialchars($user['name']) ?></span>
           </div>
         </div>
 
@@ -197,6 +192,14 @@ if ($cashier === '') $cashier = 'Cashier';
               </div>
             </div>
 
+            <!-- Bill context strip -->
+            <div class="pos-meta-bar" id="posMetaBar" aria-label="Bill context">
+              <span class="pos-meta-item">Invoice <strong class="num" id="posMetaInv">— auto —</strong></span>
+              <span class="pos-meta-item"><strong id="posMetaDate">—</strong> · <strong id="posMetaTime">—</strong></span>
+              <span class="pos-meta-item">Cashier <strong><?= htmlspecialchars($cashier) ?></strong></span>
+              <span class="pos-meta-item">Counter <strong id="posMetaCounter" class="num">1</strong></span>
+              <span class="pos-meta-item ms-auto" id="posMetaNet" title="Connection status"><span class="pos-dot"></span><strong id="posMetaNetTxt">Online</strong></span>
+            </div>
             <div class="p-3">
               <div class="row g-2 mb-2">
                 <div class="col-md-6">
@@ -404,7 +407,7 @@ if ($cashier === '') $cashier = 'Cashier';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.10"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.9"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
