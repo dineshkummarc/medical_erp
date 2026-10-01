@@ -347,7 +347,7 @@ $user   = Auth::user();
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.3"></script>
+  <script src="assets/js/pos.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

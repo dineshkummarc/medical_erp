@@ -109,10 +109,10 @@
       .pos-sch.x    { color:#B42318; border-color:#DC6A6A; background:#FDF2F2; }
       .pos-sch.ndps { color:#7F1D1D; border-color:#991B1B; background:#FDF2F2; }
 
-      /* Out of stock — matte light red card with a clearly DIFFERENT deep-rose border (1.5px), never teal */
-      .pos-result.is-out { background:#FCEDED; border:1.5px solid #E07B7B; }
-      .pos-result.is-out:hover { background:#FCE8E8; border-color:#D6455B; box-shadow:0 0 0 3px rgba(214,69,91,.12); }
-      .pos-result.is-out.is-active { border-color:#D6455B; box-shadow:0 0 0 3.5px rgba(214,69,91,.18); }
+      /* Out of stock — matte light red card; hover and keyboard ring stay in the red family (no teal) */
+      .pos-result.is-out { background:#FCEDED; border-color:#E8AFAF; }
+      .pos-result.is-out:hover { background:#FCE8E8; border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.10); }
+      .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
 
       /* Inline substitute pills on an out-of-stock card */
       .pos-oos-subs { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
