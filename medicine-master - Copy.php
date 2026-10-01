@@ -601,11 +601,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fGroupInput">Generic/composition group</label>
               <div class="mm-chips" id="fGroupBox">
                 <div class="mm-chip-list" id="fGroupList"></div>
-                <input class="mm-chip-input" id="fGroupInput" list="fGenericGroupList" placeholder="Type the salt + strength, e.g. Azithromycin 500mg — press Enter" autocomplete="off">
+                <input class="mm-chip-input" id="fGroupInput" list="fGenericGroupList" placeholder="Type a salt and press Enter" autocomplete="off">
               </div>
               <input type="hidden" id="fGenericGroup">
               <datalist id="fGenericGroupList"></datalist>
-              <div class="mm-hint">This drives substitutes: enter the <strong>salt + strength</strong> (e.g. <em>Azithromycin 500mg</em>) — not the category. Every medicine sharing this chip becomes a substitute automatically.</div>
+              <div class="mm-hint">One chip per salt. Medicines with the same chips are substitutes of each other.</div>
             </div>
             <div class="col-12">
               <label class="form-label">Drug schedule</label>
@@ -1887,8 +1887,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
          validation, batch writing and tenancy stay untouched. */
       let bulkRows = [];
       const BULK_ALIASES = {
-        name: ['name', 'medicine', 'medicine name', 'product'], generic: ['generic', 'generic name', 'salt'],
-        composition: ['composition', 'contents'],
+        name: ['name', 'medicine', 'medicine name', 'product'], generic: ['generic', 'generic name', 'composition', 'salt'],
         brandRef: ['brand', 'brand name'], category: ['category'], manufacturer: ['manufacturer', 'mfg', 'company'],
         hsn: ['hsn', 'hsn code'], gst: ['gst', 'gst%', 'gst %'], form: ['form', 'unit', 'dosage form'],
         packQty: ['pack qty', 'packqty', 'pack size', 'qty per pack'], barcode: ['barcode', 'code'],
@@ -1899,10 +1898,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         reorderLevel: ['reorder level', 'reorder'], rack: ['rack', 'rack / shelf', 'shelf'],
         genericGroup: ['salt group', 'generic/composition group', 'generic group', 'group'], status: ['status'],
       };
-      const BULK_TPL_HEAD = ['name', 'generic', 'composition', 'brand', 'category', 'manufacturer', 'hsn', 'gst', 'form', 'pack qty', 'barcode', 'batch no', 'opening qty', 'expiry', 'mrp', 'purchase rate', 'retail rate', 'wholesale rate', 'schedule', 'min stock', 'reorder level', 'rack', 'salt group', 'status'];
+      const BULK_TPL_HEAD = ['name', 'generic', 'brand', 'category', 'manufacturer', 'hsn', 'gst', 'form', 'pack qty', 'barcode', 'batch no', 'opening qty', 'expiry', 'mrp', 'purchase rate', 'retail rate', 'wholesale rate', 'schedule', 'min stock', 'reorder level', 'rack', 'salt group', 'status'];
       const BULK_TPL_ROWS = [
-        ['Dolo 650mg', 'Paracetamol 650mg', 'Paracetamol 650mg', 'Micro Labs', 'Pain & Fever', 'Micro Labs Ltd', '30049099', '12', 'Tablet', '15', '', '', '40', '12-2027', '42.40', '32', '38', '', 'OTC', '20', '10', '', 'Paracetamol 650mg', 'Active'],
-        ['Augmentin 625mg', 'Amoxicillin 500mg + Clavulanic Acid 125mg', 'Amoxicillin 500mg + Clavulanic Acid 125mg', 'GSK', 'Antibiotic', 'GSK', '30041090', '12', 'Tablet', '10', '', '', '20', '09-2027', '223.17', '181', '204', '', 'H', '10', '5', 'A-3', 'Amoxicillin 500mg + Clavulanate 125mg', 'Active'],
+        ['Dolo 650mg', 'Paracetamol 650mg', 'Micro Labs', 'Pain & Fever', 'Micro Labs Ltd', '30049099', '12', 'Tablet', '15', '', '', '40', '12-2027', '42.40', '32', '38', '', 'OTC', '20', '10', '', 'Paracetamol', 'Active'],
+        ['Augmentin 625mg', 'Amoxicillin 500mg + Clavulanic Acid 125mg', 'GSK', 'Antibiotic', 'GSK', '30041090', '12', 'Tablet', '10', '', '', '20', '09-2027', '223.17', '181', '204', '', 'H', '10', '5', 'A-3', 'Amoxicillin + Clavulanate', 'Active'],
       ];
       const bulkCsvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
       const bulkText = (rows) => rows.map((r) => r.map(bulkCsvCell).join(',')).join('\r\n');
@@ -2002,15 +2001,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           else if (name && firstLine.has(key)) errs.push(`duplicate of row ${firstLine.get(key)} — first row wins; add its second batch from New Purchase`);
           else if (name) firstLine.set(key, i + 2);
           const spec = packSpec(form) || { unit: '', sub: '', whole: false }; // form may be invalid — row keeps its error and stays importable-safe
-          // Salt group drives substitutes. When empty, fall back to the generic name so
-          // same-generic medicines still match each other without extra work.
-          const saltGroup = get(r, 'genericGroup') || get(r, 'generic');
           bulkRows.push({
             no: i + 2, errs, result: '',
             payload: {
-              name, generic: get(r, 'generic'), brandRef: get(r, 'brandRef'), composition: get(r, 'composition'),
+              name, generic: get(r, 'generic'), brandRef: get(r, 'brandRef'), composition: '',
               category: get(r, 'category'), manufacturer: get(r, 'manufacturer'), hsn: get(r, 'hsn'),
-              genericGroup: saltGroup, substitutes: saltGroup, barcode: get(r, 'barcode'),
+              genericGroup: get(r, 'genericGroup'), substitutes: get(r, 'genericGroup'), barcode: get(r, 'barcode'),
               form, unit: spec.unit, packSize: '', gst: bulkNum(get(r, 'gst')), schedule: sched || 'OTC',
               packQty: spec.whole ? 1 : (bulkNum(get(r, 'packQty')) || 1), subUnit: spec.sub, allowLoose: false,
               batchNo: get(r, 'batchNo'), openingQty: (() => { const q = bulkNum(get(r, 'openingQty')); return q === '' ? '' : Math.max(0, q); })(),
@@ -2261,5 +2257,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43e86b69bcf7a10',t:'MTc5MDg4OTc4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43ddd751cb17a07',t:'MTc5MDg4Mjg1MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
