@@ -4,6 +4,7 @@ require dirname(__DIR__, 2) . '/middleware/tenant.php';
 require dirname(__DIR__, 2) . '/core/Auth.php';
 require dirname(__DIR__, 2) . '/core/Json.php';
 require dirname(__DIR__, 2) . '/core/Audit.php';
+require dirname(__DIR__, 2) . '/core/CoreSeeds.php';
 
 if (!Auth::check()) {
     Json::error('Not authenticated.', 401);
@@ -12,6 +13,25 @@ if (!Auth::check()) {
 $pdo = Tenant::db();
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+    // Preview of the default taxonomy (nothing is written) — api/v1/settings.php?seed=preview
+    if (($_GET['seed'] ?? '') === 'preview') {
+        $t = CoreSeeds::taxonomy();
+        $catPresent = 0;
+        foreach ($t['categories'] as $n) {
+            if (Category::first('name', '=', (string) $n)) { $catPresent++; }
+        }
+        $mfgPresent = 0;
+        foreach ($t['manufacturers'] as $n) {
+            if (Manufacturer::first('name', '=', (string) $n)) { $mfgPresent++; }
+        }
+        Json::ok(['data' => [
+            'categories_total'      => count($t['categories']),
+            'categories_present'    => $catPresent,
+            'manufacturers_total'   => count($t['manufacturers']),
+            'manufacturers_present' => $mfgPresent,
+        ]]);
+    }
+
     $rows = $pdo->query('SELECT setting_key, setting_value FROM settings')->fetchAll();
     $flat = [];
     foreach ($rows as $r) {
@@ -23,7 +43,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $group = $input['group'] ?? 'settings'; // just for the audit log label
-    unset($input['group']);
+    $action = $input['action'] ?? '';       // request an action instead of plain key-value saves
+    unset($input['group'], $input['action']);
+
+    // Load the default categories & manufacturers taxonomy into this tenant.
+    // Idempotent: existing names are skipped, so it is safe to run any time.
+    if ($action === 'seed-defaults') {
+        $result = CoreSeeds::run();
+        $c = $result['categories']; $m = $result['manufacturers'];
+        Audit::log('SEED_DEFAULTS', "Default taxonomy loaded · categories +{$c['inserted']} ({$c['skipped']} present) · manufacturers +{$m['inserted']} ({$m['skipped']} present)");
+        Json::ok(['data' => $result]);
+    }
 
     $stmt = $pdo->prepare(
         'INSERT INTO settings (setting_key, setting_value) VALUES (:k, :v)

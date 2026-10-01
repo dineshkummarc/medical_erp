@@ -1,0 +1,47 @@
+<?php
+/* ---------------------------------------------------------------------------
+ * api/v1/seed-defaults.php — Load the standard category & manufacturer
+ * taxonomy into the current tenant's database.
+ *
+ *   GET  → preview: how many of the default names are already present (no writes)
+ *   POST → run the seed (idempotent; returns inserted/skipped counts)
+ * ------------------------------------------------------------------------- */
+
+session_start();
+require dirname(__DIR__, 2) . '/middleware/tenant.php';
+require dirname(__DIR__, 2) . '/core/Auth.php';
+require dirname(__DIR__, 2) . '/core/Json.php';
+require dirname(__DIR__, 2) . '/core/CoreSeeds.php';
+
+if (!Auth::check()) {
+    Json::error('Not authenticated.', 401);
+}
+
+switch ($_SERVER['REQUEST_METHOD']) {
+
+    case 'GET':
+        // Dry-run preview — nothing is written.
+        $t = CoreSeeds::taxonomy();
+        $catPresent = 0;
+        foreach ($t['categories'] as $n) {
+            if (Category::first('name', '=', (string) $n)) { $catPresent++; }
+        }
+        $mfgPresent = 0;
+        foreach ($t['manufacturers'] as $n) {
+            if (Manufacturer::first('name', '=', (string) $n)) { $mfgPresent++; }
+        }
+        Json::ok(['data' => [
+            'categories_total'      => count($t['categories']),
+            'categories_present'    => $catPresent,
+            'manufacturers_total'   => count($t['manufacturers']),
+            'manufacturers_present' => $mfgPresent,
+        ]]);
+        break;
+
+    case 'POST':
+        Json::ok(['data' => CoreSeeds::run()]);
+        break;
+
+    default:
+        Json::error('Method not allowed.', 405);
+}
