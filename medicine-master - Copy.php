@@ -151,6 +151,15 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-price-card span { display:block; color:#6b7c90; font-size:.78rem; font-weight:600; margin-bottom:4px; }
     .mm-price-card strong { display:block; color:#1b2430; font-size:1.15rem; font-weight:750; letter-spacing:-.01em; }
     .mm-gst-note { color:#6b7c90; font-size:.82rem; margin-top:10px; }
+
+    /* Pricing & Tax — five equal columns, identical control height, icons in labels */
+    .mm-price-row { display:grid; grid-template-columns:repeat(5, minmax(150px, 1fr)); gap:12px; }
+    .mm-price-row .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
+    .mm-price-row .form-label i { color:#0d9488; font-size:.85rem; }
+    .mm-price-row .form-label .req { margin-left:2px; }
+    .mm-price-row .form-control, .mm-price-row .form-select { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
+    @media (max-width: 991.98px) { .mm-price-row { grid-template-columns:repeat(3, minmax(150px, 1fr)); } }
+    @media (max-width: 575.98px) { .mm-price-row { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
     .mm-form-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; }
     .mm-form-actions { display:flex; flex-wrap:wrap; gap:10px; }
     .mm-save, .mm-save-another, .mm-cancel {
@@ -637,12 +646,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
           <div class="mm-section-title">Pricing &amp; Tax</div>
           <div class="row g-3 align-items-start mm-align">
-            <div class="col-md-3 col-6"><label class="form-label">GST %</label>
-              <select class="form-select" id="fGst"><option value="">Select GST</option><option>5</option><option>12</option><option>18</option></select></div>
-            <div class="col-md-3 col-6"><label class="form-label" for="fMrp">MRP (₹) <span class="req">*</span></label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
-            <div class="col-md-3 col-6"><label class="form-label" for="fPtr">Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr" placeholder="e.g. 80.00"></div>
-            <div class="col-md-3 col-6"><label class="form-label" for="fRetail">Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"></div>
-            <div class="col-md-3 col-6"><label class="form-label" for="fWholesale">Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale" placeholder="e.g. 90.00"></div>
+            <div class="col-12">
+              <div class="mm-price-row">
+                <div><label class="form-label" for="fGst"><i class="bi bi-percent"></i>GST %</label>
+                  <select class="form-select" id="fGst"><option value="">Select GST</option><option>5</option><option>12</option><option>18</option></select></div>
+                <div><label class="form-label" for="fMrp"><i class="bi bi-tag"></i>MRP (₹) <span class="req">*</span></label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
+                <div><label class="form-label" for="fPtr"><i class="bi bi-cart-plus"></i>Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr" placeholder="e.g. 80.00"></div>
+                <div><label class="form-label" for="fRetail"><i class="bi bi-shop"></i>Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"></div>
+                <div><label class="form-label" for="fWholesale"><i class="bi bi-boxes"></i>Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale" placeholder="e.g. 90.00"></div>
+              </div>
+            </div>
             <div class="col-md-3 col-6">
               <label class="form-label" for="fDisc">Default discount</label>
               <div class="mm-per">
@@ -1935,5 +1948,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a435979ccee73df7',t:'MTc5MDc5NjEwMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43afa6e7aef795d',t:'MTc5MDg1MjU3OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>

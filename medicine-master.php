@@ -160,6 +160,21 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-price-row .form-control, .mm-price-row .form-select { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
     @media (max-width: 991.98px) { .mm-price-row { grid-template-columns:repeat(3, minmax(150px, 1fr)); } }
     @media (max-width: 575.98px) { .mm-price-row { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
+
+    /* Stock & Status — four equal columns, uniform 40px controls, icons in labels, switch aligned */
+    .mm-stock-grid { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:14px 12px; }
+    .mm-stock-grid .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
+    .mm-stock-grid .form-label i { color:#0d9488; font-size:.85rem; }
+    .mm-stock-grid .form-control { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
+    .mm-stock-grid .mm-per { height:40px; }
+    .mm-stock-grid .mm-per input { height:38px; }
+    .mm-stock-grid .mm-field-hint { font-size:.74rem; color:#8496a8; margin-top:4px; }
+    .mm-autogen { background:none; border:0; padding:2px 0 0; font-size:.74rem; font-weight:600; color:#0d9488;
+                  display:inline-flex; align-items:center; gap:4px; }
+    .mm-autogen:hover { color:#0F766E; text-decoration:underline; }
+    .mm-active-cell .mm-switch { min-height:40px; display:flex; align-items:center; margin-bottom:0; }
+    @media (max-width: 991.98px) { .mm-stock-grid { grid-template-columns:repeat(2, minmax(140px, 1fr)); } }
+    @media (max-width: 575.98px) { .mm-stock-grid { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
     .mm-form-footer { display:flex; justify-content:space-between; align-items:center; gap:12px; width:100%; }
     .mm-form-actions { display:flex; flex-wrap:wrap; gap:10px; }
     .mm-save, .mm-save-another, .mm-cancel {
@@ -681,53 +696,54 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           </div>
 
           <div class="mm-section-title">Stock &amp; Status</div>
-          <div class="row g-3 align-items-start mm-align">
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fBatchNo">Batch no</label>
-              <input class="form-control" id="fBatchNo" placeholder="e.g. B24091">
+          <div class="mm-stock-grid">
+            <div>
+              <label class="form-label" for="fBatchNo"><i class="bi bi-upc-scan"></i>Batch no</label>
+              <input class="form-control" id="fBatchNo" placeholder="e.g. B24091" autocomplete="off">
+              <button type="button" class="mm-autogen" id="fBatchAuto"><i class="bi bi-arrow-repeat"></i>Auto-generate</button>
             </div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fExpiry">Expiry (month)</label>
+            <div>
+              <label class="form-label" for="fExpiry"><i class="bi bi-calendar2-week"></i>Expiry (month)</label>
               <input class="form-control" id="fExpiry" inputmode="numeric" maxlength="7" placeholder="04-2028" autocomplete="off">
               <div class="mm-field-hint" id="fExpiryHint"></div>
             </div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fStockQty">Quantity</label>
+            <div>
+              <label class="form-label" for="fStockQty"><i class="bi bi-stack"></i>Quantity</label>
               <div class="mm-per">
                 <input type="number" min="0" id="fStockQty" value="" placeholder="e.g. 20">
                 <span class="mm-per-unit" id="fStockQtyUnit">units</span>
               </div>
               <div class="mm-field-hint" id="fStockQtyHint"></div>
             </div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fMin">Minimum Stock</label>
+            <div>
+              <label class="form-label" for="fMin"><i class="bi bi-box-seam"></i>Minimum Stock</label>
               <input type="number" class="form-control" id="fMin" placeholder="e.g. 10">
             </div>
-            <div class="w-100"></div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fReorder">Reorder level</label>
+            <div>
+              <label class="form-label" for="fReorder"><i class="bi bi-arrow-repeat"></i>Reorder level</label>
               <div class="mm-per">
                 <input type="number" min="0" id="fReorder" placeholder="e.g. 5">
                 <span class="mm-per-unit" id="fReorderUnit">units</span>
               </div>
               <div class="mm-field-hint">Shows "Low stock" at or below this.</div>
             </div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fRack">Rack / shelf</label>
+            <div>
+              <label class="form-label" for="fRack"><i class="bi bi-columns-gap"></i>Rack / shelf</label>
               <input class="form-control" id="fRack" placeholder="e.g. A-3">
             </div>
-            <div class="col-md-3 col-6">
-              <label class="form-label" for="fExpiryAlert">Expiry Alert (days)</label>
+            <div>
+              <label class="form-label" for="fExpiryAlert"><i class="bi bi-bell"></i>Expiry Alert (days)</label>
               <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
             </div>
-            <div class="col-md-6 col-12">
+            <div class="mm-active-cell">
+              <label class="form-label invisible" aria-hidden="true">Status</label>
               <label class="mm-switch">
                 <input type="checkbox" id="fActive" checked>
                 <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
               </label>
             </div>
-            <input type="checkbox" id="fRx" hidden>
           </div>
+          <input type="checkbox" id="fRx" hidden>
 
         </div>
         <div class="modal-footer mm-form-footer">
@@ -1067,6 +1083,33 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         return m.openingQty ?? '';
       }
 
+      /* Batch auto-generate — pattern B + YYMMDD (e.g. B261001); same-day clicks step a suffix -A, -B… */
+      function autoBatchBase() {
+        const d = new Date();
+        return `B${String(d.getFullYear()).slice(2)}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
+      }
+      function nextAutoBatch() {
+        const v = (($('#fBatchNo') || {}).value || '').trim();
+        const base = autoBatchBase();
+        if (!v) return base;
+        if (v === base) return `${base}-A`;
+        const m = v.match(new RegExp(`^${base}-([A-Z])$`));
+        if (m) return `${base}-${String.fromCharCode(m[1].charCodeAt(0) + 1)}`;
+        return v; // a manual number is kept unless the user confirms otherwise
+      }
+      async function onBatchAuto() {
+        const inp = $('#fBatchNo');
+        const v = (inp.value || '').trim();
+        const base = autoBatchBase();
+        if (v && !v.startsWith(base)) {
+          if (editingId) { MF.toast('Batch number stays unchanged for an existing medicine — stock and sales history reference it.', 'warn', 'Batch no'); return; }
+          const ok = await MF.confirm({ title: 'Replace batch number?', message: `Replace "${v}" with the generated ${base}?`, confirmText: 'Replace' });
+          if (!ok) return;
+        }
+        inp.value = nextAutoBatch();
+        MF.toast(`Batch ${inp.value} generated`, 'success');
+      }
+
       function openForm(m) {
         editingId = m ? m.id : null;
         $('#mmFormTitle').textContent = m ? 'Edit Medicine — ' + m.name : 'Add Medicine';
@@ -1077,6 +1120,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
         $('#fBatchNo').value = m?.batchNo || (m ? (MF.batchesOf(m.id)[0]?.batchNo || '') : '');
+        if (!m && !$('#fBatchNo').value) $('#fBatchNo').value = nextAutoBatch(); // prefill on add-new; user can overwrite
         $('#fStockQty').value = m ? stockQtyForForm(m) : '';
         $('#fStockQty').readOnly = !!m;
         $('#fStockQty').title = m ? 'On-hand stock — add stock from New Purchase, correct it from Stock Adjustment.' : '';
@@ -1461,6 +1505,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (busy) busy.classList.remove('is-busy');
       }
       $('#mmFormSave').addEventListener('click', () => saveMedicine(false));
+      $('#fBatchAuto').addEventListener('click', onBatchAuto);
       $('#mmFormSaveAnother').addEventListener('click', () => saveMedicine(true));
       document.addEventListener('keydown', (e) => {
         if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 's') return;
@@ -1948,5 +1993,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43afa6e7aef795d',t:'MTc5MDg1MjU3OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
