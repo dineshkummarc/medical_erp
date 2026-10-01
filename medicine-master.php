@@ -1936,7 +1936,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         return map;
       }
       const bulkNum = (s) => { const v = String(s ?? '').replace(/[₹,%\s]/g, ''); if (v === '') return ''; const n = parseFloat(v); return isNaN(n) ? '' : n; };
-      const bulkForm = (s) => { const v = String(s || '').trim().toLowerCase(); return v ? (Object.keys(FORM_PACK).find((k) => k.toLowerCase() === v) || '') : ''; };
+      const bulkForm = (s) => {
+        const v = String(s || '').trim().toLowerCase();
+        if (!v) return '';
+        const keys = Object.keys(FORM_PACK);
+        return keys.find((k) => k.toLowerCase() === v) || keys.find((k) => k.toLowerCase() === v.replace(/s$/, '')) || '';
+      };
       function bulkSchedule(s) {
         const v = String(s || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
         if (!v) return 'OTC';
@@ -1954,10 +1959,19 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         return '';
       }
       function bulkValidate() {
-        bulkRows = [];
-        const prev = $('#mmBulkSummary'); const box = $('#mmBulkPreviewBox');
-        $('#mmBulkImport').disabled = true;
-        const rows = bulkCsvParse($('#mmBulkCsv').value);
+        const btn = $('#mmBulkValidate');
+        const origHtml = btn.innerHTML;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Checking…';
+        btn.disabled = true;
+        try {
+          let text = $('#mmBulkCsv').value;
+          const firstLn = (text.split(/\r?\n/, 1)[0] || '');
+          if (!firstLn.includes(',') && firstLn.includes('\t')) text = text.replace(/\t/g, ','); // Excel paste = TSV
+          $('#mmBulkCsv').value = text;
+          bulkRows = [];
+          const prev = $('#mmBulkSummary'); const box = $('#mmBulkPreviewBox');
+          $('#mmBulkImport').disabled = true;
+          const rows = bulkCsvParse(text);
         if (!rows.length) { prev.innerHTML = ''; box.innerHTML = ''; MF.toast('Nothing to check — paste a CSV or upload a file first.', 'warn', 'Bulk Add'); return; }
         const idx = bulkHeaderMap(rows.shift() || []);
         if (idx.name == null || idx.form == null || idx.mrp == null) {
@@ -1982,7 +1996,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           if (name && existing.has(key)) errs.push('already in the master — skipped');
           else if (name && firstLine.has(key)) errs.push(`duplicate of row ${firstLine.get(key)} — first row wins; add its second batch from New Purchase`);
           else if (name) firstLine.set(key, i + 2);
-          const spec = packSpec(form);
+          const spec = packSpec(form) || { unit: '', sub: '', whole: false }; // form may be invalid — row keeps its error and stays importable-safe
           bulkRows.push({
             no: i + 2, errs, result: '',
             payload: {
@@ -2002,7 +2016,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             },
           });
         });
-        bulkPaint();
+          bulkPaint();
+        } catch (err) {
+          console.error('Bulk check failed:', err);
+          $('#mmBulkSummary').innerHTML = '';
+          $('#mmBulkPreviewBox').innerHTML = `<div class="mm-blk-err p-2">Could not read the CSV: ${MF.esc(err.message || String(err))}</div>`;
+        } finally {
+          btn.innerHTML = origHtml; btn.disabled = false;
+        }
       }
       function bulkPaint() {
         const prev = $('#mmBulkSummary'); const box = $('#mmBulkPreviewBox');
@@ -2010,10 +2031,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const ready = bulkRows.filter((x) => !x.errs.length && x.result !== 'Imported');
         const fail = bulkRows.filter((x) => x.errs.length);
         $('#mmBulkImport').disabled = !ready.length;
-        prev.innerHTML = `<div class="mm-blk-summary">${ready.length} row(s) ready to import · ${fail.length} row(s) need attention</div>`;
+        prev.innerHTML = `<div class="mm-blk-summary">${ready.length} row(s) ready to import · ${fail.length} row(s) need attention${bulkRows.length > 1000 ? ` · showing first 1000 of ${bulkRows.length} (all ${ready.length} ready rows will import)` : ''}</div>`;
+        const shown = bulkRows.slice(0, 1000);
         box.innerHTML = `<div class="mm-bulk-preview"><table class="table table-sm table-hover mb-0">
           <thead><tr><th>#</th><th>Name</th><th>Form</th><th>Batch</th><th>Expiry</th><th class="text-end">Qty</th><th class="text-end">MRP</th><th>GST</th><th>Sched</th><th>Result</th></tr></thead>
-          <tbody>${bulkRows.map((x) => `<tr>
+          <tbody>${shown.map((x) => `<tr>
             <td class="text-2">${x.no}</td>
             <td title="${MF.esc(x.payload.name)}">${MF.esc((x.payload.name || '—').slice(0, 26))}</td>
             <td>${MF.esc(x.payload.form || '')}</td>
@@ -2231,5 +2253,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43b3b8d5a2aff60',t:'MTc5MDg1NTI0Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43dc5ff4e1cff6f',t:'MTc5MDg4MTg4OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
