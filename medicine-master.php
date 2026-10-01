@@ -157,18 +157,23 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-price-row .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
     .mm-price-row .form-label i { color:#0d9488; font-size:.85rem; }
     .mm-price-row .form-label .req { margin-left:2px; }
-    .mm-price-row .form-control, .mm-price-row .form-select { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
+    .mm-price-row .form-control, .mm-price-row .form-select { height:42px; line-height:normal; padding-top:0; padding-bottom:0; }
     @media (max-width: 991.98px) { .mm-price-row { grid-template-columns:repeat(3, minmax(150px, 1fr)); } }
     @media (max-width: 575.98px) { .mm-price-row { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
 
-    /* Stock & Status — four equal columns, uniform 40px controls, icons in labels, switch aligned */
+    /* Stock & Status — five equal columns, uniform 42px controls (same as the basic-details inputs) */
     .mm-stock-grid { display:grid; grid-template-columns:repeat(5, minmax(140px, 1fr)); gap:14px 12px; }
     .mm-stock-grid .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
     .mm-stock-grid .form-label i { color:#0d9488; font-size:.85rem; }
-    .mm-stock-grid .form-control { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
-    .mm-stock-grid .mm-per { height:40px; }
-    .mm-stock-grid .mm-per input { height:38px; }
+    .mm-stock-grid .form-control { height:42px; line-height:normal; padding-top:0; padding-bottom:0; }
+    .mm-stock-grid .mm-per { height:42px; min-height:42px; }
+    .mm-stock-grid .mm-per input { height:100%; min-height:0; }
     .mm-stock-grid .mm-field-hint { font-size:.74rem; color:#8496a8; margin-top:4px; }
+    /* Status toggle — its own FULL-WIDTH row (row 3), switch pill left, text right on one line */
+    .mm-active-cell { grid-column: 1 / -1; }
+    .mm-active-cell .mm-switch { width:100%; min-height:42px; display:flex; align-items:center; }
+    .mm-active-cell .mm-switch > span { display:flex; align-items:baseline; gap:8px; }
+    .mm-active-cell .mm-switch small { display:inline; }
     .mm-autogen { background:none; border:0; padding:2px 0 0; font-size:.74rem; font-weight:600; color:#0d9488;
                   display:inline-flex; align-items:center; gap:4px; }
     .mm-autogen:hover { color:#0F766E; text-decoration:underline; }
@@ -1195,7 +1200,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const stockFoot = $('#fStockFoot'), stockFootTxt = $('#fStockFootTxt');
         if (stockFoot && stockFootTxt) {
           if (m) {
-            stockFootTxt.innerHTML = `On-hand stock: <strong>${MF.esc(stockQtyForForm(m))} ${MF.esc($('#fStockQtyUnit').textContent || 'units')}</strong> · add more from New Purchase, correct it from Stock Adjustment.`;
+            stockFootTxt.innerHTML = `<strong>Quantity</strong> — On-hand stock: <strong>${MF.esc(stockQtyForForm(m))} ${MF.esc($('#fStockQtyUnit').textContent || 'units')}</strong> · add more from New Purchase, correct it from Stock Adjustment.`;
             stockFoot.hidden = false;
           } else { stockFootTxt.textContent = ''; stockFoot.hidden = true; }
         }
@@ -2289,5 +2294,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43edbecc83433c6',t:'MTc5MDg5MzI3Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43eed4d790170aa',t:'MTc5MDg5Mzk4NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
