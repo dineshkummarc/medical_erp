@@ -172,6 +172,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-autogen { background:none; border:0; padding:2px 0 0; font-size:.74rem; font-weight:600; color:#0d9488;
                   display:inline-flex; align-items:center; gap:4px; }
     .mm-autogen:hover { color:#0F766E; text-decoration:underline; }
+
+    /* Bulk Add modal */
+    .mm-bulk-hint { font-size:.8rem; color:#476178; background:#f0fbf8; border:1px solid #d3eee6; border-radius:9px; padding:10px 12px; margin-bottom:10px; line-height:1.55; }
+    .mm-bulk-hint code { background:#eaf3f1; border-radius:4px; padding:0 4px; }
+    .mm-bulk-csv { width:100%; font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; font-size:.76rem; line-height:1.5;
+                   border:1px solid #dfe6ef; border-radius:9px; padding:8px 10px; resize:vertical; }
+    .mm-bulk-csv:focus { border-color:#0d9488; outline:none; box-shadow:0 0 0 3px rgba(13,148,136,.12); }
+    .mm-bulk-preview { margin-top:10px; max-height:320px; overflow:auto; border:1px solid #e3e9f1; border-radius:9px; }
+    .mm-bulk-preview table { margin:0; font-size:.74rem; white-space:nowrap; }
+    .mm-bulk-preview thead th { position:sticky; top:0; background:#f6f8fb; z-index:1; }
+    .mm-blk-summary { font-size:.78rem; font-weight:700; margin-top:10px; }
+    .mm-blk-ok { color:#157347; font-weight:700; }
+    .mm-blk-err { color:#B42318; font-weight:600; }
+    .mm-bulk-progress { display:flex; align-items:center; gap:8px; flex:1 1 180px; min-width:180px; }
+    .mm-bulk-bar { flex:1; height:8px; background:#e7edf4; border-radius:99px; overflow:hidden; }
+    .mm-bulk-bar span { display:block; height:100%; width:0; background:#176B5B; border-radius:99px; transition:width .2s ease; }
     .mm-active-cell .mm-switch { min-height:40px; display:flex; align-items:center; margin-bottom:0; }
     @media (max-width: 991.98px) { .mm-stock-grid { grid-template-columns:repeat(2, minmax(140px, 1fr)); } }
     @media (max-width: 575.98px) { .mm-stock-grid { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
@@ -466,6 +482,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           </div>
           <div class="ms-auto d-flex gap-2">
             <button class="btn btn-light-mf" id="mmExport"><i class="bi bi-download me-1"></i>Export CSV</button>
+            <button class="btn btn-light-mf" id="mmBulkAdd"><i class="bi bi-file-earmark-arrow-up me-1"></i>Bulk Add</button>
             <button class="btn btn-mf" id="mmAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Medicine</button>
           </div>
         </div>
@@ -521,6 +538,42 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         </div>
 
       </main>
+    </div>
+  </div>
+
+  <!-- Bulk add medicines -->
+  <div class="modal fade" id="mmBulkModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-file-earmark-arrow-up me-2"></i>Bulk Add Medicines</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="mm-bulk-hint">
+            One row per medicine. Each row carries its <strong>opening batch no + quantity + expiry</strong>, so many medicines with many batches land in one go.
+            Fill the template in Excel / Google Sheets / Notepad, save as CSV, then upload or paste below.
+            Required columns: <code>name</code>, <code>form</code>, <code>mrp</code> — everything else is optional.
+            Form accepts: Tablet, Capsule, Syrup, Drops, Injection, Ointment, Cream, Powder, Sachet, Other.
+            Schedule accepts: OTC, H, H1, X. Expiry format: MM-YYYY (e.g. 04-2028).
+          </div>
+          <div class="d-flex flex-wrap gap-2 mb-2">
+            <button class="btn btn-sm btn-light-mf" id="mmBulkTpl" type="button"><i class="bi bi-download me-1"></i>Download CSV template</button>
+            <label class="btn btn-sm btn-light-mf mb-0" for="mmBulkFile"><i class="bi bi-upload me-1"></i>Upload CSV file</label>
+            <input type="file" id="mmBulkFile" accept=".csv,text/csv" hidden>
+            <button class="btn btn-sm btn-light-mf" id="mmBulkClear" type="button"><i class="bi bi-eraser me-1"></i>Clear</button>
+          </div>
+          <textarea id="mmBulkCsv" class="mm-bulk-csv" rows="6" placeholder="Paste CSV here…" spellcheck="false"></textarea>
+          <div id="mmBulkSummary"></div>
+          <div id="mmBulkPreviewBox"></div>
+        </div>
+        <div class="modal-footer d-flex align-items-center gap-2 flex-wrap">
+          <div class="mm-bulk-progress" id="mmBulkProgress" hidden>
+            <div class="mm-bulk-bar"><span id="mmBulkBarFill"></span></div>
+            <span class="num" id="mmBulkProgressTxt">0 / 0</span>
+          </div>
+          <button class="btn btn-light-mf ms-auto" data-bs-dismiss="modal" type="button">Close</button>
+          <button class="btn btn-light-mf" id="mmBulkValidate" type="button"><i class="bi bi-check2-square me-1"></i>Check rows</button>
+          <button class="btn btn-mf" id="mmBulkImport" type="button" disabled><i class="bi bi-cloud-upload me-1"></i>Import rows</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -1828,6 +1881,191 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         ['Name', 'Generic', 'Brand', 'Category', 'Manufacturer', 'HSN', 'GST%', 'Unit', 'MRP', 'Purchase', 'Wholesale', 'Stock', 'Generic/composition group'],
         filtered().map((m) => [m.name, m.generic, m.brandRef || '', m.category, m.manufacturer, m.hsn, m.gst, m.unit, m.mrp, m.purchaseRate, m.wholesaleRate, MF.stockOf(m.id), m.genericGroup || ''])));
 
+      /* ================= Bulk Add medicines (CSV) =================
+         One row → one medicine + its opening batch (no / qty / expiry).
+         Posts each row through the existing medicines API, so server-side
+         validation, batch writing and tenancy stay untouched. */
+      let bulkRows = [];
+      const BULK_ALIASES = {
+        name: ['name', 'medicine', 'medicine name', 'product'], generic: ['generic', 'generic name', 'composition', 'salt'],
+        brandRef: ['brand', 'brand name'], category: ['category'], manufacturer: ['manufacturer', 'mfg', 'company'],
+        hsn: ['hsn', 'hsn code'], gst: ['gst', 'gst%', 'gst %'], form: ['form', 'unit', 'dosage form'],
+        packQty: ['pack qty', 'packqty', 'pack size', 'qty per pack'], barcode: ['barcode', 'code'],
+        batchNo: ['batch no', 'batch', 'batch number'], openingQty: ['opening qty', 'opening stock', 'stock', 'qty', 'quantity'],
+        expiry: ['expiry', 'expiry date', 'expiry month'], mrp: ['mrp', 'price'],
+        purchaseRate: ['purchase rate', 'purchase', 'ptr'], retailRate: ['retail rate', 'retail'],
+        wholesaleRate: ['wholesale rate', 'wholesale'], schedule: ['schedule'], minStock: ['min stock', 'minimum stock'],
+        reorderLevel: ['reorder level', 'reorder'], rack: ['rack', 'rack / shelf', 'shelf'],
+        genericGroup: ['salt group', 'generic/composition group', 'generic group', 'group'], status: ['status'],
+      };
+      const BULK_TPL_HEAD = ['name', 'generic', 'brand', 'category', 'manufacturer', 'hsn', 'gst', 'form', 'pack qty', 'barcode', 'batch no', 'opening qty', 'expiry', 'mrp', 'purchase rate', 'retail rate', 'wholesale rate', 'schedule', 'min stock', 'reorder level', 'rack', 'salt group', 'status'];
+      const BULK_TPL_ROWS = [
+        ['Dolo 650mg', 'Paracetamol 650mg', 'Micro Labs', 'Pain & Fever', 'Micro Labs Ltd', '30049099', '12', 'Tablet', '15', '', '', '40', '12-2027', '42.40', '32', '38', '', 'OTC', '20', '10', '', 'Paracetamol', 'Active'],
+        ['Augmentin 625mg', 'Amoxicillin 500mg + Clavulanic Acid 125mg', 'GSK', 'Antibiotic', 'GSK', '30041090', '12', 'Tablet', '10', '', '', '20', '09-2027', '223.17', '181', '204', '', 'H', '10', '5', 'A-3', 'Amoxicillin + Clavulanate', 'Active'],
+      ];
+      const bulkCsvCell = (v) => { const s = String(v ?? ''); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+      const bulkText = (rows) => rows.map((r) => r.map(bulkCsvCell).join(',')).join('\r\n');
+
+      function bulkCsvParse(text) { // quotes + embedded commas/newlines aware
+        const rows = []; let row = [], cell = '', inQ = false; const t = String(text || '').replace(/^﻿/, '');
+        for (let i = 0; i <= t.length; i++) {
+          const c = t[i];
+          if (inQ) {
+            if (c === '"') { if (t[i + 1] === '"') { cell += '"'; i++; } else inQ = false; }
+            else if (c !== undefined) cell += c;
+            continue;
+          }
+          if (c === '"') { inQ = true; continue; }
+          if (c === ',') { row.push(cell); cell = ''; continue; }
+          if (c === '\n' || c === '\r' || c === undefined) {
+            if (c === '\r' && t[i + 1] === '\n') i++;
+            row.push(cell); cell = '';
+            if (row.some((x) => x.trim() !== '')) rows.push(row);
+            row = []; if (c === undefined) break; continue;
+          }
+          cell += c;
+        }
+        return rows;
+      }
+      function bulkHeaderMap(header) {
+        const norm = (h) => String(h || '').trim().toLowerCase().replace(/[₹()"/]/g, ' ').replace(/\s+/g, ' ');
+        const h2 = header.map(norm); const map = {};
+        Object.entries(BULK_ALIASES).forEach(([key, aliases]) => {
+          for (const al of aliases) { const i = h2.indexOf(norm(al)); if (i >= 0) { map[key] = i; break; } }
+        });
+        return map;
+      }
+      const bulkNum = (s) => { const v = String(s ?? '').replace(/[₹,%\s]/g, ''); if (v === '') return ''; const n = parseFloat(v); return isNaN(n) ? '' : n; };
+      const bulkForm = (s) => { const v = String(s || '').trim().toLowerCase(); return v ? (Object.keys(FORM_PACK).find((k) => k.toLowerCase() === v) || '') : ''; };
+      function bulkSchedule(s) {
+        const v = String(s || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
+        if (!v) return 'OTC';
+        if (v === 'NDPS') return 'X';
+        return SCHEDULES[v] ? v : '';
+      }
+      function bulkExpiry(text) { // MM-YYYY · YYYY-MM(-DD) · "Dec 2027"
+        const t = String(text || '').trim(); if (!t) return '';
+        let m = /^(\d{1,2})[-/](\d{4})$/.exec(t);
+        if (m) return `${m[2]}-${m[1].padStart(2, '0')}-01`;
+        m = /^(\d{4})-(\d{2})/.exec(t);
+        if (m) return `${m[1]}-${m[2]}-01`;
+        const nm = /^([A-Za-z]+)\.?[\s,]+(\d{4})$/.exec(t);
+        if (nm) { const mi = EXPIRY_MONTHS.findIndex((x) => x.toLowerCase() === nm[1].slice(0, 3).toLowerCase()); if (mi >= 0) return `${nm[2]}-${String(mi + 1).padStart(2, '0')}-01`; }
+        return '';
+      }
+      function bulkValidate() {
+        bulkRows = [];
+        const prev = $('#mmBulkSummary'); const box = $('#mmBulkPreviewBox');
+        $('#mmBulkImport').disabled = true;
+        const rows = bulkCsvParse($('#mmBulkCsv').value);
+        if (!rows.length) { prev.innerHTML = ''; box.innerHTML = ''; MF.toast('Nothing to check — paste a CSV or upload a file first.', 'warn', 'Bulk Add'); return; }
+        const idx = bulkHeaderMap(rows.shift() || []);
+        if (idx.name == null || idx.form == null || idx.mrp == null) {
+          prev.innerHTML = '';
+          box.innerHTML = `<div class="mm-blk-err p-2">Could not find the required headers <code>name</code>, <code>form</code> and <code>mrp</code> in the first row. Use the template column names.</div>`;
+          return;
+        }
+        const get = (r, k) => (idx[k] == null ? '' : String(r[idx[k]] ?? '').trim());
+        const existing = new Set((D.medicines || []).map((m) => String(m.name || '').trim().toLowerCase()).filter(Boolean));
+        const firstLine = new Map();
+        rows.forEach((r, i) => {
+          const name = get(r, 'name'); const form = bulkForm(get(r, 'form')); const mrp = bulkNum(get(r, 'mrp'));
+          const schIn = get(r, 'schedule'); const sched = bulkSchedule(schIn);
+          const expIn = get(r, 'expiry'); const expiry = bulkExpiry(expIn);
+          const errs = [];
+          if (!name) errs.push('name missing');
+          if (!form) errs.push(`unknown form "${get(r, 'form')}"`);
+          if (mrp === '' || mrp <= 0) errs.push('MRP missing/invalid');
+          if (schIn && !sched) errs.push(`unknown schedule "${schIn}"`);
+          if (expIn && !expiry) errs.push(`bad expiry "${expIn}"`);
+          const key = name.toLowerCase();
+          if (name && existing.has(key)) errs.push('already in the master — skipped');
+          else if (name && firstLine.has(key)) errs.push(`duplicate of row ${firstLine.get(key)} — first row wins; add its second batch from New Purchase`);
+          else if (name) firstLine.set(key, i + 2);
+          const spec = packSpec(form);
+          bulkRows.push({
+            no: i + 2, errs, result: '',
+            payload: {
+              name, generic: get(r, 'generic'), brandRef: get(r, 'brandRef'), composition: '',
+              category: get(r, 'category'), manufacturer: get(r, 'manufacturer'), hsn: get(r, 'hsn'),
+              genericGroup: get(r, 'genericGroup'), substitutes: get(r, 'genericGroup'), barcode: get(r, 'barcode'),
+              form, unit: spec.unit, packSize: '', gst: bulkNum(get(r, 'gst')), schedule: sched || 'OTC',
+              packQty: spec.whole ? 1 : (bulkNum(get(r, 'packQty')) || 1), subUnit: spec.sub, allowLoose: false,
+              batchNo: get(r, 'batchNo'), openingQty: (() => { const q = bulkNum(get(r, 'openingQty')); return q === '' ? '' : Math.max(0, q); })(),
+              boxQty: '', boxUnit: '', expiry,
+              mrp, retailRate: (() => { const n = bulkNum(get(r, 'retailRate')); return n === '' ? mrp : n; })(),
+              purchaseRate: bulkNum(get(r, 'purchaseRate')), defaultDiscount: '', discountType: 'percent',
+              wholesaleRate: bulkNum(get(r, 'wholesaleRate')), minStock: bulkNum(get(r, 'minStock')),
+              reorderLevel: bulkNum(get(r, 'reorderLevel')), rack: get(r, 'rack'),
+              rxRequired: !!(SCHEDULES[sched || 'OTC'] && SCHEDULES[sched || 'OTC'].rx),
+              expiryAlertDays: '', status: /^inactive$/i.test(get(r, 'status')) ? 'Inactive' : 'Active',
+            },
+          });
+        });
+        bulkPaint();
+      }
+      function bulkPaint() {
+        const prev = $('#mmBulkSummary'); const box = $('#mmBulkPreviewBox');
+        if (!bulkRows.length) { prev.innerHTML = ''; box.innerHTML = ''; return; }
+        const ready = bulkRows.filter((x) => !x.errs.length && x.result !== 'Imported');
+        const fail = bulkRows.filter((x) => x.errs.length);
+        $('#mmBulkImport').disabled = !ready.length;
+        prev.innerHTML = `<div class="mm-blk-summary">${ready.length} row(s) ready to import · ${fail.length} row(s) need attention</div>`;
+        box.innerHTML = `<div class="mm-bulk-preview"><table class="table table-sm table-hover mb-0">
+          <thead><tr><th>#</th><th>Name</th><th>Form</th><th>Batch</th><th>Expiry</th><th class="text-end">Qty</th><th class="text-end">MRP</th><th>GST</th><th>Sched</th><th>Result</th></tr></thead>
+          <tbody>${bulkRows.map((x) => `<tr>
+            <td class="text-2">${x.no}</td>
+            <td title="${MF.esc(x.payload.name)}">${MF.esc((x.payload.name || '—').slice(0, 26))}</td>
+            <td>${MF.esc(x.payload.form || '')}</td>
+            <td>${MF.esc(x.payload.batchNo || '—')}</td>
+            <td>${MF.esc(expiryToField(x.payload.expiry) || '—')}</td>
+            <td class="text-end num">${x.payload.openingQty !== '' ? MF.num(x.payload.openingQty) : '—'}</td>
+            <td class="text-end num">${x.payload.mrp !== '' ? MF.fmt(x.payload.mrp) : '—'}</td>
+            <td>${x.payload.gst !== '' ? x.payload.gst + '%' : '—'}</td>
+            <td>${MF.esc(x.payload.schedule)}</td>
+            <td class="${x.errs.length ? 'mm-blk-err' : (x.result === 'Imported' ? 'mm-blk-ok' : '')}">${x.errs.length ? MF.esc((x.result || x.errs.join('; ')).slice(0, 60)) : (x.result || 'Ready')}</td>
+          </tr>`).join('')}</tbody></table></div>`;
+      }
+      async function bulkImport() {
+        const todo = bulkRows.filter((x) => !x.errs.length && x.result !== 'Imported');
+        if (!todo.length) return;
+        if (!MF.Api.live) { MF.toast('Bulk import needs a server connection.', 'err', 'Bulk Add'); return; }
+        const bImport = $('#mmBulkImport'), bCheck = $('#mmBulkValidate'), prog = $('#mmBulkProgress');
+        bImport.disabled = true; bCheck.disabled = true; prog.hidden = false;
+        const bar = $('#mmBulkBarFill'), txt = $('#mmBulkProgressTxt');
+        let done = 0, ok = 0;
+        for (const row of todo) {
+          try { await MF.Api.post('medicines.php', row.payload); row.result = 'Imported'; ok++; }
+          catch (e) { row.result = e.message || 'failed'; row.errs = [row.result]; }
+          done++; bar.style.width = ((done / todo.length) * 100).toFixed(1) + '%'; txt.textContent = `${done} / ${todo.length}`;
+          bulkPaint();
+        }
+        prog.hidden = true; bCheck.disabled = false;
+        await MF.rehydrate(); render();
+        bulkPaint();
+        MF.toast(`${ok} medicine(s) added to the master${ok < todo.length ? ` · ${todo.length - ok} failed (see table)` : ''}`, ok < todo.length ? 'warn' : 'success', 'Bulk Add');
+      }
+      function bulkReset() {
+        $('#mmBulkCsv').value = bulkText([BULK_TPL_HEAD, ...BULK_TPL_ROWS]);
+        bulkRows = []; $('#mmBulkImport').disabled = true; bulkPaint(); $('#mmBulkPreviewBox').innerHTML = '';
+      }
+      $('#mmBulkAdd').addEventListener('click', () => {
+        if (!$('#mmBulkCsv').value.trim()) bulkReset();
+        bootstrap.Modal.getOrCreateInstance($('#mmBulkModal')).show();
+      });
+      $('#mmBulkTpl').addEventListener('click', () => MF.exportCSV('medicines-bulk-template.csv', BULK_TPL_HEAD, BULK_TPL_ROWS));
+      $('#mmBulkClear').addEventListener('click', bulkReset);
+      $('#mmBulkValidate').addEventListener('click', bulkValidate);
+      $('#mmBulkImport').addEventListener('click', bulkImport);
+      $('#mmBulkFile').addEventListener('change', (e) => {
+        const f = e.target.files && e.target.files[0];
+        if (!f) return;
+        const rd = new FileReader();
+        rd.onload = () => { $('#mmBulkCsv').value = String(rd.result || ''); bulkValidate(); };
+        rd.readAsText(f);
+        e.target.value = '';
+      });
+
       /* Premium select menus. Native <option> popups ignore our CSS, so the list is ours
          and the closed field still uses the existing form-select / mm-input styles. */
       const selectMenu = document.createElement('div');
@@ -1993,5 +2231,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43b3b8d5a2aff60',t:'MTc5MDg1NTI0Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
