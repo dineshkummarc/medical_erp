@@ -162,7 +162,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     @media (max-width: 575.98px) { .mm-price-row { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
 
     /* Stock & Status — four equal columns, uniform 40px controls, icons in labels, switch aligned */
-    .mm-stock-grid { display:grid; grid-template-columns:repeat(4, minmax(150px, 1fr)); gap:14px 12px; }
+    .mm-stock-grid { display:grid; grid-template-columns:repeat(5, minmax(140px, 1fr)); gap:14px 12px; }
     .mm-stock-grid .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
     .mm-stock-grid .form-label i { color:#0d9488; font-size:.85rem; }
     .mm-stock-grid .form-control { height:40px; line-height:normal; padding-top:0; padding-bottom:0; }
@@ -172,6 +172,17 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-autogen { background:none; border:0; padding:2px 0 0; font-size:.74rem; font-weight:600; color:#0d9488;
                   display:inline-flex; align-items:center; gap:4px; }
     .mm-autogen:hover { color:#0F766E; text-decoration:underline; }
+
+    /* Retail > MRP — inline red hint + pink-flagged input */
+    .mm-mrp-warn { color:#B42318 !important; font-weight:600; }
+    .mm-price-row .form-control.is-mrp-over { background:#FDECEC !important; border-color:#F2A5A5 !important; color:#B42318; }
+
+    /* Stock info moves to the form footer while editing — small text with a muted square badge */
+    .mm-stock-foot { width:100%; display:flex; align-items:center; gap:8px; font-size:.76rem; color:#64748B; margin-bottom:6px; }
+    .mm-stock-foot-badge { width:22px; height:22px; border-radius:7px; background:#EEF4F3; color:#0d9488;
+                           display:inline-flex; align-items:center; justify-content:center; font-size:.75rem; flex:0 0 auto; }
+    .mm-stock-foot[hidden] { display:none; }
+    .mm-form-footer { flex-wrap:wrap; }
 
     /* Bulk Add modal */
     .mm-bulk-hint { font-size:.8rem; color:#476178; background:#f0fbf8; border:1px solid #d3eee6; border-radius:9px; padding:10px 12px; margin-bottom:10px; line-height:1.55; }
@@ -720,7 +731,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <select class="form-select" id="fGst"><option value="">Select GST</option><option>5</option><option>12</option><option>18</option></select></div>
                 <div><label class="form-label" for="fMrp"><i class="bi bi-tag"></i>MRP (₹) <span class="req">*</span></label><input type="number" step="0.01" class="form-control" id="fMrp" placeholder="e.g. 120.00"></div>
                 <div><label class="form-label" for="fPtr"><i class="bi bi-cart-plus"></i>Purchase Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fPtr" placeholder="e.g. 80.00"></div>
-                <div><label class="form-label" for="fRetail"><i class="bi bi-shop"></i>Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"></div>
+                <div><label class="form-label" for="fRetail"><i class="bi bi-shop"></i>Retail Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fRetail" placeholder="e.g. 100.00"><div class="mm-field-hint mm-mrp-warn" id="fRetailWarn" hidden></div></div>
                 <div><label class="form-label" for="fWholesale"><i class="bi bi-boxes"></i>Wholesale Rate (₹)</label><input type="number" step="0.01" class="form-control" id="fWholesale" placeholder="e.g. 90.00"></div>
               </div>
             </div>
@@ -772,6 +783,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fMin"><i class="bi bi-box-seam"></i>Minimum Stock</label>
               <input type="number" class="form-control" id="fMin" placeholder="e.g. 10">
             </div>
+            <div class="mm-active-cell">
+              <label class="form-label invisible" aria-hidden="true">Status</label>
+              <label class="mm-switch">
+                <input type="checkbox" id="fActive" checked>
+                <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
+              </label>
+            </div>
             <div>
               <label class="form-label" for="fReorder"><i class="bi bi-arrow-repeat"></i>Reorder level</label>
               <div class="mm-per">
@@ -788,18 +806,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fExpiryAlert"><i class="bi bi-bell"></i>Expiry Alert (days)</label>
               <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
             </div>
-            <div class="mm-active-cell">
-              <label class="form-label invisible" aria-hidden="true">Status</label>
-              <label class="mm-switch">
-                <input type="checkbox" id="fActive" checked>
-                <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
-              </label>
-            </div>
           </div>
           <input type="checkbox" id="fRx" hidden>
 
         </div>
         <div class="modal-footer mm-form-footer">
+          <div class="mm-stock-foot" id="fStockFoot" hidden><span class="mm-stock-foot-badge"><i class="bi bi-box-seam"></i></span><span id="fStockFootTxt"></span></div>
           <div class="mm-form-actions">
             <button class="btn mm-save" id="mmFormSave" type="button">Save medicine <kbd>Ctrl+S</kbd></button>
             <button class="btn mm-save-another" id="mmFormSaveAnother" type="button">Save and add another</button>
@@ -1177,9 +1189,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fStockQty').value = m ? stockQtyForForm(m) : '';
         $('#fStockQty').readOnly = !!m;
         $('#fStockQty').title = m ? 'On-hand stock — add stock from New Purchase, correct it from Stock Adjustment.' : '';
-        const qtyHint = $('#fStockQtyHint');
-        if (qtyHint) qtyHint.textContent = m ? 'On-hand stock. Add more from New Purchase; correct it from Stock Adjustment.' : 'Opening stock for the first batch.';
         syncPackUnit();
+        const qtyHint = $('#fStockQtyHint');
+        if (qtyHint) qtyHint.textContent = m ? '' : 'Opening stock for the first batch.';
+        const stockFoot = $('#fStockFoot'), stockFootTxt = $('#fStockFootTxt');
+        if (stockFoot && stockFootTxt) {
+          if (m) {
+            stockFootTxt.innerHTML = `On-hand stock: <strong>${MF.esc(stockQtyForForm(m))} ${MF.esc($('#fStockQtyUnit').textContent || 'units')}</strong> · add more from New Purchase, correct it from Stock Adjustment.`;
+            stockFoot.hidden = false;
+          } else { stockFootTxt.textContent = ''; stockFoot.hidden = true; }
+        }
         $('#fBoxQty').value = m?.boxQty ?? ''; $('#fBoxUnit').value = m?.boxUnit || '';
         $('#fGst').value = m && m.gst != null && m.gst !== '' ? String(m.gst) : ''; setSchedule(m?.schedule || 'OTC');
         $('#fMrp').value = m?.mrp ?? ''; $('#fPtr').value = m?.purchaseRate ?? ''; $('#fRetail').value = m?.retailRate ?? m?.mrp ?? '';
@@ -1373,6 +1392,15 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const pack = spec ? spec.pack : 'strip';
         const piece = spec ? String(spec.sub || 'unit').toLowerCase() : 'unit';
         const mrp = parseFloat($('#fMrp').value);
+
+        // Retail can never exceed MRP — flag the field + inline warning
+        const retail = parseFloat($('#fRetail').value);
+        const retailOver = !isNaN(retail) && !isNaN(mrp) && mrp > 0 && retail > mrp;
+        const retailWarn = $('#fRetailWarn');
+        if (retailWarn) { retailWarn.textContent = retailOver ? `Above MRP ${MF.fmt(mrp, 2)} — can't sell over MRP` : ''; retailWarn.hidden = !retailOver; }
+        const retailInp = $('#fRetail');
+        if (retailInp) retailInp.classList.toggle('is-mrp-over', retailOver);
+
         const gst = parseFloat($('#fGst').value);
         const qty = parseFloat($('#fPackQty').value);
         const per = qty > 0 ? qty : 1;
@@ -2261,5 +2289,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43e86b69bcf7a10',t:'MTc5MDg4OTc4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43ecf012d699a7d',t:'MTc5MDg5Mjc0Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
