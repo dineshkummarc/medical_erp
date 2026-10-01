@@ -1948,14 +1948,18 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (v === 'NDPS') return 'X';
         return SCHEDULES[v] ? v : '';
       }
-      function bulkExpiry(text) { // MM-YYYY · YYYY-MM(-DD) · "Dec 2027"
+      function bulkExpiry(text) { // 12-2027 · 12-27 · 2027-09-05 · Dec 2027 · Dec-2028 · Dec-27
         const t = String(text || '').trim(); if (!t) return '';
-        let m = /^(\d{1,2})[-/](\d{4})$/.exec(t);
-        if (m) return `${m[2]}-${m[1].padStart(2, '0')}-01`;
-        m = /^(\d{4})-(\d{2})/.exec(t);
+        const yy = (y) => (String(y).length === 2 ? (Number(y) >= 70 ? '19' : '20') + y : String(y)); // YY→YYYY pivot
+        let m = /^(\d{1,2})[-/](\d{2,4})$/.exec(t);                       // MM-YYYY · MM/YYYY · MM-YY
+        if (m) return `${yy(m[2])}-${m[1].padStart(2, '0')}-01`;
+        m = /^(\d{4})-(\d{2})/.exec(t);                                    // YYYY-MM(-DD)
         if (m) return `${m[1]}-${m[2]}-01`;
-        const nm = /^([A-Za-z]+)\.?[\s,]+(\d{4})$/.exec(t);
-        if (nm) { const mi = EXPIRY_MONTHS.findIndex((x) => x.toLowerCase() === nm[1].slice(0, 3).toLowerCase()); if (mi >= 0) return `${nm[2]}-${String(mi + 1).padStart(2, '0')}-01`; }
+        const nm = /^([A-Za-z]+)\.?[-\s,/.]+(\d{2,4})$/.exec(t);           // "Dec 2027" · "Dec,2027" · "Dec-2027" · "Dec-27"
+        if (nm) {
+          const mi = EXPIRY_MONTHS.findIndex((x) => x.toLowerCase() === nm[1].slice(0, 3).toLowerCase());
+          if (mi >= 0) return `${yy(nm[2])}-${String(mi + 1).padStart(2, '0')}-01`;
+        }
         return '';
       }
       function bulkValidate() {
@@ -2253,5 +2257,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43dc5ff4e1cff6f',t:'MTc5MDg4MTg4OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43ddd751cb17a07',t:'MTc5MDg4Mjg1MA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
