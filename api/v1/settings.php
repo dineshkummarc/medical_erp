@@ -4,7 +4,8 @@ require dirname(__DIR__, 2) . '/middleware/tenant.php';
 require dirname(__DIR__, 2) . '/core/Auth.php';
 require dirname(__DIR__, 2) . '/core/Json.php';
 require dirname(__DIR__, 2) . '/core/Audit.php';
-require dirname(__DIR__, 2) . '/core/CoreSeeds.php';
+$seedsLib = dirname(__DIR__, 2) . '/core/CoreSeeds.php';
+if (is_file($seedsLib)) { require $seedsLib; }        // tolerate the seed library not being uploaded yet
 
 if (!Auth::check()) {
     Json::error('Not authenticated.', 401);
@@ -15,6 +16,9 @@ $pdo = Tenant::db();
 if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     // Preview of the default taxonomy (nothing is written) — api/v1/settings.php?seed=preview
     if (($_GET['seed'] ?? '') === 'preview') {
+        if (!class_exists('CoreSeeds')) {
+            Json::error('Seed library missing on the server. Upload core/CoreSeeds.php and core/seeds/taxonomy.php.', 500);
+        }
         $t = CoreSeeds::taxonomy();
         $catPresent = 0;
         foreach ($t['categories'] as $n) {
@@ -49,6 +53,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Load the default categories & manufacturers taxonomy into this tenant.
     // Idempotent: existing names are skipped, so it is safe to run any time.
     if ($action === 'seed-defaults') {
+        if (!class_exists('CoreSeeds')) {
+            Json::error('Seed library missing on the server. Upload core/CoreSeeds.php and core/seeds/taxonomy.php.', 500);
+        }
         $result = CoreSeeds::run();
         $c = $result['categories']; $m = $result['manufacturers'];
         Audit::log('SEED_DEFAULTS', "Default taxonomy loaded · categories +{$c['inserted']} ({$c['skipped']} present) · manufacturers +{$m['inserted']} ({$m['skipped']} present)");

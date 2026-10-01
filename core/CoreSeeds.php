@@ -16,8 +16,8 @@
  *   CoreSeeds::run(); // after tenant provisioning / from api/v1/seed-defaults.php
  * ------------------------------------------------------------------------- */
 
-require_once __DIR__ . '/models/Category.php';
-require_once __DIR__ . '/models/Manufacturer.php';
+require_once __DIR__ . '/../models/Category.php';     // models/ is a SIBLING of core/ in this project
+require_once __DIR__ . '/../models/Manufacturer.php';
 
 class CoreSeeds
 {
