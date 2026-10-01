@@ -108,7 +108,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-sched-opt.is-on.x { background:#B42318; }
     .mm-chips {
       display:flex; flex-wrap:wrap; gap:8px; align-items:center;
-      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:8px 10px; min-height:42px;
+      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:6px 12px; min-height:42px;
     }
     .mm-chip-list { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
     .mm-chips:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
@@ -117,7 +117,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700;
     }
     .mm-chip button { border:0; background:transparent; color:inherit; line-height:1; padding:0 2px; font-size:1rem; }
-    .mm-chip-input { border:0; outline:0; flex:1; min-width:160px; background:transparent; font-size:.9rem; }
+    .mm-chip-input { border:0; outline:0; flex:1; min-width:160px; background:transparent; font-size:.9rem; padding:0; }
     .mm-price-warn {
       display:flex; align-items:center; gap:8px; color:#B45309; background:#FEF3E2;
       border:1px solid #f6d7a2; border-radius:10px; padding:8px 12px; font-size:.82rem; font-weight:650;
@@ -2164,9 +2164,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const q = (filter || '').trim().toLowerCase();
         const opts = [...openSelect.options].map((o, i) => ({ i, text: o.text, on: o.selected || o.value === openSelect.value }));
         const shown = opts.filter((o) => !q || o.text.toLowerCase().includes(q));
-        const search = opts.length > 8
-          ? `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`
-          : '';
+        // Search always available — even 4-option dropdowns (GST, schedule) are easier to filter
+        const search = `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`;
         selectMenu.innerHTML = search + (shown.length
           ? shown.map((o, n) => `<button type="button" class="mm-select-opt${o.on ? ' is-on' : ''}${n === hotIndex ? ' is-hot' : ''}" role="option" data-i="${o.i}" aria-selected="${o.on}"><span>${MF.esc(o.text)}</span><i class="bi bi-check2"></i></button>`).join('')
           : `<div class="mm-select-empty">No match</div>`);
@@ -2294,5 +2293,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43eed4d790170aa',t:'MTc5MDg5Mzk4NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43f0be599616ed0',t:'MTc5MDg5NTIzOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
