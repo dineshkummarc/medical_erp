@@ -100,18 +100,16 @@
       .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
       .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
 
-      /* Schedule chips on medicine cards — full "Schedule H" label, outlined like the shared spec */
-      .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:6px;
-                 font-size:.6rem; font-weight:800; letter-spacing:.05em; line-height:1.7; vertical-align:2px;
-                 border:1.5px solid; white-space:nowrap; }
-      .pos-sch.h    { color:#0F766E; border-color:#2AA598; background:#F0FBFA; }
-      .pos-sch.h1   { color:#6D28D9; border-color:#8B5CF6; background:#F7F4FF; }
-      .pos-sch.x    { color:#B42318; border-color:#DC6A6A; background:#FDF2F2; }
-      .pos-sch.ndps { color:#7F1D1D; border-color:#991B1B; background:#FDF2F2; }
+      /* Schedule chips on medicine cards (H / H1 / X / NDPS) — square, filled, same colors as the medicine form */
+      .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:0 6px; border-radius:4px;
+                 font-size:.6rem; font-weight:800; letter-spacing:.07em; line-height:1.7; vertical-align:2px; color:#fff; }
+      .pos-sch.h    { background:#0369A1; }
+      .pos-sch.h1   { background:#6D28D9; }
+      .pos-sch.x    { background:#B42318; }
+      .pos-sch.ndps { background:#7F1D1D; }
 
-      /* Out of stock — matte light red card; hover and keyboard ring stay in the red family (no teal) */
-      .pos-result.is-out { background:#FCEDED; border-color:#E8AFAF; }
-      .pos-result.is-out:hover { background:#FCE8E8; border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.10); }
+      /* Out of stock — matte light red card (and the arrow-key ring goes red too) */
+      .pos-result.is-out { background:#FCEDED; border-color:#EFC7C7; }
       .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
 
       /* Inline substitute pills on an out-of-stock card */
@@ -408,7 +406,7 @@
   function nameLine(m) {
     const brand = m.brandRef ? ` <span class="text-2 fw-normal">· ${MF.esc(m.brandRef)}</span>` : '';
     const sch = rxSchedule(m);
-    const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">Schedule ${sch}</span>` : '';
+    const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">${sch}</span>` : '';
     return `<div class="pr-name">${MF.esc(m.name)}${brand}${schChip}</div>`;
   }
 
