@@ -783,13 +783,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <label class="form-label" for="fMin"><i class="bi bi-box-seam"></i>Minimum Stock</label>
               <input type="number" class="form-control" id="fMin" placeholder="e.g. 10">
             </div>
-            <div class="mm-active-cell">
-              <label class="form-label invisible" aria-hidden="true">Status</label>
-              <label class="mm-switch">
-                <input type="checkbox" id="fActive" checked>
-                <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
-              </label>
-            </div>
             <div>
               <label class="form-label" for="fReorder"><i class="bi bi-arrow-repeat"></i>Reorder level</label>
               <div class="mm-per">
@@ -805,6 +798,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div>
               <label class="form-label" for="fExpiryAlert"><i class="bi bi-bell"></i>Expiry Alert (days)</label>
               <input type="number" min="1" class="form-control" id="fExpiryAlert" placeholder="Default: 90">
+            </div>
+            <div class="mm-active-cell">
+              <label class="form-label invisible" aria-hidden="true">Status</label>
+              <label class="mm-switch">
+                <input type="checkbox" id="fActive" checked>
+                <span><strong>Active</strong><small>Inactive items stay out of POS</small></span>
+              </label>
             </div>
           </div>
           <input type="checkbox" id="fRx" hidden>
@@ -2289,5 +2289,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43ecf012d699a7d',t:'MTc5MDg5Mjc0Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43edbecc83433c6',t:'MTc5MDg5MzI3Mw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
