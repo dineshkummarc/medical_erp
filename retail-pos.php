@@ -122,8 +122,8 @@ if ($cashier === '') $cashier = 'Cashier';
     .pos-print-menu .dropdown-item { display:flex; align-items:center; }
     .pos-print-menu .dropdown-item .pos-act-key { margin-left:auto; }
 
-    /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
-    .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+    /* Action buttons — wraps to two rows on narrow counters; NO horizontal scroll so the print dropdown never clips */
+    .pos-act-row { flex-wrap:wrap; }
     .pos-act-row > * { flex:0 0 auto; }
 
     /* Order pad chip (re-order list) beside the search label */
@@ -407,7 +407,7 @@ if ($cashier === '') $cashier = 'Cashier';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.8"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.9"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

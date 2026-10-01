@@ -1372,8 +1372,10 @@
     if (!btn) return;
     let has = false;
     try { has = !!localStorage.getItem(DRAFT_KEY); } catch (e) { has = false; }
-    const load = (!state.cart.length && has);
-    btn.innerHTML = `<span><i class="bi ${load ? 'bi-folder2-open' : 'bi-save'} me-1"></i>${load ? 'Load' : 'Save'} Draft</span><span class="pos-act-key">F9</span>`;
+    const key = '<span class="badge bg-light text-dark border ms-1">F9</span>';
+    btn.innerHTML = (!state.cart.length && has)
+      ? `<i class="bi bi-folder2-open me-1"></i>Load Draft ${key}`
+      : `<i class="bi bi-save me-1"></i>Save Draft ${key}`;
   }
 
   function saveDraft() {
