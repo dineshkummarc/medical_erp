@@ -109,32 +109,13 @@ window.MF = window.MF || {};
     '₹' + Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: dec, maximumFractionDigits: dec });
   MF.num = (n) => Number(n || 0).toLocaleString('en-IN');
   MF.today = () => new Date().toISOString().slice(0, 10);
-  // Accepts 'YYYY-MM-DD', 'YYYY-MM-DD HH:MM:SS' (MySQL timestamps), ISO strings,
-  // Date objects and epoch numbers — and NEVER returns "Invalid Date".
-  MF.parseDate = (v) => {
-    if (v === null || v === undefined || v === '') return null;
-    if (v instanceof Date) return isNaN(v) ? null : v;
-    let d;
-    if (typeof v === 'number') { d = new Date(v < 1e12 ? v * 1000 : v); }
-    else {
-      const s = String(v).trim();
-      const iso = s.includes('T') ? s : (s.includes(' ') ? s.replace(' ', 'T') : s + 'T00:00:00');
-      d = new Date(iso);
-    }
-    return isNaN(d) ? null : d;
+  MF.fmtDate = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
   };
-  MF.fmtDate = (v) => {
-    const d = MF.parseDate(v);
-    return d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-  };
-  MF.fmtDateTime = (v) => {
-    const d = MF.parseDate(v);
-    return d ? d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ' · '
-             + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—';
-  };
-  MF.fmtMonthYear = (v) => {
-    const d = MF.parseDate(v);
-    return d ? d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }) : '—';
+  MF.fmtMonthYear = (iso) => {
+    if (!iso) return '—';
+    return new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { month: 'short', year: 'numeric' });
   };
   MF.daysTo = (iso) => {
     const now = new Date(MF.today() + 'T00:00:00');

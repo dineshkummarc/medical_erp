@@ -9,7 +9,7 @@ if (!Auth::check()) {
 }
 
 $pdo = Tenant::db();
-$stmt = $pdo->query('SELECT * FROM audit_logs ORDER BY created_at DESC LIMIT 500');
+$stmt = $pdo->query('SELECT * FROM audit_logs ORDER BY created_at DESC, id DESC LIMIT 500');
 $rows = array_map(fn($r) => [
     'ts' => $r['created_at'], 'user' => $r['user_name'] ?? 'System', 'action' => $r['action'], 'detail' => $r['detail'] ?? '',
 ], $stmt->fetchAll());

@@ -1,9 +1,18 @@
 <?php
+/* ---------------------------------------------------------------------------
+ * api/v1/settings.php — FINAL settings API (deploy snapshot).
+ * Adds on top of the stock settings API:
+ *   GET  ?seed=preview                → default taxonomy presence (no writes)
+ *   POST { "action": "seed-defaults" } → CoreSeeds::run() + SEED_DEFAULTS audit
+ * Plain settings GET/POST behavior is unchanged. The seed library is loaded
+ * only if uploaded; everything keeps working even before it lands on the server.
+ * ------------------------------------------------------------------------- */
 session_start();
 require dirname(__DIR__, 2) . '/middleware/tenant.php';
 require dirname(__DIR__, 2) . '/core/Auth.php';
 require dirname(__DIR__, 2) . '/core/Json.php';
 require dirname(__DIR__, 2) . '/core/Audit.php';
+
 $seedsLib = dirname(__DIR__, 2) . '/core/CoreSeeds.php';
 if (is_file($seedsLib)) { require $seedsLib; }        // tolerate the seed library not being uploaded yet
 

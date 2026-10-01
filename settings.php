@@ -168,6 +168,10 @@ require __DIR__ . '/middleware/auth.php';
                   <tbody id="stAuditBody"></tbody>
                 </table>
               </div>
+              <div id="stAuditFoot" style="display:flex;align-items:center;gap:8px;padding:8px 4px 2px;border-top:1px solid #eef2f6">
+                <span class="text-2 small" id="stAuditInfo"></span>
+                <button class="btn btn-sm btn-light-mf ms-auto" id="stAuditMore" type="button" hidden><i class="bi bi-arrow-down-short me-1"></i>Load more</button>
+              </div>
             </div>
           </div>
 
@@ -355,24 +359,34 @@ require __DIR__ . '/middleware/auth.php';
         }
       });
 
-      /* Audit */
+      /* Audit — default 10 rows, "Load more" reveals 10 more at a time */
+      const AUDIT_PAGE = 10;
       let auditRows = [];
+      let auditShown = AUDIT_PAGE;
+      let auditQuery = '';
       async function loadAudit() {
         const res = await MF.Api.get('audit-logs.php');
         auditRows = res.data ?? res;
+        auditShown = AUDIT_PAGE;
         renderAudit();
       }
-      function renderAudit(q = '') {
+      function renderAudit(q = auditQuery) {
         const rows = auditRows.filter((l) => (l.user + l.action + l.detail).toLowerCase().includes(q.toLowerCase()));
-        $('#stAuditBody').innerHTML = rows.map((l) => `
+        const shown = rows.slice(0, auditShown);
+        $('#stAuditBody').innerHTML = shown.map((l) => `
           <tr>
-            <td class="num text-2">${MF.fmtDate(l.ts)}</td>
+            <td class="num text-2">${MF.fmtDateTime(l.ts)}</td>
             <td>${MF.esc(l.user)}</td>
-            <td>${MF.badge(l.action, { LOGIN: 'secondary', SALE_CREATE: 'success', WHOLESALE_SALE: 'warning', PURCHASE_CREATE: 'info', STOCK_ADJUST: 'warning', SALES_RETURN: 'danger', PURCHASE_RETURN: 'danger', PAYMENT_RECORDED: 'success', USER_CREATE: 'primary', USER_STATUS: 'secondary', SETTINGS_UPDATE: 'secondary', PERMISSIONS_UPDATE: 'secondary' }[l.action] || 'secondary')}</td>
+            <td>${MF.badge(l.action, { LOGIN: 'secondary', SALE_CREATE: 'success', WHOLESALE_SALE: 'warning', PURCHASE_CREATE: 'info', STOCK_ADJUST: 'warning', SALES_RETURN: 'danger', PURCHASE_RETURN: 'danger', PAYMENT_RECORDED: 'success', USER_CREATE: 'primary', USER_STATUS: 'secondary', SETTINGS_UPDATE: 'secondary', PERMISSIONS_UPDATE: 'secondary', SEED_DEFAULTS: 'info' }[l.action] || 'secondary')}</td>
             <td class="text-2">${MF.esc(l.detail)}</td>
           </tr>`).join('') || `<tr><td colspan="4"><div class="empty-state"><i class="bi bi-journal"></i>No matching log entries.</div></td></tr>`;
+        const info = $('#stAuditInfo'), more = $('#stAuditMore');
+        if (info) info.textContent = rows.length ? `Showing ${shown.length} of ${rows.length} log(s)` : 'No log entries';
+        if (more) more.hidden = rows.length <= shown.length;
       }
-      $('#stAuditSearch').addEventListener('input', (e) => renderAudit(e.target.value));
+      $('#stAuditSearch').addEventListener('input', (e) => { auditQuery = e.target.value; auditShown = AUDIT_PAGE; renderAudit(auditQuery); });
+      const auditMoreBtn = $('#stAuditMore');
+      if (auditMoreBtn) auditMoreBtn.addEventListener('click', () => { auditShown += AUDIT_PAGE; renderAudit(); });
 
       await loadSettings();
       await loadUsers();
@@ -386,5 +400,5 @@ require __DIR__ . '/middleware/auth.php';
       }
     });
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43e5a00dd118fa7',t:'MTc5MDg4Nzk1MQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
