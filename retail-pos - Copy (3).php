@@ -83,16 +83,11 @@ $user   = Auth::user();
     .pos-complete-amt { font-size:1.12rem; font-weight:800; font-variant-numeric:tabular-nums; }
 
     /* Bill-level discount — % | ₹ segmented toggle (teal active cell) */
-    .pos-disc-input { max-width:110px; flex:0 0 auto; }
-    .pos-disc-toggle { display:inline-flex; border:1.5px solid #cfd9e4; border-radius:9px; overflow:hidden; flex:0 0 auto; background:#fff; }
-    .pos-disc-opt { width:36px; height:36px; border:0; background:#fff; color:#334155; font-weight:800; font-size:.95rem; cursor:pointer; transition:background .12s ease, color .12s ease; }
+    .pos-disc-toggle { display:inline-flex; border:1.5px solid #cfd9e4; border-radius:9px; overflow:hidden; flex:0 0 auto; background:#fff; align-self:stretch; }
+    .pos-disc-opt { width:40px; border:0; background:#fff; color:#334155; font-weight:800; font-size:.95rem; cursor:pointer; transition:background .12s ease, color .12s ease; }
     .pos-disc-opt + .pos-disc-opt { border-left:1.5px solid #cfd9e4; }
     .pos-disc-opt:hover { background:#eef4f3; }
     .pos-disc-opt.is-on { background:#176B5B; color:#fff; }
-
-    /* Order pad chip pulses softly while an un-ordered re-order is waiting */
-    .pos-orderchip.has-pending { border-color:#0d9488; animation:posOrderPulse 2.2s ease-in-out infinite; }
-    @keyframes posOrderPulse { 0%,100% { box-shadow:0 0 0 0 rgba(13,148,136,.35); } 50% { box-shadow:0 0 0 6px rgba(13,148,136,0); } }
 
     /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
     .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
@@ -202,12 +197,12 @@ $user   = Auth::user();
               <div class="row g-2 align-items-end mt-2">
                 <div class="col-6">
                   <label class="form-label">Bill-level discount</label>
-                  <div class="d-flex gap-2 align-items-center">
-                    <input type="number" min="0" class="form-control pos-disc-input" id="posGlobalDisc" value="0" placeholder="0">
+                  <div class="d-flex gap-2">
                     <div class="pos-disc-toggle" role="group" aria-label="Discount type">
                       <button type="button" class="pos-disc-opt is-on" id="posDiscPct" title="Percent (%)">%</button>
                       <button type="button" class="pos-disc-opt" id="posDiscRs" title="Rupees (₹)">₹</button>
                     </div>
+                    <input type="number" min="0" class="form-control" id="posGlobalDisc" value="0" placeholder="0">
                   </div>
                 </div>
                 <div class="col-6"><div id="posSummary"></div></div>
@@ -369,7 +364,7 @@ $user   = Auth::user();
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.6"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.5"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

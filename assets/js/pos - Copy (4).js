@@ -22,6 +22,7 @@
     selIdx: 0,           // arrow-key selection index over the rendered result cards
     selQuery: '',        // last search text — a new search resets the selection to card 1
     printFmt: 'a4',      // 'a4' | 'thermal' — last chosen invoice print format
+    discMode: 'percent', // 'percent' (%) | 'flat' (₹) — bill-level discount mode
     orderPad: [],        // [{ medId, qty }] — re-order list handed off to New Purchase
     recent: []           // medicine ids, newest first
   };
@@ -80,7 +81,11 @@
       }
       .pos-stock-badge.in  { background:#e6f6ec; color:#157347; }
       .pos-stock-badge.low { background:#fff4dc; color:#a86400; }
-      .pos-stock-badge.out { background:#fdeaea; color:#c62828; }
+      /* Out of stock badge — solid light-red fill with a tinted border */
+      .pos-stock-badge.out { background:#ffd1d1; color:#A61F2B; border:1px solid #F0A6A6; border-radius:4px; }
+
+      /* Out-of-stock card icon — solid deep-rose background, white glyph */
+      .kpi-icon.pos-ico-out, .pos-ico-out { background:#D6455B !important; color:#fff !important; }
 
       /* Expiry pill — not the Low stock yellow. Green >6 mo, amber 3–6, orange <3, red <30 days. */
       .pos-exp {
@@ -100,17 +105,19 @@
       .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
       .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
 
-      /* Schedule chips on medicine cards (H / H1 / X / NDPS) — square, filled, same colors as the medicine form */
-      .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:0 6px; border-radius:4px;
-                 font-size:.6rem; font-weight:800; letter-spacing:.07em; line-height:1.7; vertical-align:2px; color:#fff; }
+      /* Schedule chips — full "Schedule H" label, FILLED background (H #0369A1 as shared) */
+      .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:6px;
+                 font-size:.6rem; font-weight:800; letter-spacing:.05em; line-height:1.7; vertical-align:2px;
+                 color:#fff; white-space:nowrap; }
       .pos-sch.h    { background:#0369A1; }
       .pos-sch.h1   { background:#6D28D9; }
       .pos-sch.x    { background:#B42318; }
       .pos-sch.ndps { background:#7F1D1D; }
 
-      /* Out of stock — matte light red card (and the arrow-key ring goes red too) */
-      .pos-result.is-out { background:#FCEDED; border-color:#EFC7C7; }
-      .pos-result.is-out.is-active { border-color:#DC6A6A; box-shadow:0 0 0 3px rgba(220,38,38,.14); }
+      /* Out of stock — matte light red card with a clearly DIFFERENT deep-rose border (1.5px), never teal */
+      .pos-result.is-out { background:#FCEDED; border:1.5px solid #E07B7B; }
+      .pos-result.is-out:hover { background:#FCE8E8; border-color:#D6455B; box-shadow:0 0 0 3px rgba(214,69,91,.12); }
+      .pos-result.is-out.is-active { border-color:#D6455B; box-shadow:0 0 0 3.5px rgba(214,69,91,.18); }
 
       /* Inline substitute pills on an out-of-stock card */
       .pos-oos-subs { display:flex; align-items:center; flex-wrap:wrap; gap:4px 6px; margin-top:6px; }
@@ -406,7 +413,7 @@
   function nameLine(m) {
     const brand = m.brandRef ? ` <span class="text-2 fw-normal">· ${MF.esc(m.brandRef)}</span>` : '';
     const sch = rxSchedule(m);
-    const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">${sch}</span>` : '';
+    const schChip = sch ? `<span class="pos-sch ${sch.toLowerCase()}" title="Schedule ${sch} — prescription required, Rx verification turns on automatically">Schedule ${sch}</span>` : '';
     return `<div class="pr-name">${MF.esc(m.name)}${brand}${schChip}</div>`;
   }
 
@@ -501,7 +508,7 @@
     const out = live.tablets <= 0;
     return `
       <div class="pos-result${out ? ' is-out' : ''}" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
-        <div class="kpi-icon ${out ? 'tone-danger' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
+        <div class="kpi-icon ${out ? 'pos-ico-out' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
         <div class="flex-grow-1 text-start">
           ${nameLine(m)}
           <div class="pr-meta">${MF.esc(m.composition)}</div>
@@ -853,13 +860,17 @@
       const c = calcLine(l);
       subtotal += c.gross; discount += c.disc; gst += c.gstAmt;
     });
-    const globalDisc = parseFloat($('#posGlobalDisc')?.value) || 0;
-    const billDisc = (subtotal - discount) * (globalDisc / 100);
+    const discVal = parseFloat($('#posGlobalDisc')?.value) || 0;
+    const base = subtotal - discount;
+    const billDisc = state.discMode === 'flat'
+      ? Math.max(0, Math.min(discVal, base))                       // ₹ off the bill, never below zero
+      : base * (Math.max(0, Math.min(100, discVal)) / 100);        // % off the bill
+    const billDiscPct = base > 0 ? (billDisc / base) * 100 : 0;    // effective % for the sale API
     discount += billDisc;
     const net = subtotal - discount;
     const grand = Math.round(net);
     const roundOff = grand - net;
-    return { subtotal, discount, gst, net, grand, roundOff };
+    return { subtotal, discount, gst, net, grand, roundOff, billDisc, billDiscPct };
   }
 
   function renderCart() {
@@ -969,6 +980,19 @@
       atMrp += (l.unit === 'loose' && med) ? l.qty * (packMrp / packSize(med)) : l.qty * packMrp;
     });
     return Math.max(0, atMrp - t.grand);
+  }
+
+  function paintDiscToggle() {
+    const pct = $('#posDiscPct'), rs = $('#posDiscRs');
+    if (pct) pct.classList.toggle('is-on', state.discMode !== 'flat');
+    if (rs) rs.classList.toggle('is-on', state.discMode === 'flat');
+    const inp = $('#posGlobalDisc');
+    if (inp) inp.title = state.discMode === 'flat' ? 'Flat rupees off the bill' : 'Percent off the bill';
+  }
+  function setDiscMode(mode) {
+    state.discMode = mode === 'flat' ? 'flat' : 'percent';
+    paintDiscToggle();
+    renderSummary();
   }
 
   function renderSummary() {
@@ -1313,6 +1337,7 @@
       customer: $('#posCustomer') ? $('#posCustomer').value : '',
       doctor: $('#posDoctor') ? $('#posDoctor').value : '',
       disc: $('#posGlobalDisc') ? $('#posGlobalDisc').value : '0',
+      discMode: state.discMode,
       payment: state.payment,
     };
     try { localStorage.setItem(DRAFT_KEY, JSON.stringify(draft)); }
@@ -1332,6 +1357,7 @@
     if ($('#posCustomer') && draft.customer) $('#posCustomer').value = draft.customer;
     if ($('#posDoctor') && draft.doctor) $('#posDoctor').value = draft.doctor;
     if ($('#posGlobalDisc')) $('#posGlobalDisc').value = draft.disc || 0;
+    if (draft.discMode) { state.discMode = draft.discMode === 'flat' ? 'flat' : 'percent'; paintDiscToggle(); }
     if (draft.payment) {
       state.payment = draft.payment;
       const radio = document.querySelector(`input[name="posPay"][value="${draft.payment}"]`);
@@ -1366,7 +1392,7 @@
 
   function holdBill() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to hold', 'warn'); return; }
-    state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)) });
+    state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)), at: Date.now() });
     state.cart = []; renderCart();
     updateHoldBadge();
     MF.toast('Bill held. Retrieve it from the Held Bills chip.', 'info', 'Bill held');
@@ -1383,17 +1409,27 @@
     const body = $('#posHeldBody');
     if (!state.heldBills.length) { body.innerHTML = `<div class="empty-state"><i class="bi bi-hourglass"></i>No held bills.</div>`; }
     else {
-      body.innerHTML = `<div class="table-mf border rounded">${state.heldBills.map((h) => `
-        <div class="d-flex align-items-center justify-content-between p-2 border-bottom">
-          <div>
-            <div class="fw-semibold small">Hold #${h.id} · ${MF.esc(MF.cust(h.customer).name)}</div>
-            <div class="text-2 small-xs">${h.items.length} item(s)</div>
+      body.innerHTML = `<div class="table-mf border rounded">${state.heldBills.map((h) => {
+        const cust = MF.cust(h.customer);
+        const custName = cust ? cust.name : 'Customer';
+        const amount = h.items.reduce((s, l) => s + l.qty * l.rate * (1 - (Number(l.discPct) || 0) / 100), 0);
+        const units = h.items.reduce((s, l) => s + l.qty, 0);
+        const names = h.items.slice(0, 2).map((l) => (MF.med(l.medId) || {}).name).filter(Boolean);
+        const itemsTxt = names.join(' · ') + (h.items.length > 2 ? ` +${h.items.length - 2} more` : '');
+        const time = h.at ? new Date(h.at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
+        return `
+        <div class="d-flex align-items-center justify-content-between gap-2 p-2 border-bottom">
+          <div class="min-w-0">
+            <div class="fw-semibold small">Hold #${h.id} · ${MF.esc(custName)} · <span class="num">${MF.fmt(amount)}</span></div>
+            <div class="text-2 small-xs">${time ? MF.esc(time) + ' · ' : ''}${h.items.length} item(s) · ${MF.num(units)} unit(s)</div>
+            ${itemsTxt ? `<div class="text-2 small-xs text-truncate" title="${MF.esc(itemsTxt)}"><i class="bi bi-capsule me-1"></i>${MF.esc(itemsTxt)}</div>` : ''}
           </div>
-          <div class="d-flex gap-2">
+          <div class="d-flex gap-2 flex-shrink-0">
             <button class="btn btn-sm btn-light-mf" data-load="${h.id}">Load</button>
             <button class="btn btn-sm btn-light-mf text-danger" data-del="${h.id}"><i class="bi bi-trash3"></i></button>
           </div>
-        </div>`).join('')}</div>`;
+        </div>`;
+      }).join('')}</div>`;
       body.querySelectorAll('[data-load]').forEach((b) => b.addEventListener('click', () => {
         const h = state.heldBills.find((x) => x.id === +b.dataset.load);
         state.cart = h.items; $('#posCustomer').value = h.customer;
@@ -1720,7 +1756,7 @@
       const res = await MF.Api.post('sales.php', {
         customerId: $('#posCustomer').value,
         paymentMode: state.payment,
-        globalDiscPct: parseFloat($('#posGlobalDisc').value) || 0,
+        globalDiscPct: Math.min(100, Math.max(0, t.billDiscPct || 0)),
         splitCash: state.split.cash,
         splitUpi: state.split.upi,
         cashReceived: tender.cashReceived,
@@ -2045,6 +2081,10 @@
       location.href = 'purchase.php';
     });
     $('#posGlobalDisc').addEventListener('input', renderSummary);
+    const dPct = $('#posDiscPct'), dRs = $('#posDiscRs');
+    if (dPct) dPct.addEventListener('click', () => setDiscMode('percent'));
+    if (dRs) dRs.addEventListener('click', () => setDiscMode('flat'));
+    paintDiscToggle();
     bindPayments();
     renderCart();
     fillDoctors().then(() => applyRxBill()).catch(() => {});

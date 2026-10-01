@@ -758,6 +758,13 @@
   function paintOrderCount() {
     const n = $('#posOrderCount');
     if (n) n.textContent = String(state.orderPad.length);
+    const chip = $('#posOrderChip');
+    if (chip) {
+      chip.classList.toggle('has-pending', !!state.orderPad.length);
+      chip.title = state.orderPad.length
+        ? `${state.orderPad.length} medicine(s) pending — open New Purchase and place the order`
+        : 'Order pad';
+    }
   }
   /* Aim for ~2× the low-stock threshold (or 20 when none is set). */
   function suggestedOrderQty(m) {
@@ -1772,6 +1779,21 @@
       $('#posCustomer').value = walkInId();
       renderCart();
       searchMeds($('#posSearch').value); // redraw Quick picks / search cards with the new stock
+
+      /* Smart reminder — the bill is done and stock just moved: if re-orders are still waiting, push to place them */
+      if (state.orderPad.length) {
+        const pending = state.orderPad.length;
+        setTimeout(async () => {
+          const ok = await MF.confirm({
+            title: 'Pending re-order',
+            message: `${pending} medicine(s) you marked out of stock are still waiting in the Order Pad. Open New Purchase and send the order now, before the next customer asks?`,
+            confirmText: 'Open New Purchase',
+            cancelText: 'Later',
+            tone: 'warning',
+          });
+          if (ok) location.href = 'purchase.php';
+        }, 900);
+      }
     } catch (err) {
       state.tender = null;
       MF.toast(err.message || 'Could not complete the sale.', 'danger', 'Sale failed');
@@ -2067,6 +2089,11 @@
     orderModal = new bootstrap.Modal($('#posOrderPadModal'));
     orderPadLoad();
     paintOrderCount();
+    /* Smart reminder — POS opened with an unfinished re-order: nudge once per session */
+    if (state.orderPad.length && !sessionStorage.getItem('mf-pos-order-nudge')) {
+      sessionStorage.setItem('mf-pos-order-nudge', '1');
+      setTimeout(() => MF.toast(`${state.orderPad.length} medicine(s) are still waiting in the Order Pad — send them to New Purchase to avoid a stockout.`, 'warn', 'Pending Re-order'), 2200);
+    }
     const orderChip = $('#posOrderChip');
     if (orderChip) orderChip.addEventListener('click', () => { renderOrderPad(); orderModal.show(); });
     const orderClear = $('#posOrderClear');
