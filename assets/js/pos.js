@@ -80,7 +80,11 @@
       }
       .pos-stock-badge.in  { background:#e6f6ec; color:#157347; }
       .pos-stock-badge.low { background:#fff4dc; color:#a86400; }
-      .pos-stock-badge.out { background:#fdeaea; color:#c62828; }
+      /* Out of stock badge — outlined deep rose (matches the card border) */
+      .pos-stock-badge.out { background:#fff; color:#C02840; border:1.5px solid #E07B7B; border-radius:4px; }
+
+      /* Out-of-stock card icon — solid deep-rose background, white glyph */
+      .kpi-icon.pos-ico-out, .pos-ico-out { background:#D6455B !important; color:#fff !important; }
 
       /* Expiry pill — not the Low stock yellow. Green >6 mo, amber 3–6, orange <3, red <30 days. */
       .pos-exp {
@@ -100,14 +104,14 @@
       .pos-pick-tab.is-on { background:var(--mf-primary-soft); color:var(--mf-primary-dark); border-color:var(--mf-primary); }
       .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
 
-      /* Schedule chips on medicine cards — full "Schedule H" label, outlined like the shared spec */
+      /* Schedule chips — full "Schedule H" label, FILLED background (H #0369A1 as shared) */
       .pos-sch { display:inline-flex; align-items:center; margin-left:6px; padding:1px 7px; border-radius:6px;
                  font-size:.6rem; font-weight:800; letter-spacing:.05em; line-height:1.7; vertical-align:2px;
-                 border:1.5px solid; white-space:nowrap; }
-      .pos-sch.h    { color:#0F766E; border-color:#2AA598; background:#F0FBFA; }
-      .pos-sch.h1   { color:#6D28D9; border-color:#8B5CF6; background:#F7F4FF; }
-      .pos-sch.x    { color:#B42318; border-color:#DC6A6A; background:#FDF2F2; }
-      .pos-sch.ndps { color:#7F1D1D; border-color:#991B1B; background:#FDF2F2; }
+                 color:#fff; white-space:nowrap; }
+      .pos-sch.h    { background:#0369A1; }
+      .pos-sch.h1   { background:#6D28D9; }
+      .pos-sch.x    { background:#B42318; }
+      .pos-sch.ndps { background:#7F1D1D; }
 
       /* Out of stock — matte light red card with a clearly DIFFERENT deep-rose border (1.5px), never teal */
       .pos-result.is-out { background:#FCEDED; border:1.5px solid #E07B7B; }
@@ -503,7 +507,7 @@
     const out = live.tablets <= 0;
     return `
       <div class="pos-result${out ? ' is-out' : ''}" role="button" tabindex="0" data-med="${m.id}" ${noPack ? 'disabled' : ''}>
-        <div class="kpi-icon ${out ? 'tone-danger' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
+        <div class="kpi-icon ${out ? 'pos-ico-out' : 'tone-primary'}" style="width:38px;height:38px;flex-basis:38px;font-size:1rem"><i class="bi bi-capsule"></i></div>
         <div class="flex-grow-1 text-start">
           ${nameLine(m)}
           <div class="pr-meta">${MF.esc(m.composition)}</div>
