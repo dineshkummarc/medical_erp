@@ -5,6 +5,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
 $client = Tenant::current();
 $user   = Auth::user();
+$cashier = trim((string)($user['name'] ?? ''));
+if ($cashier === '' && !empty($user['email'])) $cashier = preg_replace('/@.*$/', '', (string)$user['email']);
+if ($cashier === '') $cashier = 'Cashier';
 ?>
 <!doctype html>
 <html lang="en">
@@ -94,6 +97,22 @@ $user   = Auth::user();
     .pos-orderchip.has-pending { border-color:#0d9488; animation:posOrderPulse 2.2s ease-in-out infinite; }
     @keyframes posOrderPulse { 0%,100% { box-shadow:0 0 0 0 rgba(13,148,136,.35); } 50% { box-shadow:0 0 0 6px rgba(13,148,136,0); } }
 
+    /* Bill context strip — Invoice · date/time · cashier · counter · connection */
+    .pos-meta-bar { display:flex; flex-wrap:wrap; align-items:center; gap:6px 14px; margin-bottom:8px; padding:6px 10px;
+                    border:1px solid #e3e9f0; background:#f8fafc; border-radius:9px; font-size:.74rem; color:#64748B; }
+    .pos-meta-bar strong { color:#1f2a37; font-weight:700; }
+    .pos-meta-bar .num { font-variant-numeric:tabular-nums; }
+    .pos-dot { display:inline-block; width:8px; height:8px; border-radius:50%; background:#16A34A; margin-right:4px; vertical-align:1px; }
+    .pos-meta-bar.is-off { border-color:#f2c8c8; background:#fdf5f5; }
+    .pos-meta-bar.is-off .pos-dot { background:#DC2626; }
+
+    /* Action buttons — shortcut shown on a second line */
+    .pos-act { display:inline-flex; flex-direction:column; align-items:center; justify-content:center; gap:3px;
+               padding:4px 12px; line-height:1.2; }
+    .pos-act-key { font-size:.6rem; font-weight:700; letter-spacing:.04em; color:#5b6b7b;
+                   border:1px solid #d9e1e9; background:#f4f6f8; border-radius:5px; padding:0 6px; }
+    .btn-success .pos-act-key { color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.4); }
+
     /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
     .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
     .pos-act-row > * { flex:0 0 auto; }
@@ -163,6 +182,15 @@ $user   = Auth::user();
                 </button>
               </div>
             </div>
+
+            <!-- Bill context strip -->
+            <div class="pos-meta-bar" id="posMetaBar" aria-label="Bill context">
+              <span class="pos-meta-item">Invoice <strong class="num" id="posMetaInv">— auto —</strong></span>
+              <span class="pos-meta-item"><strong id="posMetaDate">—</strong> · <strong id="posMetaTime">—</strong></span>
+              <span class="pos-meta-item">Cashier <strong><?= htmlspecialchars($cashier) ?></strong></span>
+              <span class="pos-meta-item">Counter <strong id="posMetaCounter" class="num">1</strong></span>
+              <span class="pos-meta-item ms-auto" id="posMetaNet" title="Connection status"><span class="pos-dot"></span><strong id="posMetaNetTxt">Online</strong></span>
+            </div>
             <div class="p-3">
               <div class="row g-2 mb-2">
                 <div class="col-md-6">
@@ -223,10 +251,10 @@ $user   = Auth::user();
               </div>
 
               <div class="d-flex gap-2 pos-act-row">
-                <button class="btn btn-light-mf" id="posHold" type="button"><i class="bi bi-hourglass-split me-1"></i>Hold Bill <span class="badge bg-light text-dark border ms-1">F8</span></button>
-                <button class="btn btn-light-mf" id="posDraft" type="button"><i class="bi bi-save me-1"></i>Save Draft <span class="badge bg-light text-dark border ms-1">F9</span></button>
+                <button class="btn btn-light-mf pos-act" id="posHold" type="button"><span><i class="bi bi-hourglass-split me-1"></i>Hold Bill</span><span class="pos-act-key">F8</span></button>
+                <button class="btn btn-light-mf pos-act" id="posDraft" type="button"><span><i class="bi bi-save me-1"></i>Save Draft</span><span class="pos-act-key">F9</span></button>
                 <div class="btn-group">
-                  <button class="btn btn-light-mf" id="posPrint" type="button"><i class="bi bi-printer me-1"></i>Print · <span id="posPrintLbl">A4</span> <span class="badge bg-light text-dark border ms-1">Ctrl+P</span></button>
+                  <button class="btn btn-light-mf pos-act" id="posPrint" type="button"><span><i class="bi bi-printer me-1"></i>Print · <span id="posPrintLbl">A4</span></span><span class="pos-act-key">Ctrl+P</span></button>
                   <button class="btn btn-light-mf dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Print options"><span class="visually-hidden">Print options</span></button>
                   <ul class="dropdown-menu">
                     <li><button class="dropdown-item" id="posPrintThermal" type="button"><i class="bi bi-receipt me-2"></i>Thermal 80mm</button></li>
@@ -235,7 +263,7 @@ $user   = Auth::user();
                     <li><button class="dropdown-item" id="posPrintComplete" type="button"><i class="bi bi-check2-circle me-2"></i>Complete &amp; Print <span class="text-2 small-xs ms-1">F10</span></button></li>
                   </ul>
                 </div>
-                <button class="btn btn-light-mf text-danger ms-auto" id="posClearCart" type="button"><i class="bi bi-trash3 me-1"></i>Clear <span class="badge bg-light text-dark border ms-1">Alt+C</span></button>
+                <button class="btn btn-light-mf text-danger ms-auto pos-act" id="posClearCart" type="button"><span><i class="bi bi-trash3 me-1"></i>Clear</span><span class="pos-act-key">Alt+C</span></button>
               </div>
 
               <div class="pos-complete-bar">
@@ -369,7 +397,7 @@ $user   = Auth::user();
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.6"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.7"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

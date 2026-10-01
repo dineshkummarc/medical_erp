@@ -42,7 +42,7 @@ $user   = Auth::user();
     .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
     .pos-rx-verify {
       display:none; align-items:center; justify-content:space-between; gap:12px;
-      margin-top:10px; padding:8px 12px; border-radius:999px; background:#f7f4ff; border:1px solid #e6defa;
+      margin-top:10px; padding:8px 12px; border-radius:9px; background:#f7f4ff; border:1px solid #e6defa;
       transition:border-color .15s ease, background .15s ease;
     }
     .pos-rx-verify.show { display:flex; }
@@ -81,6 +81,34 @@ $user   = Auth::user();
     .pos-complete-btn:active { transform:translateY(0); box-shadow:none; }
     .pos-complete-btn:disabled { opacity:.6; }
     .pos-complete-amt { font-size:1.12rem; font-weight:800; font-variant-numeric:tabular-nums; }
+
+    /* Bill-level discount — % | ₹ segmented toggle (teal active cell) */
+    .pos-disc-input { max-width:110px; flex:0 0 auto; }
+    .pos-disc-toggle { display:inline-flex; border:1.5px solid #cfd9e4; border-radius:9px; overflow:hidden; flex:0 0 auto; background:#fff; }
+    .pos-disc-opt { width:36px; height:36px; border:0; background:#fff; color:#334155; font-weight:800; font-size:.95rem; cursor:pointer; transition:background .12s ease, color .12s ease; }
+    .pos-disc-opt + .pos-disc-opt { border-left:1.5px solid #cfd9e4; }
+    .pos-disc-opt:hover { background:#eef4f3; }
+    .pos-disc-opt.is-on { background:#176B5B; color:#fff; }
+
+    /* Order pad chip pulses softly while an un-ordered re-order is waiting */
+    .pos-orderchip.has-pending { border-color:#0d9488; animation:posOrderPulse 2.2s ease-in-out infinite; }
+    @keyframes posOrderPulse { 0%,100% { box-shadow:0 0 0 0 rgba(13,148,136,.35); } 50% { box-shadow:0 0 0 6px rgba(13,148,136,0); } }
+
+    /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
+    .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+    .pos-act-row > * { flex:0 0 auto; }
+
+    /* Order pad chip (re-order list) beside the search label */
+    .pos-orderchip {
+      border:1px solid #b7ddd4; background:#fff; color:var(--mf-primary-dark); border-radius:999px;
+      font-weight:700; font-size:.72rem; padding:3px 10px; display:inline-flex; align-items:center; gap:5px;
+      transition:background .15s ease, border-color .15s ease, transform .15s ease;
+    }
+    .pos-orderchip:hover { background:var(--mf-primary-soft); border-color:var(--mf-primary); transform:translateY(-1px); }
+    .pos-orderchip-cnt {
+      min-width:17px; height:17px; border-radius:999px; background:var(--mf-primary); color:#fff;
+      font-size:.66rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0 4px;
+    }
   </style>
 </head>
 <body data-page="retail-pos">
@@ -105,7 +133,12 @@ $user   = Auth::user();
           <div class="card-mf p-3">
             <label class="form-label d-flex justify-content-between" for="posSearch">
                <span>Search medicine</span>
-               <span class="badge bg-light text-dark border">F2</span>
+               <span class="d-inline-flex align-items-center gap-1">
+                 <button type="button" class="pos-orderchip" id="posOrderChip" title="Re-order pad — items queued for the next purchase">
+                   <i class="bi bi-cart-plus"></i>Order <span class="pos-orderchip-cnt" id="posOrderCount">0</span>
+                 </button>
+                 <span class="badge bg-light text-dark border">F2</span>
+               </span>
             </label>
             <div class="input-group mb-2">
               <span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -168,8 +201,14 @@ $user   = Auth::user();
 
               <div class="row g-2 align-items-end mt-2">
                 <div class="col-6">
-                  <label class="form-label">Bill-level discount (%)</label>
-                  <input type="number" min="0" max="100" class="form-control" id="posGlobalDisc" value="0" placeholder="0">
+                  <label class="form-label">Bill-level discount</label>
+                  <div class="d-flex gap-2 align-items-center">
+                    <input type="number" min="0" class="form-control pos-disc-input" id="posGlobalDisc" value="0" placeholder="0">
+                    <div class="pos-disc-toggle" role="group" aria-label="Discount type">
+                      <button type="button" class="pos-disc-opt is-on" id="posDiscPct" title="Percent (%)">%</button>
+                      <button type="button" class="pos-disc-opt" id="posDiscRs" title="Rupees (₹)">₹</button>
+                    </div>
+                  </div>
                 </div>
                 <div class="col-6"><div id="posSummary"></div></div>
               </div>
@@ -183,7 +222,7 @@ $user   = Auth::user();
                 <div class="col pay-opt"><input type="radio" name="posPay" id="posPaySplit" value="split"><label for="posPaySplit"><i class="bi bi-diagram-3"></i>Split <small class="d-block text-muted">F7</small></label></div>
               </div>
 
-              <div class="d-flex flex-wrap gap-2">
+              <div class="d-flex gap-2 pos-act-row">
                 <button class="btn btn-light-mf" id="posHold" type="button"><i class="bi bi-hourglass-split me-1"></i>Hold Bill <span class="badge bg-light text-dark border ms-1">F8</span></button>
                 <button class="btn btn-light-mf" id="posDraft" type="button"><i class="bi bi-save me-1"></i>Save Draft <span class="badge bg-light text-dark border ms-1">F9</span></button>
                 <div class="btn-group">
@@ -212,6 +251,45 @@ $user   = Auth::user();
         </div>
 
       </main>
+    </div>
+  </div>
+
+  <!-- Order / substitute chooser -->
+  <div class="modal fade" id="posActionSheet" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-mf-sm">
+      <div class="modal-content">
+        <div class="modal-body p-3">
+          <h6 class="fw-bold mb-0" id="posSheetTitle"></h6>
+          <div class="text-2 small mb-3" id="posSheetStock"></div>
+          <div class="d-grid gap-2">
+            <button type="button" class="btn btn-mf-soft text-start d-flex justify-content-between align-items-center" id="posSheetSub">
+              <span><i class="bi bi-arrow-left-right me-2"></i>Substitutes in stock</span>
+              <span class="badge badge-soft-primary cnt">0</span>
+            </button>
+            <button type="button" class="btn btn-mf text-start" id="posSheetOrder">
+              <i class="bi bi-cart-plus me-2"></i>Add to order pad — buy in the next purchase
+            </button>
+          </div>
+          <button type="button" class="btn btn-light-mf w-100 mt-2" data-bs-dismiss="modal">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Order pad (re-order list) -->
+  <div class="modal fade" id="posOrderPadModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-cart-plus me-2 text-success"></i>Order pad</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div id="posOrderBody"></div>
+          <div class="text-2 small-xs mt-2 border-top pt-2">“Open New Purchase” fills these lines for you — set supplier, batch, expiry and rates there.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf text-danger" id="posOrderClear" type="button">Clear</button>
+          <button class="btn btn-mf" id="posOrderOpen" type="button"><i class="bi bi-bag-plus me-1"></i>Open New Purchase</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -291,7 +369,7 @@ $user   = Auth::user();
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.6"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
