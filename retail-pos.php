@@ -113,6 +113,15 @@ if ($cashier === '') $cashier = 'Cashier';
                    border:1px solid #d9e1e9; background:#f4f6f8; border-radius:5px; padding:0 6px; }
     .btn-success .pos-act-key { color:#fff; background:rgba(255,255,255,.18); border-color:rgba(255,255,255,.4); }
 
+    /* Print split button — caret stays compact and joins the main button as one control */
+    .pos-print-group { display:inline-flex; align-items:stretch; }
+    .pos-print-caret { min-width:36px; padding:4px 8px !important; display:inline-flex; align-items:center; justify-content:center; }
+    .pos-print-caret::after { margin-left:0; }
+    .pos-print-menu { min-width:190px; border-radius:9px; }
+    .pos-print-menu .dropdown-header { font-size:.62rem; letter-spacing:.06em; }
+    .pos-print-menu .dropdown-item { display:flex; align-items:center; }
+    .pos-print-menu .dropdown-item .pos-act-key { margin-left:auto; }
+
     /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
     .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
     .pos-act-row > * { flex:0 0 auto; }
@@ -253,14 +262,15 @@ if ($cashier === '') $cashier = 'Cashier';
               <div class="d-flex gap-2 pos-act-row">
                 <button class="btn btn-light-mf pos-act" id="posHold" type="button"><span><i class="bi bi-hourglass-split me-1"></i>Hold Bill</span><span class="pos-act-key">F8</span></button>
                 <button class="btn btn-light-mf pos-act" id="posDraft" type="button"><span><i class="bi bi-save me-1"></i>Save Draft</span><span class="pos-act-key">F9</span></button>
-                <div class="btn-group">
+                <div class="btn-group pos-print-group">
                   <button class="btn btn-light-mf pos-act" id="posPrint" type="button"><span><i class="bi bi-printer me-1"></i>Print · <span id="posPrintLbl">A4</span></span><span class="pos-act-key">Ctrl+P</span></button>
-                  <button class="btn btn-light-mf dropdown-toggle dropdown-toggle-split" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Print options"><span class="visually-hidden">Print options</span></button>
-                  <ul class="dropdown-menu">
+                  <button class="btn btn-light-mf dropdown-toggle pos-print-caret" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Print options" title="Print options — Thermal 80mm / A4 / Complete & Print"></button>
+                  <ul class="dropdown-menu dropdown-menu-end pos-print-menu">
+                    <li><h6 class="dropdown-header small-xs text-uppercase">Print invoice</h6></li>
                     <li><button class="dropdown-item" id="posPrintThermal" type="button"><i class="bi bi-receipt me-2"></i>Thermal 80mm</button></li>
                     <li><button class="dropdown-item" id="posPrintA4" type="button"><i class="bi bi-file-earmark-ruled me-2"></i>A4</button></li>
                     <li><hr class="dropdown-divider"></li>
-                    <li><button class="dropdown-item" id="posPrintComplete" type="button"><i class="bi bi-check2-circle me-2"></i>Complete &amp; Print <span class="text-2 small-xs ms-1">F10</span></button></li>
+                    <li><button class="dropdown-item" id="posPrintComplete" type="button"><i class="bi bi-check2-circle me-2"></i>Complete &amp; Print <span class="pos-act-key ms-1">F10</span></button></li>
                   </ul>
                 </div>
                 <button class="btn btn-light-mf text-danger ms-auto pos-act" id="posClearCart" type="button"><span><i class="bi bi-trash3 me-1"></i>Clear</span><span class="pos-act-key">Alt+C</span></button>
@@ -397,7 +407,7 @@ if ($cashier === '') $cashier = 'Cashier';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.7"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.8"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
