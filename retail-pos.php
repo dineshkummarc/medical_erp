@@ -42,7 +42,7 @@ $user   = Auth::user();
     .pos-sub-for { font-size:.68rem; font-weight:700; color:#6D28D9; margin:8px 0 2px; }
     .pos-rx-verify {
       display:none; align-items:center; justify-content:space-between; gap:12px;
-      margin-top:10px; padding:8px 12px; border-radius:999px; background:#f7f4ff; border:1px solid #e6defa;
+      margin-top:10px; padding:8px 12px; border-radius:9px; background:#f7f4ff; border:1px solid #e6defa;
       transition:border-color .15s ease, background .15s ease;
     }
     .pos-rx-verify.show { display:flex; }
@@ -81,6 +81,17 @@ $user   = Auth::user();
     .pos-complete-btn:active { transform:translateY(0); box-shadow:none; }
     .pos-complete-btn:disabled { opacity:.6; }
     .pos-complete-amt { font-size:1.12rem; font-weight:800; font-variant-numeric:tabular-nums; }
+
+    /* Bill-level discount — % | ₹ segmented toggle (teal active cell) */
+    .pos-disc-toggle { display:inline-flex; border:1.5px solid #cfd9e4; border-radius:9px; overflow:hidden; flex:0 0 auto; background:#fff; align-self:stretch; }
+    .pos-disc-opt { width:40px; border:0; background:#fff; color:#334155; font-weight:800; font-size:.95rem; cursor:pointer; transition:background .12s ease, color .12s ease; }
+    .pos-disc-opt + .pos-disc-opt { border-left:1.5px solid #cfd9e4; }
+    .pos-disc-opt:hover { background:#eef4f3; }
+    .pos-disc-opt.is-on { background:#176B5B; color:#fff; }
+
+    /* Action buttons — one row, scrolls instead of wrapping the Clear button away */
+    .pos-act-row { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:thin; }
+    .pos-act-row > * { flex:0 0 auto; }
 
     /* Order pad chip (re-order list) beside the search label */
     .pos-orderchip {
@@ -185,8 +196,14 @@ $user   = Auth::user();
 
               <div class="row g-2 align-items-end mt-2">
                 <div class="col-6">
-                  <label class="form-label">Bill-level discount (%)</label>
-                  <input type="number" min="0" max="100" class="form-control" id="posGlobalDisc" value="0" placeholder="0">
+                  <label class="form-label">Bill-level discount</label>
+                  <div class="d-flex gap-2">
+                    <div class="pos-disc-toggle" role="group" aria-label="Discount type">
+                      <button type="button" class="pos-disc-opt is-on" id="posDiscPct" title="Percent (%)">%</button>
+                      <button type="button" class="pos-disc-opt" id="posDiscRs" title="Rupees (₹)">₹</button>
+                    </div>
+                    <input type="number" min="0" class="form-control" id="posGlobalDisc" value="0" placeholder="0">
+                  </div>
                 </div>
                 <div class="col-6"><div id="posSummary"></div></div>
               </div>
@@ -200,7 +217,7 @@ $user   = Auth::user();
                 <div class="col pay-opt"><input type="radio" name="posPay" id="posPaySplit" value="split"><label for="posPaySplit"><i class="bi bi-diagram-3"></i>Split <small class="d-block text-muted">F7</small></label></div>
               </div>
 
-              <div class="d-flex flex-wrap gap-2">
+              <div class="d-flex gap-2 pos-act-row">
                 <button class="btn btn-light-mf" id="posHold" type="button"><i class="bi bi-hourglass-split me-1"></i>Hold Bill <span class="badge bg-light text-dark border ms-1">F8</span></button>
                 <button class="btn btn-light-mf" id="posDraft" type="button"><i class="bi bi-save me-1"></i>Save Draft <span class="badge bg-light text-dark border ms-1">F9</span></button>
                 <div class="btn-group">
@@ -347,7 +364,7 @@ $user   = Auth::user();
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.4"></script>
+  <script src="assets/js/pos.js?v=2026-10-01.5"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
