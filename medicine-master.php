@@ -1375,10 +1375,15 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         Sachet: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'sachets', unit: 'Sachet', sub: 'Sachet', loose: false, whole: true },
         Other: { pack: 'unit', packPlural: 'units', piecePlural: 'units', unit: 'Unit', sub: 'Unit', loose: false, whole: false }
       };
-      function packSpec(form) { return FORM_PACK[form] || null; }
+      function packSpec(form) {
+        if (FORM_PACK[form]) return FORM_PACK[form];
+        // Custom form (created with the + button) — fall back to the "Other" spec so
+        // save / stock text / view / bulk never see a null spec again
+        return String(form || '').trim() ? FORM_PACK.Other : null;
+      }
       function formFromMed(m) {
         if (!m) return '';
-        if (m.form && FORM_PACK[m.form]) return m.form;
+        if (m.form) return m.form; // saved value is already a valid dropdown label — built-in or custom
         if (FORM_PACK[m.unit]) return m.unit;
         const sub = String(m.subUnit || '').toLowerCase();
         if (sub === 'tablet' || sub === 'tab') return 'Tablet';
@@ -2412,5 +2417,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4423d83287e17b4',t:'MTc5MDkyODcyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
