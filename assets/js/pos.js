@@ -452,11 +452,10 @@
     return `<div class="small-xs text-2 mt-1">MRP : ${MF.fmt(m.mrp, 2)}/${MF.esc(unitLabel(m))}${stockBadge(m, live)}</div>`;
   }
 
-  /* Strip + tablet totals, both net of the cart. When loose sale is off, only the pack count shows;
-     when it is on, the piece breakdown shows too. Collapses to one value for single-piece packs. */
+  /* Strip + tablet totals, both net of the cart. Full breakdown always shows
+     (single-piece packs collapse to one value). Only the "Add loose" button is toggle-gated. */
   function stockText(m, live) {
     const strips = `${MF.num(live.strips)} ${MF.esc(withCount(live.strips, unitLabel(m)))}`;
-    if (!m.allowLoose) return `Stock : ${strips}`;
     if (pieceLabel(m) === unitLabel(m) && live.tablets === live.strips) return `Stock : ${strips}`;
     const tabs = `${MF.num(live.tablets)} ${MF.esc(withCount(live.tablets, pieceLabel(m)))}`;
     return `Stock : ${strips} · ${tabs}`;
@@ -470,11 +469,10 @@
     const sellPrice = Number(m.retailRate ?? m.mrp);
     const mrpNote = sellPrice !== Number(m.mrp)
       ? `<div class="small-xs text-2" style="text-decoration:line-through;">MRP ${MF.fmt(m.mrp, 2)}</div>` : '';
-    // Loose-sale details — only ever shown when the "Allow loose sale" toggle is ON:
-    // per-piece rate under the retail price + the dynamic "Add loose <piece>" button (piece name follows the Form chosen in the master)
+    // Per-piece rate sits under the retail price on every card (MF.fmt already carries the ₹ sign);
+    // the "Add loose <piece>" button is the only element gated by the loose-sale toggle
     const loosePiece = withCount(1, pieceLabel(m)).toLowerCase();
-    const loosePrice = m.allowLoose
-      ? `<div class="small-xs text-2">₹${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>` : '';
+    const loosePrice = `<div class="small-xs text-2">${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>`;
     const action = outOfStock
       ? (heldInCart
           ? `<div class="small-xs mt-1" style="color:#a86400;font-weight:600;">All remaining in cart</div>`
