@@ -236,6 +236,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-select-plain { position:relative; }
     .mm-select-plain .mm-select-hit { border-radius:inherit; }
+    .mm-unit-add {
+      flex:0 0 42px; width:42px; border-radius:10px; border:1px dashed #9CC6BB; background:#E6F1EE;
+      color:#176B5B; font-size:1.05rem; display:inline-flex; align-items:center; justify-content:center;
+    }
+    .mm-unit-add:hover, .mm-unit-add:focus { background:#D8EAE5; border-color:#176B5B; color:#0F4D42; }
 
     /* Custom option list — same language as the action menu, not the browser popup */
     .mm-select-menu {
@@ -668,7 +673,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                 </div>
                 <div class="col-lg-3 col-md-4 col-6">
                   <label class="form-label" for="fUnit">Form <span class="req">*</span></label>
-                  <div class="mm-input">
+                  <div class="d-flex gap-2 align-items-stretch">
+                    <div class="mm-input flex-grow-1">
                     <i class="bi bi-tag"></i>
                     <select class="form-select" id="fUnit">
                       <option value="" selected>Select form</option>
@@ -683,6 +689,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                       <option>Sachet</option>
                       <option>Other</option>
                     </select>
+                    </div>
+                    <button type="button" class="mm-unit-add" id="fUnitAdd" title="Add a custom form name" aria-label="Add a custom form name"><i class="bi bi-plus-lg"></i></button>
                   </div>
                 </div>
                 <div class="col-lg-3 col-md-4 col-12" id="fPackQtyWrap">
@@ -1186,6 +1194,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#fName').value = m?.name || ''; $('#fGeneric').value = m?.generic || ''; $('#fComp').value = m?.composition || ''; $('#fBrand').value = m?.brandRef || '';
         $('#fCategory').value = m?.category || ''; $('#fMfg').value = m?.manufacturer || '';
         setGroups(m?.genericGroup || (!m || m.substitutes == null ? '' : (Array.isArray(m.substitutes) ? m.substitutes.join(', ') : String(m.substitutes))));
+        if (m && formFromMed(m)) addUnitOption(formFromMed(m), false);
         $('#fHsn').value = m?.hsn || ''; $('#fUnit').value = m ? formFromMed(m) : '';
         $('#fBarcode').value = m?.barcode || '';
         $('#fPackQty').value = m?.packQty ?? ''; $('#fAllowLoose').checked = !!m?.allowLoose;
@@ -1512,6 +1521,33 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         setDiscType(btn.dataset.disc);
       });
       $('#fUnit').addEventListener('change', syncPackUnit);
+
+      // Custom "Form" names — created via the + button, kept on this device, reused every visit
+      const CUSTOM_UNITS_KEY = 'medicine.customUnits.v1';
+      const customUnits = () => { try { return JSON.parse(localStorage.getItem(CUSTOM_UNITS_KEY)) || []; } catch (e) { return []; } };
+      function addUnitOption(name, persist) {
+        const sel = $('#fUnit'); const val = String(name || '').trim();
+        if (!sel || !val) return;
+        if (![...sel.options].some((o) => o.text.toLowerCase() === val.toLowerCase())) {
+          const opt = document.createElement('option');
+          opt.text = val; // no value attr → option value = text
+          sel.appendChild(opt);
+        }
+        if (persist && !customUnits().some((u) => String(u).toLowerCase() === val.toLowerCase()))
+          try { localStorage.setItem(CUSTOM_UNITS_KEY, JSON.stringify([...customUnits(), val])); } catch (e) { /* storage full/blocked */ }
+      }
+      customUnits().forEach((u) => addUnitOption(u, false));
+      $('#fUnitAdd').addEventListener('click', () => {
+        const raw = (window.prompt('New form name (e.g. Jelly, Sachet, Tea spoon):') || '').trim();
+        if (!raw) return;
+        const name = raw.charAt(0).toUpperCase() + raw.slice(1);
+        addUnitOption(name, true);
+        const sel = $('#fUnit');
+        sel.value = name;
+        sel.dispatchEvent(new Event('input', { bubbles: true }));
+        sel.dispatchEvent(new Event('change', { bubbles: true }));
+        MF.toast(`Form "${name}" added — picked for this medicine.`, 'success', 'Custom form');
+      });
 
       let saving = false;
       async function saveMedicine(addAnother) {
@@ -2164,8 +2200,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const q = (filter || '').trim().toLowerCase();
         const opts = [...openSelect.options].map((o, i) => ({ i, text: o.text, on: o.selected || o.value === openSelect.value }));
         const shown = opts.filter((o) => !q || o.text.toLowerCase().includes(q));
-        // Search always available — even 4-option dropdowns (GST, schedule) are easier to filter
-        const search = `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`;
+        // Search for real picklists (Category, Manufacturer, Form, schedule, batch…); skip tiny fixed lists like GST
+        const search = opts.length > 4
+          ? `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`
+          : '';
         selectMenu.innerHTML = search + (shown.length
           ? shown.map((o, n) => `<button type="button" class="mm-select-opt${o.on ? ' is-on' : ''}${n === hotIndex ? ' is-hot' : ''}" role="option" data-i="${o.i}" aria-selected="${o.on}"><span>${MF.esc(o.text)}</span><i class="bi bi-check2"></i></button>`).join('')
           : `<div class="mm-select-empty">No match</div>`);
@@ -2293,5 +2331,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43f0be599616ed0',t:'MTc5MDg5NTIzOA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43f27d3a95a4805',t:'MTc5MDg5NjM4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
