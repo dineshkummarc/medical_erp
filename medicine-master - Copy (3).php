@@ -53,16 +53,16 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-input {
       display:flex; align-items:center; gap:8px;
-      background:#fff; border:1px solid #E5E7EB; border-radius:8px;
-      padding:0 10px; min-height:38px;
+      background:#fff; border:1px solid #e3e9f1; border-radius:10px;
+      padding:0 10px; min-height:42px;
       transition:border-color .15s ease, box-shadow .15s ease;
     }
-    .mm-input:focus-within { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); }
+    .mm-input:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
     .mm-input > i { color:#8aa0b8; font-size:1rem; flex:0 0 auto; }
     .mm-input .form-control,
     .mm-input .form-select {
       border:0 !important; background:transparent !important; box-shadow:none !important;
-      border-radius:0 !important; outline:0; padding-left:0; height:36px; min-height:36px; font-size:.8125rem;
+      border-radius:0 !important; outline:0; padding-left:0; height:40px; min-height:40px;
     }
     .mm-input .form-control:focus,
     .mm-input .form-select:focus { box-shadow:none !important; background:transparent !important; border-color:transparent !important; }
@@ -87,8 +87,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       color:#8aa0b8; font-size:.72rem; pointer-events:none; margin-left:auto;
       transition:transform .15s ease, color .15s ease;
     }
-    .mm-input.is-open { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); }
-    .mm-input.is-open .mm-select-caret { transform:rotate(180deg); color:#2E8B78; }
+    .mm-input.is-open { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
+    .mm-input.is-open .mm-select-caret { transform:rotate(180deg); color:#176B5B; }
     .mm-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
     .mm-sched {
       display:flex; flex-wrap:wrap; width:fit-content; max-width:100%;
@@ -108,10 +108,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-sched-opt.is-on.x { background:#B42318; }
     .mm-chips {
       display:flex; flex-wrap:wrap; gap:8px; align-items:center;
-      border:1px solid #E5E7EB; border-radius:8px; background:#fff; padding:6px 12px; min-height:38px;
+      border:1px solid #e3e9f1; border-radius:10px; background:#fff; padding:6px 12px; min-height:42px;
     }
     .mm-chip-list { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
-    .mm-chips:focus-within { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); }
+    .mm-chips:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
     .mm-chip {
       display:inline-flex; align-items:center; gap:6px; background:#E6F1EE; color:#0F4D42;
       border-radius:999px; padding:4px 10px; font-size:.78rem; font-weight:700;
@@ -124,31 +124,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     }
     .mm-per {
       display:flex; align-items:center; gap:8px; width:100%;
-      background:#fff; border:1px solid #E5E7EB; border-radius:8px; min-height:38px; padding:0 12px;
+      background:#fff; border:1px solid #e3e9f1; border-radius:10px; min-height:42px; padding:0 12px;
     }
-    .mm-per:focus-within { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); }
+    .mm-per:focus-within { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
     .mm-per input {
-      border:0; outline:0; background:transparent; flex:1 1 auto; width:1%; min-width:0; min-height:0; padding:0;
-      font-size:.8125rem; color:#172026;
+      border:0; outline:0; background:transparent; flex:1 1 auto; width:1%; min-width:0; min-height:40px; padding:0;
+      font-size:1rem; color:#1b2430;
     }
     .mm-per-unit { flex:0 0 auto; color:#8b9bb0; font-size:.95rem; white-space:nowrap; }
     .mm-align > [class*="col-"] { display:flex; flex-direction:column; }
     .mm-align .form-label { min-height:18px; margin-bottom:6px; line-height:1.2; }
     .mm-align .form-control {
-      min-height:38px; border-radius:8px; border-color:#E5E7EB;
+      min-height:42px; border-radius:10px; border-color:#e3e9f1;
     }
-    .mm-align .form-control:focus { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); }
-    /* Design-system reskin — every standard field in these dialogs: 13px, 8px radius, system border + accent focus */
-    #mmFormModal .form-control, #mmFormModal .form-select,
-    #mmUnitModal .form-control, #mmUnitModal .form-select {
-      font-size:.8125rem; border-color:#E5E7EB; border-radius:8px; color:#172026;
-    }
-    #mmFormModal .form-control:focus, #mmFormModal .form-select:focus,
-    #mmUnitModal .form-control:focus, #mmUnitModal .form-select:focus {
-      border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12);
-    }
+    .mm-align .form-control:focus { border-color:#176B5B; box-shadow:0 0 0 3px rgba(23,107,91,.12); }
     .mm-field-hint { color:#8b9bb0; font-size:.78rem; margin-top:6px; line-height:1.4; }
-    .mm-disc-switch { display:flex; border:1px solid #E5E7EB; border-radius:8px; overflow:hidden; flex:0 0 auto; }
+    .mm-disc-switch { display:flex; border:1px solid #e3e9f1; border-radius:8px; overflow:hidden; flex:0 0 auto; }
     .mm-disc-switch button {
       border:0; background:#fff; color:#6c757d; min-width:32px; height:28px; padding:0 8px; font-weight:700;
     }
@@ -166,21 +157,21 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-price-row .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
     .mm-price-row .form-label i { color:#0d9488; font-size:.85rem; }
     .mm-price-row .form-label .req { margin-left:2px; }
-    .mm-price-row .form-control, .mm-price-row .form-select { height:38px; line-height:normal; padding-top:0; padding-bottom:0; }
+    .mm-price-row .form-control, .mm-price-row .form-select { height:42px; line-height:normal; padding-top:0; padding-bottom:0; }
     @media (max-width: 991.98px) { .mm-price-row { grid-template-columns:repeat(3, minmax(150px, 1fr)); } }
     @media (max-width: 575.98px) { .mm-price-row { grid-template-columns:repeat(2, minmax(130px, 1fr)); } }
 
-    /* Stock & Status — five equal columns, uniform 38px controls (same as the basic-details inputs) */
+    /* Stock & Status — five equal columns, uniform 42px controls (same as the basic-details inputs) */
     .mm-stock-grid { display:grid; grid-template-columns:repeat(5, minmax(140px, 1fr)); gap:14px 12px; }
     .mm-stock-grid .form-label { display:flex; align-items:center; gap:5px; min-height:20px; white-space:nowrap; margin-bottom:.4rem; }
     .mm-stock-grid .form-label i { color:#0d9488; font-size:.85rem; }
-    .mm-stock-grid .form-control { height:38px; line-height:normal; padding-top:0; padding-bottom:0; }
-    .mm-stock-grid .mm-per { height:38px; min-height:38px; }
+    .mm-stock-grid .form-control { height:42px; line-height:normal; padding-top:0; padding-bottom:0; }
+    .mm-stock-grid .mm-per { height:42px; min-height:42px; }
     .mm-stock-grid .mm-per input { height:100%; min-height:0; }
     .mm-stock-grid .mm-field-hint { font-size:.74rem; color:#8496a8; margin-top:4px; }
     /* Status toggle — its own FULL-WIDTH row (row 3), switch pill left, text right on one line */
     .mm-active-cell { grid-column: 1 / -1; }
-    .mm-active-cell .mm-switch { width:100%; min-height:38px; display:flex; align-items:center; }
+    .mm-active-cell .mm-switch { width:100%; min-height:42px; display:flex; align-items:center; }
     .mm-active-cell .mm-switch > span { display:flex; align-items:baseline; gap:8px; }
     .mm-active-cell .mm-switch small { display:inline; }
     .mm-autogen { background:none; border:0; padding:2px 0 0; font-size:.74rem; font-weight:600; color:#0d9488;
@@ -246,7 +237,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-select-plain { position:relative; }
     .mm-select-plain .mm-select-hit { border-radius:inherit; }
     .mm-unit-add {
-      flex:0 0 38px; width:38px; border-radius:8px; border:1px dashed #9CC6BB; background:#E6F1EE;
+      flex:0 0 42px; width:42px; border-radius:10px; border:1px dashed #9CC6BB; background:#E6F1EE;
       color:#176B5B; font-size:1.05rem; display:inline-flex; align-items:center; justify-content:center;
     }
     .mm-unit-add:hover, .mm-unit-add:focus { background:#D8EAE5; border-color:#176B5B; color:#0F4D42; }
@@ -302,7 +293,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-switch input:checked { background:#176B5B; }
     .mm-switch input:checked::after { transform:translateX(18px); }
     .mm-switch input:focus-visible { outline:2px solid #176B5B; outline-offset:2px; }
-    .mm-switch-compact { height:38px; padding:6px 10px; }
+    .mm-switch-compact { height:42px; padding:6px 10px; }
     .mm-switch-compact strong { font-size:.78rem; }
     .mm-switch-compact small { font-size:.68rem; }
 
@@ -845,31 +836,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   </div>
 
   <!-- View modal -->
-  <!-- Add a custom dosage "Form" — opened by the + button next to the Form dropdown -->
-  <div class="modal fade" id="mmUnitModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:380px">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">Add new form</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="mm-modal-hero" style="padding:0 0 14px">
-            <div class="ico"><i class="bi bi-tag"></i></div>
-            <div>
-              <strong>New custom form</strong>
-              <span>Appears in the Form dropdown here, every time.</span>
-            </div>
-          </div>
-          <label class="form-label" for="mmUnitNew">Form name <span class="req">*</span></label>
-          <input class="form-control" id="mmUnitNew" placeholder="e.g. Jelly, Sachet, Tea spoon" autocomplete="off" maxlength="40">
-          <div class="mm-hint">Saved on this device — reusable for any medicine in the Form dropdown.</div>
-        </div>
-        <div class="modal-footer">
-          <button type="button" class="mm-cancel" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="mm-save" id="mmUnitSave">Add &amp; pick</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <div class="modal fade" id="mmViewModal" tabindex="-1">
     <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
@@ -1571,31 +1537,17 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           try { localStorage.setItem(CUSTOM_UNITS_KEY, JSON.stringify([...customUnits(), val])); } catch (e) { /* storage full/blocked */ }
       }
       customUnits().forEach((u) => addUnitOption(u, false));
-
-      // The Form "+" button opens a small in-app dialog (not a browser prompt)
-      const unitModalEl = $('#mmUnitModal');
-      const unitModal = () => bootstrap.Modal.getOrCreateInstance(unitModalEl);
       $('#fUnitAdd').addEventListener('click', () => {
-        $('#mmUnitNew').value = '';
-        $('#mmUnitNew').classList.remove('is-invalid');
-        unitModal().show();
-        unitModalEl.addEventListener('shown.bs.modal', () => $('#mmUnitNew').focus(), { once: true });
-      });
-      const submitUnit = () => {
-        const raw = ($('#mmUnitNew').value || '').trim();
-        if (!raw) { $('#mmUnitNew').classList.add('is-invalid'); $('#mmUnitNew').focus(); return; }
+        const raw = (window.prompt('New form name (e.g. Jelly, Sachet, Tea spoon):') || '').trim();
+        if (!raw) return;
         const name = raw.charAt(0).toUpperCase() + raw.slice(1);
         addUnitOption(name, true);
         const sel = $('#fUnit');
         sel.value = name;
         sel.dispatchEvent(new Event('input', { bubbles: true }));
         sel.dispatchEvent(new Event('change', { bubbles: true }));
-        unitModal().hide();
         MF.toast(`Form "${name}" added — picked for this medicine.`, 'success', 'Custom form');
-      };
-      $('#mmUnitSave').addEventListener('click', submitUnit);
-      $('#mmUnitNew').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); submitUnit(); } });
-      $('#mmUnitNew').addEventListener('input', () => $('#mmUnitNew').classList.remove('is-invalid'));
+      });
 
       let saving = false;
       async function saveMedicine(addAnother) {
@@ -2379,5 +2331,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a441bdb31c17e565',t:'MTc5MDkyMzQ5Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a43f27d3a95a4805',t:'MTc5MDg5NjM4Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
