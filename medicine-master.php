@@ -273,7 +273,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       font:inherit; font-size:.84rem; font-weight:600; color:#1b2430; cursor:pointer; text-align:left;
     }
     .mm-select-opt i { color:#176B5B; opacity:0; font-size:.95rem; }
-    .mm-select-opt:hover, .mm-select-opt.is-hot { background:#f4f7fb; }
+    .mm-select-opt:hover { background:#f4f7fb; }
+    /* Type-ahead highlight — amber, so a letter-jump reads distinctly from hover (grey) and current choice (teal) */
+    .mm-select-opt.is-hot { background:#FFF4D6; box-shadow:inset 3px 0 0 #F59E0B; color:#92400E; }
+    .mm-select-opt.is-hot i { color:#D97706; }
+    .mm-select-opt.is-hot.is-on { background:#E6F1EE; box-shadow:inset 3px 0 0 #F59E0B; }
     .mm-select-opt.is-on { background:#E6F1EE; color:#176B5B; }
     .mm-select-opt.is-on i { opacity:1; }
     .mm-select-empty { padding:.6rem .7rem; color:#6c757d; font-size:.8rem; }
@@ -608,7 +612,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   </div>
 
   <!-- Add / Edit modal -->
-  <div class="modal fade" id="mmFormModal" tabindex="-1">
+  <div class="modal fade" id="mmFormModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title" id="mmFormTitle">Add Medicine</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -680,7 +684,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="mm-pack-group">
               <div class="mm-pack-head"><i class="bi bi-capsule"></i> Pack contents</div>
               <div class="row g-3 align-items-start mm-align">
-                <div class="col-lg-3 col-md-4 col-6">
+                <div class="col-lg-4 col-md-6 col-12">
                   <label class="form-label" for="fUnit">Form <span class="req">*</span></label>
                   <div class="d-flex gap-2 align-items-stretch">
                     <div class="mm-input flex-grow-1">
@@ -702,14 +706,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     <button type="button" class="mm-unit-add" id="fUnitAdd" title="Add a custom form name" aria-label="Add a custom form name"><i class="bi bi-plus-lg"></i></button>
                   </div>
                 </div>
-                <div class="col-lg-3 col-md-4 col-12" id="fPackQtyWrap">
+                <div class="col-lg-3 col-md-6 col-12" id="fPackQtyWrap">
                   <label class="form-label" for="fPackQty"><span id="fPackQtyLabel">Units per strip</span> <span class="req">*</span></label>
                   <div class="mm-per">
                     <input type="number" min="1" id="fPackQty" value="" placeholder="e.g. 10">
                     <span class="mm-per-unit" id="fPackQtyUnit">units</span>
                   </div>
                 </div>
-                <div class="col-lg-6 col-md-8 col-12" id="fPackNoteWrap" hidden>
+                <div class="col-lg-5 col-md-12 col-12" id="fPackNoteWrap" hidden>
                   <label class="form-label" aria-hidden="true">&nbsp;</label>
                   <div class="mm-pack-note" id="fPackNote">Sold as one complete bottle — no sub-units to enter.</div>
                 </div>
@@ -911,7 +915,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   </div>
 
   <!-- Stock adjustment -->
-  <div class="modal fade" id="mmAdjustModal" tabindex="-1">
+  <div class="modal fade" id="mmAdjustModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Stock Adjustment</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
@@ -2221,6 +2225,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       document.body.appendChild(selectMenu);
       let openSelect = null;
       let hotIndex = -1;
+      let typeKey = ''; // last letter used by type-ahead — repeats cycle to the next match
 
       function selectAnchor(sel) {
         return sel.closest('.mm-input') || sel.closest('.mm-select-plain') || sel;
@@ -2231,6 +2236,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         document.querySelectorAll('.mm-input.is-open, .mm-select-plain.is-open').forEach((el) => el.classList.remove('is-open'));
         openSelect = null;
         hotIndex = -1;
+        typeKey = '';
       }
       function placeSelectMenu(sel) {
         const r = selectAnchor(sel).getBoundingClientRect();
@@ -2250,7 +2256,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const shown = opts.filter((o) => !q || o.text.toLowerCase().includes(q));
         // Search for real picklists (Category, Manufacturer, schedule, batch…); skip tiny fixed lists (GST)
         // and lists marked data-no-search (e.g. Form — type-ahead letters handle it)
-        const search = opts.length > 4 && !openSelect.dataset.noSearch
+        const search = opts.length > 4 && !openSelect.hasAttribute('data-no-search')
           ? `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`
           : '';
         selectMenu.innerHTML = search + (shown.length
@@ -2279,10 +2285,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         closeSelectMenu();
         openSelect = sel;
         hotIndex = Math.max(0, [...sel.options].findIndex((o) => o.selected || o.value === sel.value));
+        typeKey = '';
         selectAnchor(sel).classList.add('is-open');
         paintSelectMenu('');
         placeSelectMenu(sel);
-        selectMenu.querySelector('.is-on')?.focus();
+        // With a search box the input must keep focus (only option-focused menus focus the current option)
+        if (!selectMenu.querySelector('.mm-select-search input')) selectMenu.querySelector('.is-on')?.focus();
       }
       function chooseSelect(index) {
         if (!openSelect || !openSelect.options[index]) return;
@@ -2352,18 +2360,27 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hotIndex));
           revealOption(buttons[hotIndex]);
         }
-        // Type-ahead: a printable letter jumps the highlight to the first option starting with it.
-        // (Inside the search box, typing keeps filtering as before — this is for option-focused / no-search menus.)
+        // Type-ahead: a printable letter jumps the highlight to options starting with it —
+        // a DIFFERENT letter picks the first match; the SAME letter again cycles to the next match.
+        // (Inside the search box, typing keeps filtering as before.)
         if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && /\S/.test(e.key)) {
           const ae = document.activeElement;
           if (ae && ae.tagName === 'INPUT' && selectMenu.contains(ae)) return;
           const c = e.key.toLowerCase();
-          const hit = buttons.findIndex((b) => (b.textContent || '').trim().toLowerCase().startsWith(c));
-          if (hit >= 0) {
+          const matches = buttons
+            .map((b, n) => ((b.textContent || '').trim().toLowerCase().startsWith(c) ? n : -1))
+            .filter((n) => n >= 0);
+          if (matches.length) {
             e.preventDefault();
-            hotIndex = hit;
-            buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hit));
-            revealOption(buttons[hit]);
+            let pos = 0;
+            if (c === typeKey) {
+              const cur = matches.indexOf(hotIndex);
+              pos = cur >= 0 ? (cur + 1) % matches.length : 0;
+            }
+            typeKey = c;
+            hotIndex = matches[pos];
+            buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hotIndex));
+            revealOption(buttons[hotIndex]);
           }
           return;
         }
@@ -2395,5 +2412,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a442205cbe60936c',t:'MTc5MDkyNzUzMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4423d83287e17b4',t:'MTc5MDkyODcyNw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
