@@ -452,9 +452,11 @@
     return `<div class="small-xs text-2 mt-1">MRP : ${MF.fmt(m.mrp, 2)}/${MF.esc(unitLabel(m))}${stockBadge(m, live)}</div>`;
   }
 
-  /* Strip + tablet totals, both net of the cart. Hidden tablet half when a pack is a single piece. */
+  /* Strip + tablet totals, both net of the cart. When loose sale is off, only the pack count shows;
+     when it is on, the piece breakdown shows too. Collapses to one value for single-piece packs. */
   function stockText(m, live) {
     const strips = `${MF.num(live.strips)} ${MF.esc(withCount(live.strips, unitLabel(m)))}`;
+    if (!m.allowLoose) return `Stock : ${strips}`;
     if (pieceLabel(m) === unitLabel(m) && live.tablets === live.strips) return `Stock : ${strips}`;
     const tabs = `${MF.num(live.tablets)} ${MF.esc(withCount(live.tablets, pieceLabel(m)))}`;
     return `Stock : ${strips} · ${tabs}`;
@@ -468,6 +470,11 @@
     const sellPrice = Number(m.retailRate ?? m.mrp);
     const mrpNote = sellPrice !== Number(m.mrp)
       ? `<div class="small-xs text-2" style="text-decoration:line-through;">MRP ${MF.fmt(m.mrp, 2)}</div>` : '';
+    // Loose-sale details — only ever shown when the "Allow loose sale" toggle is ON:
+    // per-piece rate under the retail price + the dynamic "Add loose <piece>" button (piece name follows the Form chosen in the master)
+    const loosePiece = withCount(1, pieceLabel(m)).toLowerCase();
+    const loosePrice = m.allowLoose
+      ? `<div class="small-xs text-2">₹${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>` : '';
     const action = outOfStock
       ? (heldInCart
           ? `<div class="small-xs mt-1" style="color:#a86400;font-weight:600;">All remaining in cart</div>`
@@ -476,11 +483,12 @@
            <span class="fw-semibold" style="font-size:.75rem;">Order / substitute</span>
          </button>`)
       : (m.allowLoose ? `<button type="button" class="btn btn-sm mt-1 pos-loose-add" data-med="${m.id}">
-           <i class="bi bi-plus-circle"></i> Add ${MF.esc(m.subUnit || 'Loose')}
+           <i class="bi bi-plus-circle"></i> Add loose ${loosePiece}
          </button>` : '');
     return `
         ${mrpNote}
         <div class="fw-bold num${outOfStock ? ' pos-price-out' : ''}"${outOfStock ? ' title="Out of stock — price cannot be charged"' : ''}>${MF.fmt(sellPrice, 2)}</div>
+        ${loosePrice}
         <div class="small-xs text-2 mt-1" title="Sellable strips and tablets left after this cart">${stockText(m, live)}</div>
         ${action}`;
   }

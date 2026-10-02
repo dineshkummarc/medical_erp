@@ -989,6 +989,47 @@
     return Math.max(0, atMrp - t.grand);
   }
 
+  /* ---------- Bill context strip (invoice · clock · cashier · counter · connection) ---------- */
+  function paintMetaClock() {
+    const now = new Date();
+    const d = $('#posMetaDate'), t = $('#posMetaTime');
+    if (d) d.textContent = now.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+    if (t) t.textContent = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: false });
+  }
+  function paintMetaNet() {
+    const bar = $('#posMetaBar'), txt = $('#posMetaNetTxt');
+    const online = navigator.onLine;
+    if (bar) bar.classList.toggle('is-off', !online);
+    if (txt) txt.textContent = online ? 'Online' : 'Offline';
+  }
+  function nextInvoiceGuess() {
+    const raw = localStorage.getItem('mf-pos-nextinv') || '';
+    if (!raw) return '— auto —';
+    const m = raw.match(/^(.*?)(\d{4})-(\d+)$/);
+    if (m && m[2] !== String(new Date().getFullYear())) return `${m[1]}${new Date().getFullYear()}-0001`; // year rollover
+    return raw;
+  }
+  function paintMetaInvoice() {
+    const el = $('#posMetaInv');
+    if (el) el.textContent = nextInvoiceGuess();
+  }
+  function noteCompletedInvoice(inv) {
+    const m = String(inv || '').match(/^(.*?)(\d{3,})$/);
+    if (!m) return; // unexpected format — leave the strip as-is
+    localStorage.setItem('mf-pos-nextinv', m[1] + String(parseInt(m[2], 10) + 1).padStart(m[2].length, '0'));
+    paintMetaInvoice();
+  }
+  function initPosMeta() {
+    if (!$('#posMetaBar')) return;
+    const c = $('#posMetaCounter');
+    if (c) c.textContent = localStorage.getItem('mf-pos-counter') || '1';
+    paintMetaClock(); setInterval(paintMetaClock, 15000);
+    paintMetaNet();
+    addEventListener('online', paintMetaNet);
+    addEventListener('offline', paintMetaNet);
+    paintMetaInvoice();
+  }
+
   function paintDiscToggle() {
     const pct = $('#posDiscPct'), rs = $('#posDiscRs');
     if (pct) pct.classList.toggle('is-on', state.discMode !== 'flat');
@@ -1331,10 +1372,8 @@
     if (!btn) return;
     let has = false;
     try { has = !!localStorage.getItem(DRAFT_KEY); } catch (e) { has = false; }
-    const key = '<span class="badge bg-light text-dark border ms-1">F9</span>';
-    btn.innerHTML = (!state.cart.length && has)
-      ? `<i class="bi bi-folder2-open me-1"></i>Load Draft ${key}`
-      : `<i class="bi bi-save me-1"></i>Save Draft ${key}`;
+    const load = (!state.cart.length && has);
+    btn.innerHTML = `<span><i class="bi ${load ? 'bi-folder2-open' : 'bi-save'} me-1"></i>${load ? 'Load' : 'Save'} Draft</span><span class="pos-act-key">F9</span>`;
   }
 
   function saveDraft() {
@@ -1772,6 +1811,7 @@
       });
       MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
+      noteCompletedInvoice(res.invoiceNo);
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
       state.tender = null;
@@ -2112,6 +2152,7 @@
     if (dPct) dPct.addEventListener('click', () => setDiscMode('percent'));
     if (dRs) dRs.addEventListener('click', () => setDiscMode('flat'));
     paintDiscToggle();
+    initPosMeta();
     bindPayments();
     renderCart();
     fillDoctors().then(() => applyRxBill()).catch(() => {});
