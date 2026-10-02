@@ -667,6 +667,13 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <div class="mm-hint">No barcode on the pack? Generate an internal one and <button type="button" class="mm-text-btn" id="fBarcodePrint">print a label</button>.</div>
                   <div id="fBarcodeWarn" class="small mt-1" style="display:none"></div>
                 </div>
+                <div class="col-md-4 col-12">
+                  <label class="form-label" for="fHsn">HSN Code</label>
+                  <div class="mm-input">
+                    <i class="bi bi-hash"></i>
+                    <input class="form-control" id="fHsn" placeholder="e.g. 3004">
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -674,18 +681,11 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <div class="mm-pack-head"><i class="bi bi-capsule"></i> Pack contents</div>
               <div class="row g-3 align-items-start mm-align">
                 <div class="col-lg-3 col-md-4 col-6">
-                  <label class="form-label" for="fHsn">HSN Code</label>
-                  <div class="mm-input">
-                    <i class="bi bi-hash"></i>
-                    <input class="form-control" id="fHsn" placeholder="e.g. 3004">
-                  </div>
-                </div>
-                <div class="col-lg-3 col-md-4 col-6">
                   <label class="form-label" for="fUnit">Form <span class="req">*</span></label>
                   <div class="d-flex gap-2 align-items-stretch">
                     <div class="mm-input flex-grow-1">
                     <i class="bi bi-tag"></i>
-                    <select class="form-select" id="fUnit">
+                    <select class="form-select" id="fUnit" data-no-search>
                       <option value="" selected>Select form</option>
                       <option>Tablet</option>
                       <option>Capsule</option>
@@ -2248,8 +2248,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const q = (filter || '').trim().toLowerCase();
         const opts = [...openSelect.options].map((o, i) => ({ i, text: o.text, on: o.selected || o.value === openSelect.value }));
         const shown = opts.filter((o) => !q || o.text.toLowerCase().includes(q));
-        // Search for real picklists (Category, Manufacturer, Form, schedule, batch…); skip tiny fixed lists like GST
-        const search = opts.length > 4
+        // Search for real picklists (Category, Manufacturer, schedule, batch…); skip tiny fixed lists (GST)
+        // and lists marked data-no-search (e.g. Form — type-ahead letters handle it)
+        const search = opts.length > 4 && !openSelect.dataset.noSearch
           ? `<div class="mm-select-search"><i class="bi bi-search"></i><input type="text" placeholder="Search" value="${MF.esc(filter || '')}" aria-label="Search options"></div>`
           : '';
         selectMenu.innerHTML = search + (shown.length
@@ -2351,6 +2352,21 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hotIndex));
           revealOption(buttons[hotIndex]);
         }
+        // Type-ahead: a printable letter jumps the highlight to the first option starting with it.
+        // (Inside the search box, typing keeps filtering as before — this is for option-focused / no-search menus.)
+        if (e.key.length === 1 && !e.ctrlKey && !e.altKey && !e.metaKey && /\S/.test(e.key)) {
+          const ae = document.activeElement;
+          if (ae && ae.tagName === 'INPUT' && selectMenu.contains(ae)) return;
+          const c = e.key.toLowerCase();
+          const hit = buttons.findIndex((b) => (b.textContent || '').trim().toLowerCase().startsWith(c));
+          if (hit >= 0) {
+            e.preventDefault();
+            hotIndex = hit;
+            buttons.forEach((b, n) => b.classList.toggle('is-hot', n === hit));
+            revealOption(buttons[hit]);
+          }
+          return;
+        }
         if (e.key === 'Enter' && buttons.length) {
           e.preventDefault();
           const hot = buttons.find((b) => b.classList.contains('is-hot')) || buttons.find((b) => b.classList.contains('is-on')) || buttons[0];
@@ -2379,5 +2395,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a441bdb31c17e565',t:'MTc5MDkyMzQ5Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a442205cbe60936c',t:'MTc5MDkyNzUzMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
