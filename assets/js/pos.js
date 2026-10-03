@@ -452,11 +452,11 @@
     return `<div class="small-xs text-2 mt-1">MRP : ${MF.fmt(m.mrp, 2)}/${MF.esc(unitLabel(m))}${stockBadge(m, live)}</div>`;
   }
 
-  /* Strip + tablet totals, both net of the cart. Full breakdown always shows
-     (single-piece packs collapse to one value). Only the "Add loose" button is toggle-gated. */
+  /* Strip + tablet totals, both net of the cart. Measure-piece packs (tube of "g", bottle of "ml")
+     don't double-count: when pieces == packs the line shows the pack count only. */
   function stockText(m, live) {
     const strips = `${MF.num(live.strips)} ${MF.esc(withCount(live.strips, unitLabel(m)))}`;
-    if (pieceLabel(m) === unitLabel(m) && live.tablets === live.strips) return `Stock : ${strips}`;
+    if (pieceLabel(m) === unitLabel(m) || live.tablets === live.strips) return `Stock : ${strips}`;
     const tabs = `${MF.num(live.tablets)} ${MF.esc(withCount(live.tablets, pieceLabel(m)))}`;
     return `Stock : ${strips} · ${tabs}`;
   }
@@ -469,10 +469,12 @@
     const sellPrice = Number(m.retailRate ?? m.mrp);
     const mrpNote = sellPrice !== Number(m.mrp)
       ? `<div class="small-xs text-2" style="text-decoration:line-through;">MRP ${MF.fmt(m.mrp, 2)}</div>` : '';
-    // Per-piece rate sits under the retail price on every card (MF.fmt already carries the ₹ sign);
-    // the "Add loose <piece>" button is the only element gated by the loose-sale toggle
+    // Per-piece rate under the retail price — only for COUNTABLE pack pieces (strips of tablets/capsules:
+    // ₹37.00 ÷ 10 = ₹3.70/tablet). For whole-unit packs measured in g/ml (tubes, bottles) a per-gram rate
+    // is meaningless at the counter, so it stays hidden. "Add loose" stays the only toggle-gated element.
     const loosePiece = withCount(1, pieceLabel(m)).toLowerCase();
-    const loosePrice = `<div class="small-xs text-2">${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>`;
+    const loosePrice = packSize(m) > 1
+      ? `<div class="small-xs text-2">${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>` : '';
     const action = outOfStock
       ? (heldInCart
           ? `<div class="small-xs mt-1" style="color:#a86400;font-weight:600;">All remaining in cart</div>`

@@ -697,6 +697,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                       <option>Drops</option>
                       <option>Injection</option>
                       <option>Ointment</option>
+                      <option>Gel</option>
                       <option>Cream</option>
                       <option>Powder</option>
                       <option>Sachet</option>
@@ -1370,6 +1371,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         Drops: { pack: 'bottle', packPlural: 'bottles', piecePlural: 'drops', unit: 'Bottle', sub: 'Drop', loose: false, whole: true },
         Injection: { pack: 'vial', packPlural: 'vials', piecePlural: 'ml', unit: 'Vial', sub: 'ml', loose: false, whole: true },
         Ointment: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false, whole: true },
+        Gel: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false, whole: true },
         Cream: { pack: 'tube', packPlural: 'tubes', piecePlural: 'g', unit: 'Tube', sub: 'g', loose: false, whole: true },
         Powder: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'g', unit: 'Sachet', sub: 'g', loose: false, whole: true },
         Sachet: { pack: 'sachet', packPlural: 'sachets', piecePlural: 'sachets', unit: 'Sachet', sub: 'Sachet', loose: false, whole: true },
@@ -2414,6 +2416,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (p.get('schedule')) { $('#mmSchedule').value = p.get('schedule'); state.schedule = p.get('schedule'); }
         render();
         if (p.get('action') === 'add') openForm(null);
+      });
+    })();
+  </script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a448bbb3dbd94466',t:'MTc5MDk5NjgxMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
+') === 'add') openForm(null);
       });
     })();
   </script>
