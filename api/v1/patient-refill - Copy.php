@@ -63,7 +63,7 @@ Manufacturer::query(
 );
 
 if (class_exists('Audit') && method_exists('Audit', 'log')) {
-    try { Audit::log('REFILL', $customerName . ' — ' . count($clean) . ' item(s) refilled from POS'); } catch (\Throwable $e) { /* audit optional */ }
+    try { Audit::log('REFILL', 'customers', $customerId, $customerName . ' — ' . count($clean) . ' item(s) refilled from POS'); } catch (\Throwable $e) { /* audit optional */ }
 }
 
 Json::ok(['data' => ['recorded' => true, 'item_count' => count($clean)]]);

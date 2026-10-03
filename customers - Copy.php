@@ -69,7 +69,6 @@ require __DIR__ . '/middleware/auth.php';
             <p class="page-sub" id="cuCount"></p>
           </div>
           <div class="ms-auto d-flex gap-2">
-            <button class="btn btn-mf-outline" id="cuRefillOpen"><i class="bi bi-arrow-repeat me-1"></i>Refill log</button>
             <button class="btn btn-mf" id="cuAddBtn"><i class="bi bi-person-plus me-1"></i>Add Customer</button>
           </div>
         </div>
@@ -108,26 +107,6 @@ require __DIR__ . '/middleware/auth.php';
         </div>
 
       </main>
-    </div>
-  </div>
-
-  <!-- Refill log modal -->
-  <div class="modal fade cu-modal" id="cuRefillModal" tabindex="-1">
-    <div class="modal-dialog modal-lg modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-arrow-repeat me-2" style="color:var(--mf-primary)"></i>Refill log</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body p-0">
-          <div class="table-scroll" style="max-height:none">
-            <table class="table-mf">
-              <thead><tr><th>When</th><th>Customer</th><th>Items</th><th>Prescription</th></tr></thead>
-              <tbody id="cuRefillBody"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -490,33 +469,6 @@ require __DIR__ . '/middleware/auth.php';
       });
 
       $('#cuAddBtn').addEventListener('click', () => openForm(null));
-
-      /* Refill log — reads the fast-refill events recorded from the POS Quick Refill panel */
-      async function paintRefillLog() {
-        const body = $('#cuRefillBody');
-        body.innerHTML = '<tr><td colspan="4" class="text-center text-2" style="padding:1.4rem">Loading…</td></tr>';
-        try {
-          const res = await MF.Api.get('refill-logs.php');
-          const rows = Array.isArray(res.data) ? res.data : [];
-          if (!rows.length) {
-            body.innerHTML = '<tr><td colspan="4" class="empty-state" style="padding:2.4rem"><i class="bi bi-arrow-repeat" style="font-size:1.6rem;display:block;margin-bottom:.4rem"></i>No refills yet — the POS Quick Refill panel records here automatically.</td></tr>';
-            return;
-          }
-          body.innerHTML = rows.map((r) => `
-            <tr>
-              <td class="num" style="white-space:nowrap">${MF.esc((MF.fmtDateTime || MF.fmtDate)(r.ts))}</td>
-              <td><div class="td-title">${MF.esc(r.customer || '—')}</div><div class="td-sub num">${MF.esc(r.phone || '')}</div></td>
-              <td><span class="badge badge-soft-primary">${r.itemCount} item${r.itemCount === 1 ? '' : 's'}</span></td>
-              <td><div style="max-width:280px;font-size:.76rem;color:#4B5563">${MF.esc(r.preview || '—')}</div></td>
-            </tr>`).join('');
-        } catch (e) {
-          body.innerHTML = '<tr><td colspan="4" class="text-center" style="padding:1.4rem;color:#B4352F">' + MF.esc(e.message || 'Could not load the refill log.') + '</td></tr>';
-        }
-      }
-      $('#cuRefillOpen').addEventListener('click', () => {
-        bootstrap.Modal.getOrCreateInstance($('#cuRefillModal')).show();
-        paintRefillLog();
-      });
       $('#cuEditBtn').addEventListener('click', () => { if (current) openForm(current); });
       $('#cuAddSave').addEventListener('click', async () => {
         const name = $('#cuName').value.trim();

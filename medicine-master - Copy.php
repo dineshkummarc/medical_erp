@@ -517,7 +517,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           <div class="ms-auto d-flex gap-2">
             <button class="btn btn-light-mf" id="mmExport"><i class="bi bi-download me-1"></i>Export CSV</button>
             <button class="btn btn-light-mf" id="mmBulkAdd"><i class="bi bi-file-earmark-arrow-up me-1"></i>Bulk Add</button>
-            <button class="btn btn-light-mf" id="mmPriceBulkBtn"><i class="bi bi-tag me-1"></i>Price update</button>
             <button class="btn btn-mf" id="mmAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Medicine</button>
           </div>
         </div>
@@ -573,54 +572,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         </div>
 
       </main>
-    </div>
-  </div>
-
-  <!-- Bulk price update -->
-  <div class="modal fade" id="mmPriceBulkModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:560px">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title"><i class="bi bi-tag me-2"></i>Bulk price update</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="mm-hint mb-2">Change MRP / retail / wholesale rates by one percentage for a whole category or manufacturer — server-side, in one write.</div>
-          <div class="row g-2 mb-2">
-            <div class="col-6"><label class="form-label" for="pbCat">Category</label><select class="form-select" id="pbCat"><option value="">All categories</option></select></div>
-            <div class="col-6"><label class="form-label" for="pbMfr">Manufacturer</label><select class="form-select" id="pbMfr"><option value="">All manufacturers</option></select></div>
-          </div>
-          <div class="row g-2 mb-2 align-items-end">
-            <div class="col-5">
-              <label class="form-label" for="pbPct">Change (%)</label>
-              <div class="mm-input"><i class="bi bi-percent"></i><input type="number" step="0.5" class="form-control" id="pbPct" placeholder="+5 or -5"></div>
-              <div class="d-flex gap-1 mt-1">
-                <button type="button" class="mm-text-btn pb-quick" data-p="-5">−5%</button>
-                <button type="button" class="mm-text-btn pb-quick" data-p="-2">−2%</button>
-                <button type="button" class="mm-text-btn pb-quick" data-p="5">+5%</button>
-                <button type="button" class="mm-text-btn pb-quick" data-p="10">+10%</button>
-              </div>
-            </div>
-            <div class="col-4">
-              <label class="form-label" for="pbRound">Round to</label>
-              <select class="form-select" id="pbRound"><option value="none">2 decimals</option><option value="0.5">Nearest 0.50</option><option value="1">Nearest whole ₹</option></select>
-            </div>
-            <div class="col-3"><button type="button" class="btn btn-light-mf w-100" id="pbPreviewBtn">Preview</button></div>
-          </div>
-          <div class="row g-2 mb-2">
-            <div class="col-12 d-flex gap-3">
-              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbMrp" checked><span class="form-check-label">MRP</span></label>
-              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbRetail" checked><span class="form-check-label">Retail rate</span></label>
-              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbWhole"><span class="form-check-label">Wholesale rate</span></label>
-            </div>
-          </div>
-          <div class="mm-pack-note" id="pbPreview" hidden></div>
-          <div class="alert alert-warning py-2 mt-2 mb-0" role="note" style="font-size:.74rem;border-radius:10px">
-            <i class="bi bi-exclamation-triangle me-1"></i>This rewrites prices on the server for every matched medicine. "—"? prices are left untouched only if the field is skipped above.
-          </div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-mf" id="pbApplyBtn" disabled><i class="bi bi-check2 me-1"></i>Apply update</button>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -2257,84 +2208,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#mmBulkCsv').value = bulkText([BULK_TPL_HEAD, ...BULK_TPL_ROWS]);
         bulkRows = []; $('#mmBulkImport').disabled = true; bulkPaint(); $('#mmBulkPreviewBox').innerHTML = '';
       }
-      /* ============ Bulk price update ============ */
-      const pbModal = () => bootstrap.Modal.getOrCreateInstance($('#mmPriceBulkModal'));
-      const pbCalc = (v, pct, mode) => {
-        const x = Number(v || 0) * (1 + pct / 100);
-        if (mode === '1') return Math.round(x);
-        if (mode === '0.5') return Math.round(x * 2) / 2;
-        return Math.round(x * 100) / 100;
-      };
-      function pbMatches() {
-        const cat = $('#pbCat').value, mfr = $('#pbMfr').value;
-        return D.medicines.filter((m) => m.status !== 'inactive' && (!cat || m.category === cat) && (!mfr || m.manufacturer === mfr));
-      }
-      function pbTargets() {
-        const t = { mrp: $('#pbMrp').checked, retail: $('#pbRetail').checked, wholesale: $('#pbWhole').checked };
-        return t.mrp || t.retail || t.wholesale ? t : null;
-      }
-      function pbPct() {
-        const v = parseFloat($('#pbPct').value);
-        return Number.isFinite(v) ? v : null;
-      }
-      function pbPreview() {
-        const pct = pbPct(), targets = pbTargets();
-        const box = $('#pbPreview');
-        if (pct === null || !pct) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero percentage (e.g. +5 or -5).' ; return; }
-        if (pct <= -100) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>A decrease of 100% or more would zero every price — refused.'; return; }
-        if (!targets) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Tick at least one price column (MRP / Retail / Wholesale).'; return; }
-        const list = pbMatches();
-        if (!list.length) { box.hidden = false; box.innerHTML = '<i class="bi bi-info-circle me-1"></i>No active medicines match this selection.'; return; }
-        const mode = $('#pbRound').value;
-        const col = targets.mrp ? 'mrp' : 'retailRate';
-        const lines = list.slice(0, 5).map((m) => {
-          const cur = Number(m[col] ?? m.mrp ?? 0);
-          return `<div style="display:flex;justify-content:space-between;gap:10px"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(pbCalc(cur, pct, mode), 2)}</strong></span></div>`;
-        }).join('');
-        box.hidden = false;
-        box.innerHTML = `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>` + lines +
-          (list.length > 5 ? `<div class="text-2" style="font-size:.72rem;margin-top:3px">+ ${list.length - 5} more…</div>` : '');
-        pbList = list;
-        $('#pbApplyBtn').disabled = false;
-      }
-      let pbList = [];
-      async function pbApply() {
-        const pct = pbPct(), targets = pbTargets();
-        if (!pbList.length || pct === null || !targets) return;
-        if (targets.retail && !targets.mrp) MF.toast('Retail-only change — prices may cross MRP; the form will flag any that go above.', 'warn', 'Bulk price');
-        const btn = $('#pbApplyBtn');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1 spin"></i>Updating…';
-        try {
-          const res = await MF.Api.post('price-bulk-update.php', {
-            ids: pbList.map((m) => m.id), pct, round: $('#pbRound').value, targets,
-          });
-          const n = (res.data && res.data.matched) || pbList.length;
-          pbModal().hide();
-          await MF.rehydrate(); render();
-          MF.toast(`${n} medicine(s) updated (${pct > 0 ? '+' : ''}${pct}%)`, 'success', 'Bulk price');
-        } catch (e) {
-          MF.toast(e.message || 'Bulk price update failed.', 'err', 'Bulk price');
-        } finally {
-          btn.disabled = true;
-          btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Apply update';
-        }
-      }
-      $('#mmPriceBulkBtn').addEventListener('click', () => {
-        $('#pbCat').innerHTML = '<option value="">All categories</option>' + D.categories.map((c) => `<option>${MF.esc(c)}</option>`).join('');
-        $('#pbMfr').innerHTML = '<option value="">All manufacturers</option>' + D.manufacturers.map((m) => `<option>${MF.esc(m)}</option>`).join('');
-        $('#pbPreview').hidden = true; pbList = [];
-        $('#pbApplyBtn').disabled = true;
-        pbModal().show();
-      });
-      $('#pbPreviewBtn').addEventListener('click', pbPreview);
-      document.querySelectorAll('.pb-quick').forEach((b) => b.addEventListener('click', () => { $('#pbPct').value = b.dataset.p; pbPreview(); }));
-      ['pbCat', 'pbMfr', 'pbPct', 'pbRound', 'pbMrp', 'pbRetail', 'pbWhole'].forEach((id) =>
-        $('#' + id).addEventListener('input', () => { $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = []; }));
-      ['pbCat', 'pbMfr', 'pbRound', 'pbMrp', 'pbRetail', 'pbWhole'].forEach((id) =>
-        $('#' + id).addEventListener('change', () => { $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = []; }));
-      $('#pbApplyBtn').addEventListener('click', pbApply);
-
       $('#mmBulkAdd').addEventListener('click', () => {
         if (!$('#mmBulkCsv').value.trim()) bulkReset();
         bootstrap.Modal.getOrCreateInstance($('#mmBulkModal')).show();
@@ -2547,7 +2420,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a44a99924e215deb',t:'MTc5MTAxNjM4NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a448d5411e49cc8c',t:'MTc5MDk5Nzg1Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });

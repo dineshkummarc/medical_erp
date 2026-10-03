@@ -68,62 +68,6 @@ try {
 
     $c = $customers[0];
     $customerId = (int) $c['id'];
-    $customer = [
-        'id' => $customerId,
-        'name' => trim((string) $c['name']),
-        'phone' => (string) $c['phone'],
-        'initials' => initialsOf((string) $c['name']),
-    ];
-
-    // History mode: ?history=1 → every sale of this customer, items nested, for "View all history"
-    if (!empty($_GET['history'])) {
-        $sales = qr(
-            "SELECT s.id, s.invoice_no, s.sale_date, s.grand_total, COALESCE(d.name, '') AS doctor_name
-               FROM sales s LEFT JOIN doctors d ON d.id = s.doctor_id
-              WHERE s.customer_id = $customerId
-              ORDER BY s.sale_date DESC, s.id DESC LIMIT 60"
-        );
-        $ids = array_map(function ($r) { return (int) $r['id']; }, $sales);
-        $bySale = [];
-        if ($ids) {
-            $list = implode(',', $ids);
-            foreach (qr(
-                "SELECT si.sale_id, si.qty, si.unit_sold, si.amount, COALESCE(m.name, 'Removed medicine') AS medicine_name
-                   FROM sale_items si LEFT JOIN medicines m ON m.id = si.medicine_id
-                  WHERE si.sale_id IN ($list) ORDER BY si.id"
-            ) as $r) {
-                $n = (int) $r['qty'];
-                $bySale[(int) $r['sale_id']][] = [
-                    'name' => (string) $r['medicine_name'],
-                    'qty' => $n,
-                    'qtyLabel' => $n . ' ' . ($r['unit_sold'] === 'loose' ? 'loose' : pluralUnit('strip', $n)),
-                    'amount' => (float) $r['amount'],
-                ];
-            }
-        }
-        $spend = 0;
-        $visits = array_map(function ($s) use ($bySale, &$spend) {
-            $spend += (float) $s['grand_total'];
-            $items = $bySale[(int) $s['id']] ?? [];
-            return [
-                'id' => (int) $s['id'],
-                'invoice' => (string) $s['invoice_no'],
-                'date' => (string) $s['sale_date'],
-                'doctor' => (string) $s['doctor_name'],
-                'total' => (float) $s['grand_total'],
-                'itemCount' => count($items),
-                'items' => $items,
-            ];
-        }, $sales);
-        Json::ok(['data' => [
-            'found' => true,
-            'customer' => $customer,
-            'visits' => count($sales),
-            'lifetimeSpend' => round($spend, 2),
-            'history' => $visits,
-        ]]);
-    }
-
 
     $sales = qr(
         "SELECT s.id, s.sale_date, COALESCE(d.name, '') AS doctor_name

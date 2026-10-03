@@ -167,25 +167,6 @@
       .prf-refill:disabled { background:#9fb3ab; box-shadow:none; cursor:not-allowed; }
       .prf-refill i { font-size:1rem; }
 
-      /* Full history list */
-      .prf-visit { border:1px solid #EDF1F4; border-radius:.65rem; background:#fff; overflow:hidden; }
-      .prf-visit + .prf-visit { margin-top:.5rem; }
-      .prf-visit-head {
-        width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.6rem;
-        padding:.55rem .75rem; background:#fff; border:0; cursor:pointer; text-align:left;
-      }
-      .prf-visit-head:hover { background:#F8FAFB; }
-      .prf-visit-head .v-inv { font-size:.78rem; font-weight:700; color:#172026; }
-      .prf-visit-head .v-date { font-size:.64rem; color:#8A94A0; margin-top:1px; }
-      .prf-visit-head .v-amt { font-size:.8rem; font-weight:700; color:#0F4D42; font-variant-numeric:tabular-nums; }
-      .prf-visit-head .v-caret { color:#8A94A0; font-size:.8rem; transition:transform .2s; }
-      .prf-visit.open .v-caret { transform:rotate(180deg); color:#176B5B; }
-      .prf-visit-items { display:none; border-top:1px solid #F2F5F7; background:#FAFBFC; padding:.45rem .75rem .6rem; }
-      .prf-visit.open .prf-visit-items { display:block; }
-      .prf-visit-line { display:flex; justify-content:space-between; gap:.6rem; font-size:.74rem; padding:.18rem 0; }
-      .prf-visit-line span:first-child { color:#374151; font-weight:600; }
-      .prf-visit-line span:last-child { color:#8A94A0; white-space:nowrap; }
-
       /* Order / substitute (out of stock) */
       .pos-order-sub {
         border:1.5px solid #8b5cf6; border-radius:10px; background:#f5f3ff; color:#6d28d9;
@@ -2240,7 +2221,6 @@
     const refillOverlay = $('#posRefillOverlay');
     let refillData = null;          // last lookup result
     let refillChecked = new Set();  // selected row indexes
-    let refillMobile = '';          // the digits the current customer was found with
 
     function refillMsg(text, cls) {
       const el = $('#prfMsg');
@@ -2326,7 +2306,6 @@
           return;
         }
         if (!data || !data.customer) { refillMsg('No customer found for ' + v + '. Save them from the customers page first.', 'is-err'); return; }
-        refillMobile = v;
         refillPaintResult(data);
       } catch (e) {
         refillMsg((e && e.message) ? e.message : 'Lookup failed — check the API file is deployed.', 'is-err');
@@ -2361,43 +2340,7 @@
     refillOverlay.addEventListener('click', refillClose);
     $('#prfSearchBtn').addEventListener('click', refillSearch);
     $('#prfMobile').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); refillSearch(); } if (e.key === 'Escape') refillClose(); });
-    /* Full history — swaps the prescription list for every past visit (items expand inline) */
-    async function refillHistory() {
-      if (!refillMobile) return;
-      const box = $('#prfHistList');
-      $('#prfResult').hidden = true;
-      $('#prfHist').hidden = false;
-      box.innerHTML = '<div class="prf-msg text-2 small">Loading history…</div>';
-      try {
-        const res = await MF.Api.get('patient-lookup.php?mobile=' + encodeURIComponent(refillMobile) + '&history=1');
-        const data = res && res.data;
-        const rows = (data && data.history) || [];
-        $('#prfHistVisits').textContent = String((data && data.visits) || 0);
-        $('#prfHistSpend').textContent = MF.fmt(Number((data && data.lifetimeSpend) || 0), 2);
-        if (!rows.length) {
-          box.innerHTML = '<div class="prf-visit"><div class="prf-visit-line" style="padding:.6rem .75rem">No purchases recorded for this customer yet.</div></div>';
-          return;
-        }
-        box.innerHTML = rows.map((r, i) => {
-          const lines = (r.items || []).map((it) =>
-            '<div class="prf-visit-line"><span>' + MF.esc(it.name) + '</span><span>' + MF.esc(it.qtyLabel) + ' · ' + MF.fmt(Number(it.amount) || 0, 2) + '</span></div>').join('');
-          return '<div class="prf-visit" data-h="' + i + '">' +
-            '<button type="button" class="prf-visit-head"><span><span class="v-inv">' + MF.esc(r.invoice || ('Sale #' + r.id)) + '</span><div class="v-date">' + MF.esc(MF.fmtDate ? MF.fmtDate(r.date) : r.date) + (r.doctor ? ' · ' + MF.esc(r.doctor) : '') + '</div></span>' +
-            '<span class="v-amt">' + MF.fmt(Number(r.total) || 0, 2) + '</span><i class="bi bi-chevron-down v-caret"></i></button>' +
-            '<div class="prf-visit-items">' + lines + '</div></div>';
-        }).join('');
-        if (rows.length) $('#prfHist').querySelector('.prf-visit')?.classList.add('open');
-      } catch (e) {
-        box.innerHTML = '<div class="prf-msg text-2 small is-err">' + MF.esc((e && e.message) ? e.message : 'Could not load history.') + '</div>';
-      }
-    }
-    $('#prfHistory').addEventListener('click', refillHistory);
-    $('#prfHistBack').addEventListener('click', () => { $('#prfHist').hidden = true; $('#prfResult').hidden = false; });
-    $('#prfHistList').addEventListener('click', (e) => {
-      const head = e.target.closest('.prf-visit-head');
-      if (!head) return;
-      head.closest('.prf-visit').classList.toggle('open');
-    });
+    $('#prfHistory').addEventListener('click', () => MF.toast('Full history view is coming soon — this link is visual for now.', 'info', 'Quick refill'));
     $('#prfItems').addEventListener('change', (e) => {
       const cb = e.target.closest('.prf-check');
       if (!cb || cb.disabled) return;

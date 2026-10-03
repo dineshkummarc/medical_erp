@@ -452,17 +452,6 @@ if ($cashier === '') $cashier = 'Cashier';
           <div id="prfItems"></div>
         </div>
       </div>
-      <div id="prfHist" hidden>
-        <div class="d-flex justify-content-between align-items-baseline prf-sec-title" style="margin-top:0">
-          <span class="fw-semibold">Full purchase history</span>
-          <button type="button" class="prf-history" id="prfHistBack"><i class="bi bi-arrow-left-short"></i>Back to last prescription</button>
-        </div>
-        <div class="prf-facts">
-          <div class="prf-chip"><span class="prf-k">Visits</span><b id="prfHistVisits">—</b></div>
-          <div class="prf-chip"><span class="prf-k">Lifetime spend</span><b id="prfHistSpend">—</b></div>
-        </div>
-        <div id="prfHistList"></div>
-      </div>
     </div>
     <div class="prf-foot">
       <button type="button" class="prf-refill" id="prfRefillBtn" disabled>
