@@ -175,10 +175,7 @@ if ($cashier === '') $cashier = 'Cashier';
             </label>
             <div class="input-group mb-2">
               <span class="input-group-text"><i class="bi bi-search"></i></span>
-              <div class="pos-search-wrap">
-                <input id="posSearch" class="form-control" placeholder="Medicine name, barcode or batch…" autocomplete="off" autofocus>
-                <button type="button" class="pos-clear" id="posSearchClear" title="Clear search" aria-label="Clear search" hidden><i class="bi bi-x-lg"></i></button>
-              </div>
+              <input id="posSearch" class="form-control" placeholder="Medicine name, barcode or batch…" autocomplete="off" autofocus>
             </div>
             <div class="pos-pick-tabs" id="posPickTabs">
               <button type="button" class="pos-pick-tab is-on" data-pick="quick">Quick picks</button>
