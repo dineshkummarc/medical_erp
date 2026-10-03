@@ -1119,7 +1119,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const piece = spec ? spec.piecePlural : 'units';
         const rxNeed = SCHEDULES[m.schedule] ? SCHEDULES[m.schedule].rx : !!m.rxRequired;
         const packRow = spec && spec.whole
-          ? ['Pack', 'Sold as one complete ' + spec.pack]
+          ? ['Pack', 'Sold as one complete ' + spec.pack + (Number(m.packQty) > 1 ? ' · ' + mmTxt(m.packQty) + ' ' + piece : '')]
           : [perLabel, m.packQty ? mmTxt(m.packQty) + ' ' + piece : '—'];
         $('#mmViewBody').innerHTML = `
           <div class="mm-detail-hero">
@@ -1400,17 +1400,18 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       }
       function syncPackUnit() {
         const spec = packSpec($('#fUnit') && $('#fUnit').value);
-        const label = spec ? (spec.pack === 'unit' ? 'Units' : 'Units per ' + spec.pack) : 'Units per strip';
+        const label = !spec ? 'Units per strip' : (spec.whole ? 'Pack size' : (spec.pack === 'unit' ? 'Units' : 'Units per ' + spec.pack));
         if ($('#fPackQtyLabel')) $('#fPackQtyLabel').textContent = label;
         if ($('#fPackQtyUnit')) $('#fPackQtyUnit').textContent = spec ? spec.piecePlural : 'units';
         if ($('#fStockQtyUnit')) $('#fStockQtyUnit').textContent = spec ? spec.packPlural : 'units';
         if ($('#fReorderUnit')) $('#fReorderUnit').textContent = spec ? spec.packPlural : 'units';
         const whole = !!(spec && spec.whole);
-        if ($('#fPackQtyWrap')) $('#fPackQtyWrap').hidden = whole;
+        if ($('#fPackQtyWrap')) $('#fPackQtyWrap').hidden = false;
         if ($('#fPackNoteWrap')) $('#fPackNoteWrap').hidden = !whole;
         if (whole) {
-          if ($('#fPackNote')) $('#fPackNote').textContent = 'Sold as one complete ' + spec.pack + ' — no sub-units to enter.';
-          if ($('#fPackQty')) $('#fPackQty').value = 1;
+          // Gram/ml packs (tube, bottle, vial…): the pack size field IS the printed pack size (30 g, 100 ml)
+          // — kept for display (cart, stock, view). Billing stays per whole pack; loose stays unavailable.
+          if ($('#fPackNote')) $('#fPackNote').textContent = 'Pack size printed on the ' + spec.pack + ' (e.g. 30 g tube, 100 ml bottle). Billing is per ' + spec.pack + ' — no loose sale.';
         }
         if ($('#fLooseWrap')) $('#fLooseWrap').hidden = !(spec && spec.loose);
         if ($('#fLooseHint') && spec && spec.loose) $('#fLooseHint').textContent = 'Sell single ' + spec.piecePlural;
@@ -1626,7 +1627,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           substitutes: $('#fGenericGroup').value.trim(),
           barcode: $('#fBarcode').value.trim(),
           form: $('#fUnit').value, unit: spec.unit, packSize: '', gst: $('#fGst').value === '' ? '' : +$('#fGst').value, schedule: $('#fSchedule').value,
-          packQty: spec.whole ? 1 : (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
+          packQty: (+$('#fPackQty').value || 1), subUnit: spec.sub, allowLoose: spec.loose && $('#fAllowLoose').checked,
           batchNo: $('#fBatchNo').value.trim(),
           // On edit the read-only field shows TOTAL on-hand stock, so never send that
           // to the batch writer — echo the stored opening qty instead. The API only
@@ -2140,7 +2141,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               category: get(r, 'category'), manufacturer: get(r, 'manufacturer'), hsn: get(r, 'hsn'),
               genericGroup: saltGroup, substitutes: saltGroup, barcode: get(r, 'barcode'),
               form, unit: spec.unit, packSize: '', gst: bulkNum(get(r, 'gst')), schedule: sched || 'OTC',
-              packQty: spec.whole ? 1 : (bulkNum(get(r, 'packQty')) || 1), subUnit: spec.sub, allowLoose: false,
+              packQty: (bulkNum(get(r, 'packQty')) || 1), subUnit: spec.sub, allowLoose: false,
               batchNo: get(r, 'batchNo'), openingQty: (() => { const q = bulkNum(get(r, 'openingQty')); return q === '' ? '' : Math.max(0, q); })(),
               boxQty: '', boxUnit: '', expiry,
               mrp, retailRate: (() => { const n = bulkNum(get(r, 'retailRate')); return n === '' ? mrp : n; })(),
@@ -2419,7 +2420,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a448bbb3dbd94466',t:'MTc5MDk5NjgxMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a448d5411e49cc8c',t:'MTc5MDk5Nzg1Nw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });

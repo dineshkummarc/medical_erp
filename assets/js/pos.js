@@ -290,6 +290,7 @@
 
   function withCount(n, label) {
     const name = String(label || 'units');
+    if (/^(g|mg|mcg|ml|l|iu|kg)$/i.test(name)) return name; // measurement units read the same at any quantity (30 g, 100 ml)
     if (Number(n) === 1) return name.replace(/s$/i, '') || name;
     if (/s$/i.test(name)) return name;
     return name + 's';
