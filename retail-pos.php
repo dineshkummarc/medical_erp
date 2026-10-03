@@ -173,12 +173,17 @@ if ($cashier === '') $cashier = 'Cashier';
                  <span class="badge bg-light text-dark border">F2</span>
                </span>
             </label>
-            <div class="input-group mb-2">
-              <span class="input-group-text"><i class="bi bi-search"></i></span>
-              <div class="pos-search-wrap">
-                <input id="posSearch" class="form-control" placeholder="Medicine name, barcode or batch…" autocomplete="off" autofocus>
-                <button type="button" class="pos-clear" id="posSearchClear" title="Clear search" aria-label="Clear search" hidden><i class="bi bi-x-lg"></i></button>
+            <div class="d-flex gap-2 mb-2">
+              <div class="input-group">
+                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                <div class="pos-search-wrap">
+                  <input id="posSearch" class="form-control" placeholder="Medicine name, barcode or batch…" autocomplete="off" autofocus>
+                  <button type="button" class="pos-clear" id="posSearchClear" title="Clear search" aria-label="Clear search" hidden><i class="bi bi-x-lg"></i></button>
+                </div>
               </div>
+              <button type="button" class="pos-refill-btn" id="posRefillBtn" title="Refill a regular customer's previous prescription in one click">
+                <i class="bi bi-arrow-repeat"></i><span>Quick Refill</span>
+              </button>
             </div>
             <div class="pos-pick-tabs" id="posPickTabs">
               <button type="button" class="pos-pick-tab is-on" data-pick="quick">Quick picks</button>
@@ -407,7 +412,55 @@ if ($cashier === '') $cashier = 'Cashier';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/pos.js?v=2026-10-01.10"></script>
+  <!-- Quick Refill — slide-in side panel -->
+  <div class="pos-refill-overlay" id="posRefillOverlay" hidden></div>
+  <aside class="pos-refill-panel" id="posRefillPanel" role="dialog" aria-label="Quick refill" hidden>
+    <div class="prf-head">
+      <div class="prf-avatar" id="prfAvatar">?</div>
+      <div class="prf-who">
+        <strong id="prfName">Quick refill</strong>
+        <span id="prfSub">Find a regular by mobile number</span>
+      </div>
+      <button type="button" class="prf-close" id="prfClose" aria-label="Close quick refill"><i class="bi bi-x-lg"></i></button>
+    </div>
+    <div class="prf-body">
+      <div id="prfLookup">
+        <label class="form-label" for="prfMobile">Customer mobile number</label>
+        <div class="d-flex gap-2">
+          <input id="prfMobile" class="form-control" inputmode="numeric" maxlength="12" placeholder="e.g. 98765 43210" autocomplete="off">
+          <button type="button" class="prf-search" id="prfSearchBtn"><i class="bi bi-search"></i>Search</button>
+        </div>
+        <div class="prf-msg text-2 small mt-2" id="prfMsg">Type a mobile number to pull up the customer's last prescription.</div>
+      </div>
+      <div id="prfResult" hidden>
+        <div class="prf-facts">
+          <div class="prf-chip">
+            <span class="prf-k">Last visit</span>
+            <b id="prfLast">—</b>
+          </div>
+          <div class="prf-chip">
+            <span class="prf-k">Prescribing doctor</span>
+            <b id="prfDoctor">—</b>
+          </div>
+        </div>
+        <div class="d-flex justify-content-between align-items-baseline prf-sec-title">
+          <span class="fw-semibold">Previous prescription</span>
+          <button type="button" class="prf-history" id="prfHistory" title="Full purchase history — coming soon">View all history</button>
+        </div>
+        <div class="prf-table">
+          <div class="prf-thead"><span>Medicine</span><span>Quantity</span></div>
+          <div id="prfItems"></div>
+        </div>
+      </div>
+    </div>
+    <div class="prf-foot">
+      <button type="button" class="prf-refill" id="prfRefillBtn" disabled>
+        <i class="bi bi-arrow-repeat"></i><span>Refill selected (0 items)</span>
+      </button>
+    </div>
+  </aside>
+
+  <script src="assets/js/pos.js?v=2026-10-03.1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

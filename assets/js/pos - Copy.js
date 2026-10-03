@@ -57,6 +57,21 @@
       }
       .pos-loose-add:active { transform:translateY(0); box-shadow:none; background:#0f2444; color:#fff; }
       .pos-loose-add:focus-visible { outline:2px solid #16325c; outline-offset:2px; }
+      /* "% off" chip on the quick card — teal pill beside the retail price */
+      .pos-off {
+        display:inline-block; margin-left:.35rem; padding:0 .42rem; border-radius:50rem; vertical-align:middle;
+        background:#E6F1EE; color:#0F766E; font-size:.62rem; font-weight:800; letter-spacing:.02em; line-height:1.5;
+      }
+      /* Search clear control — occupies the right side of the search input, visible only with text */
+      .pos-search-wrap { position:relative; flex:1; min-width:0; }
+      .pos-search-wrap .form-control { border-top-left-radius:0; border-bottom-left-radius:0; padding-right:2rem; }
+      .pos-clear {
+        position:absolute; right:6px; top:50%; transform:translateY(-50%);
+        width:22px; height:22px; border-radius:50%; border:0; display:grid; place-items:center; padding:0;
+        background:#E9EDF1; color:#5f6b7a; font-size:.62rem; line-height:1; transition:background .15s, color .15s;
+      }
+      .pos-clear:hover { background:#DCE4E9; color:#172026; }
+      .pos-clear:focus-visible { outline:2px solid #2E8B78; outline-offset:2px; }
 
       /* Order / substitute (out of stock) */
       .pos-order-sub {
@@ -290,6 +305,7 @@
 
   function withCount(n, label) {
     const name = String(label || 'units');
+    if (/^(g|mg|mcg|ml|l|iu|kg)$/i.test(name)) return name; // measurement units read the same at any quantity (30 g, 100 ml)
     if (Number(n) === 1) return name.replace(/s$/i, '') || name;
     if (/s$/i.test(name)) return name;
     return name + 's';
@@ -452,10 +468,11 @@
     return `<div class="small-xs text-2 mt-1">MRP : ${MF.fmt(m.mrp, 2)}/${MF.esc(unitLabel(m))}${stockBadge(m, live)}</div>`;
   }
 
-  /* Strip + tablet totals, both net of the cart. Hidden tablet half when a pack is a single piece. */
+  /* Strip + tablet totals, both net of the cart. Measure-piece packs (tube of "g", bottle of "ml")
+     don't double-count: when pieces == packs the line shows the pack count only. */
   function stockText(m, live) {
     const strips = `${MF.num(live.strips)} ${MF.esc(withCount(live.strips, unitLabel(m)))}`;
-    if (pieceLabel(m) === unitLabel(m) && live.tablets === live.strips) return `Stock : ${strips}`;
+    if (pieceLabel(m) === unitLabel(m) || live.tablets === live.strips) return `Stock : ${strips}`;
     const tabs = `${MF.num(live.tablets)} ${MF.esc(withCount(live.tablets, pieceLabel(m)))}`;
     return `Stock : ${strips} · ${tabs}`;
   }
@@ -466,8 +483,18 @@
     const outOfStock = live.tablets <= 0;
     const heldInCart = outOfStock && (live.inCartPacks > 0 || live.inCartLoose > 0);
     const sellPrice = Number(m.retailRate ?? m.mrp);
-    const mrpNote = sellPrice !== Number(m.mrp)
-      ? `<div class="small-xs text-2" style="text-decoration:line-through;">MRP ${MF.fmt(m.mrp, 2)}</div>` : '';
+    const mrpN = Number(m.mrp) || 0;
+    const mrpNote = sellPrice !== mrpN
+      ? `<div class="small-xs text-2" style="text-decoration:line-through;">MRP ${MF.fmt(mrpN, 2)}</div>` : '';
+    // Discount chip next to the retail price — teal, shown only when retail actually undercuts MRP
+    const offPct = mrpN > 0 && sellPrice < mrpN ? Math.round(((mrpN - sellPrice) / mrpN) * 100) : 0;
+    const offChip = offPct > 0 ? `<span class="pos-off" title="${offPct}% off MRP" aria-label="${offPct} percent off">${offPct}% off</span>` : '';
+    // Per-piece rate under the retail price — only for COUNTABLE pack pieces (strips of tablets/capsules:
+    // ₹37.00 ÷ 10 = ₹3.70/tablet). For whole-unit packs measured in g/ml (tubes, bottles) a per-gram rate
+    // is meaningless at the counter, so it stays hidden. "Add loose" stays the only toggle-gated element.
+    const loosePiece = withCount(1, pieceLabel(m)).toLowerCase();
+    const loosePrice = packSize(m) > 1
+      ? `<div class="small-xs text-2">${MF.fmt(sellPrice / packSize(m), 2)}/${loosePiece}</div>` : '';
     const action = outOfStock
       ? (heldInCart
           ? `<div class="small-xs mt-1" style="color:#a86400;font-weight:600;">All remaining in cart</div>`
@@ -476,11 +503,12 @@
            <span class="fw-semibold" style="font-size:.75rem;">Order / substitute</span>
          </button>`)
       : (m.allowLoose ? `<button type="button" class="btn btn-sm mt-1 pos-loose-add" data-med="${m.id}">
-           <i class="bi bi-plus-circle"></i> Add ${MF.esc(m.subUnit || 'Loose')}
+           <i class="bi bi-plus-circle"></i> Add loose ${loosePiece}
          </button>` : '');
     return `
         ${mrpNote}
-        <div class="fw-bold num${outOfStock ? ' pos-price-out' : ''}"${outOfStock ? ' title="Out of stock — price cannot be charged"' : ''}>${MF.fmt(sellPrice, 2)}</div>
+        <div class="fw-bold num${outOfStock ? ' pos-price-out' : ''}"${outOfStock ? ' title="Out of stock — price cannot be charged"' : ''}>${MF.fmt(sellPrice, 2)}${offChip}</div>
+        ${loosePrice}
         <div class="small-xs text-2 mt-1" title="Sellable strips and tablets left after this cart">${stockText(m, live)}</div>
         ${action}`;
   }
@@ -545,6 +573,8 @@
     box.value = '';
     state.selIdx = 0;
     state.selQuery = '';
+    const cb = document.getElementById('posSearchClear');
+    if (cb) cb.hidden = true; // barcode autoscan clears without an input event — keep the × in sync
     searchMeds('');
   }
 
@@ -2068,6 +2098,18 @@
       if (Array.isArray(savedRecent)) state.recent = savedRecent.map(String);
     } catch (e) { /* ignore */ }
 
+    const searchClear = $('#posSearchClear');
+    const syncSearchClear = () => { if (searchClear) searchClear.hidden = !$('#posSearch').value.trim(); };
+    if (searchClear) {
+      searchClear.addEventListener('click', (e) => {
+        e.preventDefault();
+        resetSearch($('#posSearch'));
+        searchClear.hidden = true;
+        $('#posSearch').focus();
+      });
+      $('#posSearch').addEventListener('input', syncSearchClear);
+      syncSearchClear();
+    }
     $('#posSearch').addEventListener('input', (e) => {
       state.subSeed = null;
       const v = e.target.value.trim();
