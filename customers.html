@@ -117,7 +117,7 @@ require __DIR__ . '/middleware/auth.php';
         <div class="modal-header"><h5 class="modal-title" id="cuFormTitle">Add Customer</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <div class="mb-2"><label class="form-label">Customer Name <span class="req">*</span></label><input class="form-control" id="cuName" placeholder="Contact person"></div>
-          <div class="mb-2 cu-biz-field"><label class="form-label" for="cuBiz">Business name</label><input class="form-control" id="cuBiz" placeholder="Hospital, clinic or shop"></div>
+          <div class="mb-2"><label class="form-label" for="cuBiz">Business name</label><input class="form-control" id="cuBiz" placeholder="Hospital, clinic or shop"></div>
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">Phone</label><input class="form-control" id="cuPhone" placeholder="98xxx xxxxx"></div>
             <div class="col-6"><label class="form-label" for="cuType">Customer type</label>
@@ -130,7 +130,7 @@ require __DIR__ . '/middleware/auth.php';
               </select>
             </div>
           </div>
-          <div class="row g-2 mb-2 cu-biz-field">
+          <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">GSTIN</label><input class="form-control" id="cuGstin" placeholder="Optional for retail"></div>
             <div class="col-6"><label class="form-label">Drug License No.</label><input class="form-control" id="cuDl" placeholder="Optional"></div>
           </div>
@@ -424,15 +424,6 @@ require __DIR__ . '/middleware/auth.php';
         }
       });
 
-      /* Retail customers are walk-ins — business name, GSTIN and drug license only matter
-         for wholesale / Hospital / Clinic / Others. Hide + skip them for Retail. */
-      function syncTypeFields() {
-        const retail = String($('#cuType').value || 'retail').toLowerCase() === 'retail';
-        document.querySelectorAll('.cu-biz-field').forEach((el) => { el.hidden = retail; });
-      }
-      $('#cuType').addEventListener('change', syncTypeFields);
-      syncTypeFields();
-
       function openForm(row) {
         editId = row ? row.id : null;
         $('#cuFormTitle').textContent = row ? 'Edit Customer' : 'Add Customer';
@@ -446,7 +437,6 @@ require __DIR__ . '/middleware/auth.php';
         $('#cuGstin').value = row ? (row.gstin || '') : '';
         $('#cuDl').value = row ? (row.dl_no || row.dlNo || '') : '';
         $('#cuAddr').value = row ? (row.address || '') : '';
-        syncTypeFields();
         const profileEl = $('#cuProfileModal');
         const profileOpen = profileEl.classList.contains('show');
         if (row && profileOpen) {
