@@ -29,22 +29,6 @@ require __DIR__ . '/middleware/auth.php';
     .cu-type.hospital { background:#F1EBFC; color:#6D28D9; border-color:#ddd6fe; }
     .cu-type.clinic { background:#FEF3E2; color:#B45309; border-color:#f6d7a2; }
     .cu-type.others { background:#F3F4F6; color:#4B5563; border-color:#e5e7eb; }
-    /* Segmented ledger filter */
-    .cu-seg { display:inline-flex; background:#F1F4F6; border-radius:10px; padding:3px; gap:2px; }
-    .cu-seg button {
-      border:0; background:transparent; padding:.38rem .95rem; border-radius:8px;
-      font-size:.78rem; font-weight:600; color:#6B7280; transition:all .18s;
-    }
-    .cu-seg button:hover { color:#374151; }
-    .cu-seg button.active { background:#fff; color:var(--mf-primary); box-shadow:0 1px 3px rgba(15,23,42,.12); }
-    .cu-seg button .cu-seg-n { opacity:.65; font-weight:500; font-size:.72rem; margin-left:2px; }
-    /* Ageing strip */
-    .cu-age { display:flex; gap:.4rem; flex-wrap:wrap; align-items:stretch; }
-    .cu-age-cell { flex:1; min-width:88px; background:#FAFBFC; border:1px solid #EDF1F4; border-radius:10px; padding:.38rem .6rem; }
-    .cu-age-cell .a-lbl { font-size:.62rem; text-transform:uppercase; letter-spacing:.05em; color:#9AA3AF; font-weight:700; }
-    .cu-age-cell .a-val { font-size:.82rem; font-weight:700; font-variant-numeric:tabular-nums; margin-top:1px; }
-    .cu-age-cell.w1 .a-val { color:#0F4D42; } .cu-age-cell.w2 .a-val { color:#B45309; }
-    .cu-age-cell.w3 .a-val { color:#B91C1C; } .cu-age-cell.w4 .a-val { color:#7F1D1D; }
     .cu-profile-header { align-items:flex-start; }
     .cu-profile-head { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:0; }
     .cu-profile-head .name { font-weight:750; }
@@ -85,7 +69,6 @@ require __DIR__ . '/middleware/auth.php';
             <p class="page-sub" id="cuCount"></p>
           </div>
           <div class="ms-auto d-flex gap-2">
-            <button class="btn btn-mf-outline" id="cuAgeOpen"><i class="bi bi-calendar2-week me-1"></i>Ageing</button>
             <button class="btn btn-mf-outline" id="cuRefillOpen"><i class="bi bi-arrow-repeat me-1"></i>Refill log</button>
             <button class="btn btn-mf" id="cuAddBtn"><i class="bi bi-person-plus me-1"></i>Add Customer</button>
           </div>
@@ -94,14 +77,6 @@ require __DIR__ . '/middleware/auth.php';
         <div class="row g-3 mb-3" id="cuKpis"></div>
 
         <div class="card-mf p-3 mb-3">
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <div class="cu-seg" id="cuSeg">
-              <button type="button" data-seg="all" class="active">All</button>
-              <button type="button" data-seg="retail">Retail<span class="cu-seg-n" id="cuSegRetail"></span></button>
-              <button type="button" data-seg="business">Business<span class="cu-seg-n" id="cuSegBusiness"></span></button>
-            </div>
-            <span class="text-2" style="font-size:.72rem">Business = wholesale, hospital, clinic accounts — credit receivables tracked separately from retail udhar.</span>
-          </div>
           <div class="row g-2">
             <div class="col-md-6">
               <div class="input-group"><span class="input-group-text"><i class="bi bi-search"></i></span>
@@ -133,34 +108,6 @@ require __DIR__ . '/middleware/auth.php';
         </div>
 
       </main>
-    </div>
-  </div>
-
-  <!-- Receivables ageing modal -->
-  <div class="modal fade cu-modal" id="cuAgeModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-calendar2-week me-2" style="color:var(--mf-primary)"></i>Receivables ageing</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <div class="cu-age flex-grow-1" id="cuAgeStrip"></div>
-            <span class="text-2" style="font-size:.72rem">Tap a bucket to filter the bills below · oldest first</span>
-          </div>
-          <div class="table-scroll" style="max-height:46vh">
-            <table class="table table-mf">
-              <thead><tr><th>Invoice</th><th>Customer</th><th>Channel</th><th>Bill date</th><th class="text-center">Age</th><th class="text-end">Due</th></tr></thead>
-              <tbody id="cuAgeBody"></tbody>
-            </table>
-          </div>
-          <div class="d-flex justify-content-between align-items-baseline mt-2" style="font-size:.74rem;color:#6B7280">
-            <span id="cuAgeFoot"></span>
-            <span>Settled &amp; payments-over-bill are netted per bill; account-level extras show in the profile ledger.</span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -207,11 +154,6 @@ require __DIR__ . '/middleware/auth.php';
           <div class="row g-2 mb-2 cu-biz-field">
             <div class="col-6"><label class="form-label">GSTIN</label><input class="form-control" id="cuGstin" placeholder="Optional for retail"></div>
             <div class="col-6"><label class="form-label">Drug License No.</label><input class="form-control" id="cuDl" placeholder="Optional"></div>
-          </div>
-          <div class="row g-2 mb-2 cu-biz-field">
-            <div class="col-6"><label class="form-label" for="cuCreditLimit">Credit limit (₹)</label><input class="form-control" id="cuCreditLimit" type="number" min="0" step="0.01" placeholder="0 = no cap"></div>
-            <div class="col-6"><label class="form-label" for="cuCreditDays">Credit days</label><input class="form-control" id="cuCreditDays" type="number" min="0" step="1" placeholder="e.g. 30"></div>
-            <div class="col-12" style="font-size:.7rem;color:#8A94A0;margin-top:-2px">POS warns when a credit bill would push the outstanding past the limit. Terms show on the customer record.</div>
           </div>
           <div><label class="form-label">Address</label><textarea class="form-control" id="cuAddr" rows="2"></textarea></div>
         </div>
@@ -347,12 +289,8 @@ require __DIR__ . '/middleware/auth.php';
       function filtered() {
         const q = $('#cuSearch').value.toLowerCase();
         const due = $('#cuDue').value;
-        const seg = document.querySelector('#cuSeg .active')?.dataset.seg || 'all';
         return list().filter((c) => {
           const biz = c.business_name || c.businessName || '';
-          const isRetail = typeKey(c.type) === 'retail';
-          if (seg === 'retail' && !isRetail) return false;
-          if (seg === 'business' && isRetail) return false;
           if (q && !(c.name + biz + (c.phone || '') + (c.gstin || '') + (c.address || '') + typeLabel(c.type)).toLowerCase().includes(q)) return false;
           if (due === 'due' && c.due <= 0) return false;
           if (due === 'clear' && c.due > 0) return false;
@@ -362,22 +300,18 @@ require __DIR__ . '/middleware/auth.php';
 
       function renderKpis() {
         const l = list();
-        const bizDue = l.filter((c) => typeKey(c.type) !== 'retail').reduce((s, c) => s + c.due, 0);
-        const retDue = l.filter((c) => typeKey(c.type) === 'retail').reduce((s, c) => s + c.due, 0);
+        const totalDue = l.reduce((s, c) => s + c.due, 0);
+        const withDue = l.filter((c) => c.due > 0).length;
         $('#cuKpis').innerHTML = [
           ['Total Customers', l.length, 'primary', 'people'],
           ['Lifetime Sales', MF.fmt(l.reduce((s, c) => s + c.totalSales, 0)), 'success', 'graph-up-arrow'],
-          ['Outstanding Dues', MF.fmt(bizDue + retDue), 'danger', 'cash-stack'],
-          ['Business receivable', MF.fmt(bizDue), 'primary', 'briefcase'],
-          ['Retail receivable', MF.fmt(retDue), 'warning', 'person-check'],
-          ['Customers with Due', l.filter((c) => c.due > 0).length, 'warning', 'exclamation-triangle']
+          ['Outstanding Dues', MF.fmt(totalDue), 'danger', 'cash-stack'],
+          ['Customers with Due', withDue, 'warning', 'exclamation-triangle']
         ].map(([lbl, v, tone, icon]) => `
-          <div class="col-6 col-md-4 col-xl-2"><div class="card-mf kpi-card h-100">
+          <div class="col-6 col-xl-3"><div class="card-mf kpi-card h-100">
             <div class="kpi-icon tone-${tone}"><i class="bi bi-${icon}"></i></div>
             <div><div class="kpi-label">${lbl}</div><div class="kpi-value num">${v}</div></div>
           </div></div>`).join('');
-        $('#cuSegRetail').textContent = '· ' + l.filter((c) => typeKey(c.type) === 'retail').length;
-        $('#cuSegBusiness').textContent = '· ' + l.filter((c) => typeKey(c.type) !== 'retail').length;
       }
 
       function render() {
@@ -458,20 +392,9 @@ require __DIR__ . '/middleware/auth.php';
               </div></div>
             </div>
             <div class="row g-3 mb-3">
-              ${[...([['Phone', MF.esc(c.phone || '—')], ['Business', MF.esc(c.business_name || c.businessName || '—')],
+              ${[['Phone', MF.esc(c.phone || '—')], ['Business', MF.esc(c.business_name || c.businessName || '—')],
                  ['Customer type', MF.esc(kind)], ['Address', MF.esc(c.address || '—')],
-                 ['GST number', MF.esc(gstin || '—')], ['Drug licence', MF.esc(dl || '—')]]),
-                 ...(typeKey(c.type) !== 'retail' ? [[
-                   'Credit policy',
-                   c.credit_limit > 0
-                     ? MF.fmt(c.credit_limit) + ' cap · ' + (c.credit_days ? c.credit_days + 'd terms' : 'no terms set')
-                     : 'No cap set'
-                 ], [
-                   'Credit headroom',
-                   c.credit_limit > 0
-                     ? '<span class="' + (c.due >= c.credit_limit ? 'text-danger' : 'text-success') + ' fw-bold">' + MF.fmt(Math.max(0, c.credit_limit - c.due)) + '</span> available'
-                     : '—'
-                 ]] : [])].map(([k, v]) =>
+                 ['GST number', MF.esc(gstin || '—')], ['Drug licence', MF.esc(dl || '—')]].map(([k, v]) =>
                 `<div class="col-md-4 col-6"><div class="kpi-label">${k}</div><div class="fw-semibold">${v}</div></div>`).join('')}
             </div>
             ${c.due > 0 ? `<div class="alert alert-light border d-flex align-items-center gap-2 small mb-0">
@@ -543,8 +466,6 @@ require __DIR__ . '/middleware/auth.php';
         $('#cuType').value = row ? typeValue(row.type) : 'retail';
         $('#cuGstin').value = row ? (row.gstin || '') : '';
         $('#cuDl').value = row ? (row.dl_no || row.dlNo || '') : '';
-        $('#cuCreditLimit').value = typeValue(row ? row.type : 'retail') === 'retail' || !row || !row.credit_limit ? '' : row.credit_limit;
-        $('#cuCreditDays').value = row && row.credit_days ? row.credit_days : '';
         $('#cuAddr').value = row ? (row.address || '') : '';
         syncTypeFields();
         const profileEl = $('#cuProfileModal');
@@ -567,19 +488,6 @@ require __DIR__ . '/middleware/auth.php';
         reopenProfile = false;
         openProfile(current.id);
       });
-
-      /* Segment pills — persisted so the ledger view survives navigation */
-      document.querySelectorAll('#cuSeg button').forEach((b) => b.addEventListener('click', () => {
-        document.querySelectorAll('#cuSeg button').forEach((x) => x.classList.toggle('active', x === b));
-        try { localStorage.setItem('cu_seg', b.dataset.seg); } catch (e) {}
-        render();
-      }));
-      try {
-        const savedSeg = localStorage.getItem('cu_seg');
-        if (savedSeg) {
-          document.querySelectorAll('#cuSeg button').forEach((x) => x.classList.toggle('active', x.dataset.seg === savedSeg));
-        }
-      } catch (e) {}
 
       $('#cuAddBtn').addEventListener('click', () => openForm(null));
 
@@ -609,66 +517,6 @@ require __DIR__ . '/middleware/auth.php';
         bootstrap.Modal.getOrCreateInstance($('#cuRefillModal')).show();
         paintRefillLog();
       });
-
-      /* Receivables ageing — buckets the live dues by number of days open.
-         Bill-level view (oldest first); tapping a bucket isolates that slice. */
-      let ageRows = [];
-      let ageFilter = null;                    // 0..3, or null = all buckets
-      const AGE_BUCKET = (age) => (age == null || age < 0) ? 0 : age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : 3;
-      const AGE_LABELS = ['0–30 days', '31–60 days', '61–90 days', '90+ days'];
-      function ageBadge(age) {
-        const b = AGE_BUCKET(age);
-        const cls = ['badge-soft-success', 'badge-soft-warning', 'badge-soft-danger', 'badge-soft-danger'][b];
-        return `<span class="badge ${cls}">${age == null ? '—' : age + 'd'}</span>`;
-      }
-      function paintAgeing() {
-        const strip = $('#cuAgeStrip');
-        const sums = [0, 0, 0, 0];
-        const counts = [0, 0, 0, 0];
-        ageRows.forEach((r) => { const b = AGE_BUCKET(r.age_days); sums[b] += r.balance_due; counts[b]++; });
-        strip.innerHTML = AGE_LABELS.map((lbl, i) => `
-          <div class="cu-age-cell w${i + 1}" data-b="${i}" role="button" tabindex="0" title="${counts[i]} open bill(s)"
-               style="cursor:pointer;${ageFilter === i ? 'outline:2px solid var(--mf-primary);outline-offset:1px' : ''}">
-            <div class="a-lbl">${lbl}</div><div class="a-val num">${MF.fmt(sums[i])}</div>
-          </div>`).join('');
-        strip.querySelectorAll('.cu-age-cell').forEach((cell) => {
-          cell.addEventListener('click', () => { const b = Number(cell.dataset.b); ageFilter = ageFilter === b ? null : b; paintAgeing(); });
-          cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); } });
-        });
-        const rows = ageFilter == null ? ageRows : ageRows.filter((r) => AGE_BUCKET(r.age_days) === ageFilter);
-        const body = $('#cuAgeBody');
-        if (!rows.length) {
-          body.innerHTML = '<tr><td colspan="6" class="empty-state" style="padding:2rem"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:.35rem"></i>Nothing pending in this slice — all clear.</td></tr>';
-        } else {
-          body.innerHTML = rows.map((r) => `
-            <tr>
-              <td class="num td-title">${MF.esc(r.invoice_no || ('S-' + r.id))}</td>
-              <td><div class="td-title">${MF.esc(r.customer_name || '—')}</div></td>
-              <td><span class="cu-type ${r.channel === 'wholesale' ? 'wholesale' : 'retail'}" style="margin-top:0">${r.channel === 'wholesale' ? 'Wholesale' : 'Retail'}</span></td>
-              <td class="num">${MF.esc(r.sale_date ? (MF.fmtDate ? MF.fmtDate(r.sale_date) : r.sale_date) : '—')}</td>
-              <td class="text-center">${ageBadge(r.age_days)}</td>
-              <td class="text-end num fw-semibold text-danger">${MF.fmt(r.balance_due)}</td>
-            </tr>`).join('');
-        }
-        const total = rows.reduce((s, r) => s + r.balance_due, 0);
-        $('#cuAgeFoot').textContent = ageFilter == null
-          ? `${rows.length} open bill(s) · ${MF.fmt(total)} outstanding across all buckets`
-          : `${AGE_LABELS[ageFilter]}: ${rows.length} bill(s) · ${MF.fmt(total)} — tap the bucket again to see everything`;
-      }
-      $('#cuAgeOpen').addEventListener('click', async () => {
-        bootstrap.Modal.getOrCreateInstance($('#cuAgeModal')).show();
-        $('#cuAgeBody').innerHTML = '<tr><td colspan="6" class="text-center text-2" style="padding:1.6rem">Reading the dues ledger…</td></tr>';
-        try {
-          const res = await MF.Api.get('customer-dues.php');
-          const bills = (res.data && res.data.bills) || [];
-          ageRows = bills.filter((b) => Number(b.balance_due) > 0)
-            .sort((a, b) => String(a.sale_date || '').localeCompare(String(b.sale_date || '')));
-          ageFilter = null;
-          paintAgeing();
-        } catch (e) {
-          $('#cuAgeBody').innerHTML = '<tr><td colspan="6" class="text-center" style="padding:1.6rem;color:#B4352F">' + MF.esc(e.message || 'Could not load ageing.') + '</td></tr>';
-        }
-      });
       $('#cuEditBtn').addEventListener('click', () => { if (current) openForm(current); });
       $('#cuAddSave').addEventListener('click', async () => {
         const name = $('#cuName').value.trim();
@@ -678,8 +526,6 @@ require __DIR__ . '/middleware/auth.php';
           name, type: $('#cuType').value, phone: $('#cuPhone').value.trim(),
           business_name: $('#cuBiz').value.trim(),
           gstin: $('#cuGstin').value.trim(), dlNo: $('#cuDl').value.trim(), address: $('#cuAddr').value.trim(),
-          credit_limit: $('#cuCreditLimit').value === '' ? 0 : Math.max(0, Number($('#cuCreditLimit').value) || 0),
-          credit_days: $('#cuCreditDays').value === '' ? 0 : Math.max(0, parseInt($('#cuCreditDays').value, 10) || 0),
         };
         const saveBtn = $('#cuAddSave');
         setBusy(saveBtn, true);
@@ -697,9 +543,7 @@ require __DIR__ . '/middleware/auth.php';
             dl_no: body.dlNo,
             dlNo: body.dlNo,
             address: body.address,
-            phone: body.phone,
-            credit_limit: body.credit_limit || null,
-            credit_days: body.credit_days || null
+            phone: body.phone
           };
           remember(id, extra);
           const backToProfile = reopenProfile;
@@ -740,7 +584,7 @@ require __DIR__ . '/middleware/auth.php';
           rows.forEach((row) => {
             const hit = (D.customers || []).find((c) => String(c.id) === String(row.id));
             if (!hit) return;
-            ['name', 'phone', 'address', 'type', 'gstin', 'business_name', 'dl_no', 'credit_limit', 'credit_days'].forEach((key) => {
+            ['name', 'phone', 'address', 'type', 'gstin', 'business_name', 'dl_no'].forEach((key) => {
               if (Object.prototype.hasOwnProperty.call(row, key) && row[key] != null && row[key] !== '') hit[key] = row[key];
             });
             if (row.businessName && !hit.business_name) hit.business_name = row.businessName;

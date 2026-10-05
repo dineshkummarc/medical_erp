@@ -69,47 +69,19 @@ function shapeCustomer(array $row): array
         'dl_no' => (string) ($row['dl_no'] ?? ''),
         'dlNo' => (string) ($row['dl_no'] ?? ''),
         'address' => (string) ($row['address'] ?? ''),
-        'credit_limit' => isset($row['credit_limit']) ? (float) $row['credit_limit'] : null,
-        'credit_days' => isset($row['credit_days']) ? (int) $row['credit_days'] : null,
         'created_at' => (string) ($row['created_at'] ?? ''),
     ];
 }
 
-function ensureCreditColumns(): void
-{
-    // Best-effort migration: business credit policy fields (credit_limit, credit_days).
-    // Runs once per request; silently ignored if the column already exists or the
-    // database user lacks ALTER rights — the usual extended-then-fallback flow below
-    // keeps reads and writes working either way.
-    try {
-        $cols = queryRows("SHOW COLUMNS FROM customers LIKE 'credit_limit'");
-        if (!$cols) {
-            queryRows("ALTER TABLE customers ADD credit_limit DECIMAL(12,2) NULL DEFAULT NULL AFTER address");
-        }
-    } catch (Throwable $e) { /* optional column */ }
-    try {
-        $cols = queryRows("SHOW COLUMNS FROM customers LIKE 'credit_days'");
-        if (!$cols) {
-            queryRows("ALTER TABLE customers ADD credit_days INT NULL DEFAULT NULL AFTER credit_limit");
-        }
-    } catch (Throwable $e) { /* optional column */ }
-}
-
 function listRows(): array
 {
-    $extended = 'SELECT id, name, business_name, type, phone, gstin, dl_no, address, credit_limit, credit_days, created_at
+    $extended = 'SELECT id, name, business_name, type, phone, gstin, dl_no, address, created_at
         FROM customers ORDER BY name ASC, id ASC';
     try {
-        ensureCreditColumns();
         return queryRows($extended);
     } catch (Throwable $e) {
-        try {
-            return queryRows('SELECT id, name, business_name, type, phone, gstin, dl_no, address, created_at
-                FROM customers ORDER BY name ASC, id ASC');
-        } catch (Throwable $e2) {
-            return queryRows('SELECT id, name, type, phone, gstin, dl_no, address, created_at
+        return queryRows('SELECT id, name, type, phone, gstin, dl_no, address, created_at
             FROM customers ORDER BY name ASC, id ASC');
-        }
     }
 }
 
@@ -125,7 +97,6 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
-    ensureCreditColumns();
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $name = clip((string) ($input['name'] ?? ''), 150);
     $business = clip((string) ($input['business_name'] ?? $input['businessName'] ?? ''), 150);
@@ -134,32 +105,19 @@ if ($method === 'POST') {
     $gstin = clip((string) ($input['gstin'] ?? ''), 20);
     $dl = clip((string) ($input['dl_no'] ?? $input['dlNo'] ?? ''), 50);
     $address = clip((string) ($input['address'] ?? ''), 255);
-    // Credit policy applies to business accounts only; retail rows stay NULL.
-    $isRetail = strtolower($type) === 'retail';
-    $creditLimit = $isRetail ? null : (float) max(0, (float) ($input['credit_limit'] ?? $input['creditLimit'] ?? 0));
-    $creditDays = $isRetail ? null : (int) max(0, (int) ($input['credit_days'] ?? $input['creditDays'] ?? 0));
-    $limitSql = $creditLimit && $creditLimit > 0 ? number_format($creditLimit, 2, '.', '') : 'NULL';
-    $daysSql = $creditDays && $creditDays > 0 ? (string) $creditDays : 'NULL';
     if ($name === '') {
         Json::error('Customer name is required.', 422);
     }
     try {
         try {
-            queryRows('INSERT INTO customers (name, business_name, type, phone, gstin, dl_no, address, credit_limit, credit_days)
+            queryRows('INSERT INTO customers (name, business_name, type, phone, gstin, dl_no, address)
                 VALUES (' . sqlStr($name) . ', ' . sqlNull($business) . ', ' . sqlStr($type) . ', '
                 . sqlNull($phone) . ', ' . sqlNull($gstin) . ', '
-                . sqlNull($dl) . ', ' . sqlNull($address) . ', ' . $limitSql . ', ' . $daysSql . ')');
+                . sqlNull($dl) . ', ' . sqlNull($address) . ')');
         } catch (Throwable $e) {
-            try {
-                queryRows('INSERT INTO customers (name, business_name, type, phone, gstin, dl_no, address)
-                    VALUES (' . sqlStr($name) . ', ' . sqlNull($business) . ', ' . sqlStr($type) . ', '
-                    . sqlNull($phone) . ', ' . sqlNull($gstin) . ', '
-                    . sqlNull($dl) . ', ' . sqlNull($address) . ')');
-            } catch (Throwable $e2) {
-                queryRows('INSERT INTO customers (name, type, phone, gstin, dl_no, address)
-                    VALUES (' . sqlStr($name) . ', ' . sqlStr($type) . ', ' . sqlNull($phone) . ', '
-                    . sqlNull($gstin) . ', ' . sqlNull($dl) . ', ' . sqlNull($address) . ')');
-            }
+            queryRows('INSERT INTO customers (name, type, phone, gstin, dl_no, address)
+                VALUES (' . sqlStr($name) . ', ' . sqlStr($type) . ', ' . sqlNull($phone) . ', '
+                . sqlNull($gstin) . ', ' . sqlNull($dl) . ', ' . sqlNull($address) . ')');
         }
         $found = queryRows('SELECT id FROM customers WHERE name = ' . sqlStr($name) . ' ORDER BY id DESC LIMIT 1');
         $id = (int) ($found[0]['id'] ?? 0);
@@ -179,13 +137,10 @@ if ($method === 'POST') {
         'address' => $address,
         'phone' => $phone,
         'type' => $type,
-        'credit_limit' => $creditLimit ?: null,
-        'credit_days' => $creditDays ?: null,
     ]);
 }
 
 if ($method === 'PUT') {
-    ensureCreditColumns();
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
     $id = (int) ($input['id'] ?? $_GET['id'] ?? 0);
     $name = clip((string) ($input['name'] ?? ''), 150);
@@ -195,11 +150,6 @@ if ($method === 'PUT') {
     $gstin = clip((string) ($input['gstin'] ?? ''), 20);
     $dl = clip((string) ($input['dl_no'] ?? $input['dlNo'] ?? ''), 50);
     $address = clip((string) ($input['address'] ?? ''), 255);
-    $isRetail = strtolower($type) === 'retail';
-    $creditLimit = $isRetail ? null : (float) max(0, (float) ($input['credit_limit'] ?? $input['creditLimit'] ?? 0));
-    $creditDays = $isRetail ? null : (int) max(0, (int) ($input['credit_days'] ?? $input['creditDays'] ?? 0));
-    $limitSql = $creditLimit && $creditLimit > 0 ? number_format($creditLimit, 2, '.', '') : 'NULL';
-    $daysSql = $creditDays && $creditDays > 0 ? (string) $creditDays : 'NULL';
     if (!$id) {
         Json::error('Customer not found.', 404);
     }
@@ -219,31 +169,17 @@ if ($method === 'PUT') {
                 phone = ' . sqlNull($phone) . ',
                 gstin = ' . sqlNull($gstin) . ',
                 dl_no = ' . sqlNull($dl) . ',
-                address = ' . sqlNull($address) . ',
-                credit_limit = ' . $limitSql . ',
-                credit_days = ' . $daysSql . '
+                address = ' . sqlNull($address) . '
                 WHERE id = ' . $id);
         } catch (Throwable $e) {
-            try {
-                queryRows('UPDATE customers SET
-                    name = ' . sqlStr($name) . ',
-                    business_name = ' . sqlNull($business) . ',
-                    type = ' . sqlStr($type) . ',
-                    phone = ' . sqlNull($phone) . ',
-                    gstin = ' . sqlNull($gstin) . ',
-                    dl_no = ' . sqlNull($dl) . ',
-                    address = ' . sqlNull($address) . '
-                    WHERE id = ' . $id);
-            } catch (Throwable $e2) {
-                queryRows('UPDATE customers SET
-                    name = ' . sqlStr($name) . ',
-                    type = ' . sqlStr($type) . ',
-                    phone = ' . sqlNull($phone) . ',
-                    gstin = ' . sqlNull($gstin) . ',
-                    dl_no = ' . sqlNull($dl) . ',
-                    address = ' . sqlNull($address) . '
-                    WHERE id = ' . $id);
-            }
+            queryRows('UPDATE customers SET
+                name = ' . sqlStr($name) . ',
+                type = ' . sqlStr($type) . ',
+                phone = ' . sqlNull($phone) . ',
+                gstin = ' . sqlNull($gstin) . ',
+                dl_no = ' . sqlNull($dl) . ',
+                address = ' . sqlNull($address) . '
+                WHERE id = ' . $id);
         }
     } catch (Throwable $e) {
         Json::error('Could not update the customer. Run database/migrations/2026_09_28_customer_profile.sql if the type could not be saved.', 500);
@@ -260,8 +196,6 @@ if ($method === 'PUT') {
         'gstin' => $gstin,
         'dl_no' => $dl,
         'type' => $type,
-        'credit_limit' => $creditLimit ?: null,
-        'credit_days' => $creditDays ?: null,
     ]);
 }
 

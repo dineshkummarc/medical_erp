@@ -1916,88 +1916,6 @@
       : html;
   }
 
-  /* ===== Business credit gate =====
-     * A credit bill to a business account with a cap set warns (and asks for a
-     * cashier confirmation) when the projected dues would cross the cap.
-     * Retail accounts are exempt — their policy fields stay NULL server-side. */
-  function ensureCreditModal() {
-    if (document.getElementById('posCreditModal')) return;
-    const wrap = document.createElement('div');
-    wrap.innerHTML = `<div class="modal fade" id="posCreditModal" tabindex="-1" data-bs-focus="false" data-bs-backdrop="static" data-bs-keyboard="false">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header">
-            <h5 class="modal-title"><i class="bi bi-shield-exclamation me-2" style="color:#B42318"></i>Credit limit exceeded</h5>
-            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-          </div>
-          <div class="modal-body" id="posCreditBody"></div>
-          <div class="modal-footer">
-            <button type="button" class="btn btn-light-mf" data-bs-dismiss="modal">Cancel billing</button>
-            <button type="button" class="btn btn-danger" id="posCreditProceed"><i class="bi bi-exclamation-triangle me-1"></i>Sell on credit anyway</button>
-          </div>
-        </div>
-      </div>
-    </div>`;
-    document.body.appendChild(wrap.firstElementChild);
-  }
-  function posCreditConfirm(html) {
-    return new Promise((resolve) => {
-      ensureCreditModal();
-      const el = document.getElementById('posCreditModal');
-      document.getElementById('posCreditBody').innerHTML = html;
-      const modal = bootstrap.Modal.getOrCreateInstance(el);
-      let done = false;
-      const finish = (ok) => { if (done) return; done = true; el.removeEventListener('hidden.bs.modal', onHide); resolve(ok); };
-      const onHide = () => finish(false);
-      el.addEventListener('hidden.bs.modal', onHide);
-      document.getElementById('posCreditProceed').onclick = () => { finish(true); modal.hide(); };
-      modal.show();
-    });
-  }
-  async function creditGate(t) {
-    if (state.payment !== 'credit') return true;
-    const cust = MF.cust($('#posCustomer') ? $('#posCustomer').value : '');
-    if (!cust || cust.name === 'Walk-in Customer') return true;      // walk-in credit is already blocked at the payment radios
-    const typeKey = String(cust.type || '').toLowerCase();
-    if (typeKey === '' || typeKey === 'retail') return true;          // policy applies to business accounts only
-    const limit = Number(cust.credit_limit ?? cust.creditLimit ?? 0);
-    if (!(limit > 0)) return true;                                    // no cap configured on this account
-    const bill = Math.max(0, Number(t && t.grand) || 0);
-    let duesNow = null;
-    try {
-      const res = await MF.Api.get('customer-dues.php?id=' + encodeURIComponent(cust.id));
-      duesNow = Number(res && res.data && res.data.customer ? res.data.customer.outstanding : 0);
-      if (!Number.isFinite(duesNow)) duesNow = null;
-    } catch (e) { duesNow = null; }
-    if (duesNow === null) return true;                                // ledger unavailable — don't freeze the counter; dues still post server-side
-    const headroom = limit - duesNow;
-    if (bill <= headroom) {
-      const left = headroom - bill;
-      if (left < limit * 0.2) {
-        MF.toast(`${cust.name} will be down to ${MF.fmt(Math.max(0, left))} of the ${MF.fmt(limit)} credit cap after this bill.`, 'warn', 'Credit watch');
-      }
-      return true;
-    }
-    const projected = duesNow + bill;
-    const overBy = projected - limit;
-    return posCreditConfirm(`
-      <p class="mb-2" style="font-size:.86rem">This credit bill to <strong>${MF.esc(cust.name)}</strong>${cust.business_name ? ' (' + MF.esc(cust.business_name) + ')' : ''} will take the account past its cap:</p>
-      <table class="table table-sm mb-2" style="font-size:.84rem">
-        <tbody>
-          <tr><td class="text-2">Credit limit</td><td class="text-end num fw-semibold">${MF.fmt(limit)}</td></tr>
-          <tr><td class="text-2">Outstanding today</td><td class="text-end num">${MF.fmt(duesNow)}</td></tr>
-          <tr><td class="text-2">Headroom left</td><td class="text-end num">${MF.fmt(Math.max(0, headroom))}</td></tr>
-          <tr><td class="text-2">This bill on credit</td><td class="text-end num fw-semibold">${MF.fmt(bill)}</td></tr>
-          <tr class="table-danger"><td class="fw-semibold">Dues after this bill</td>
-            <td class="text-end num fw-bold">${MF.fmt(projected)} <span class="badge bg-danger ms-1">+${MF.fmt(overBy)} over</span></td></tr>
-        </tbody>
-      </table>
-      ${cust.credit_days ? `<div class="text-2 mb-2" style="font-size:.74rem">Account terms: payment due within <strong>${cust.credit_days} day${Number(cust.credit_days) === 1 ? '' : 's'}</strong>.</div>` : ''}
-      <div class="alert alert-warning py-2 mb-0" role="note" style="font-size:.76rem;border-radius:10px">
-        <i class="bi bi-lightbulb me-1"></i>Cleaner: collect the existing ${MF.fmt(duesNow)} first, or bill this one on cash/UPI.
-      </div>`);
-  }
-
   async function completeSale() {
     if (state.tenderOpen) { document.getElementById('posTenderOk')?.click(); return; }
     if (!state.cart.length) { MF.toast('Cart is empty', 'warn', 'Cannot complete sale'); return; }
@@ -2018,7 +1936,6 @@
       }
     }
     const t = calcTotals();
-    if (!await creditGate(t)) { MF.toast('Sale paused — adjust the payment mode or collect dues first.', 'info', 'Credit gate'); return; }
     const tender = await openTender(t);
     if (!tender) return;
     state.tender = tender;

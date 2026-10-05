@@ -85,7 +85,6 @@ require __DIR__ . '/middleware/auth.php';
             <p class="page-sub" id="cuCount"></p>
           </div>
           <div class="ms-auto d-flex gap-2">
-            <button class="btn btn-mf-outline" id="cuAgeOpen"><i class="bi bi-calendar2-week me-1"></i>Ageing</button>
             <button class="btn btn-mf-outline" id="cuRefillOpen"><i class="bi bi-arrow-repeat me-1"></i>Refill log</button>
             <button class="btn btn-mf" id="cuAddBtn"><i class="bi bi-person-plus me-1"></i>Add Customer</button>
           </div>
@@ -133,34 +132,6 @@ require __DIR__ . '/middleware/auth.php';
         </div>
 
       </main>
-    </div>
-  </div>
-
-  <!-- Receivables ageing modal -->
-  <div class="modal fade cu-modal" id="cuAgeModal" tabindex="-1">
-    <div class="modal-dialog modal-xl modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-calendar2-week me-2" style="color:var(--mf-primary)"></i>Receivables ageing</h5>
-          <button class="btn-close" data-bs-dismiss="modal"></button>
-        </div>
-        <div class="modal-body">
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
-            <div class="cu-age flex-grow-1" id="cuAgeStrip"></div>
-            <span class="text-2" style="font-size:.72rem">Tap a bucket to filter the bills below · oldest first</span>
-          </div>
-          <div class="table-scroll" style="max-height:46vh">
-            <table class="table table-mf">
-              <thead><tr><th>Invoice</th><th>Customer</th><th>Channel</th><th>Bill date</th><th class="text-center">Age</th><th class="text-end">Due</th></tr></thead>
-              <tbody id="cuAgeBody"></tbody>
-            </table>
-          </div>
-          <div class="d-flex justify-content-between align-items-baseline mt-2" style="font-size:.74rem;color:#6B7280">
-            <span id="cuAgeFoot"></span>
-            <span>Settled &amp; payments-over-bill are netted per bill; account-level extras show in the profile ledger.</span>
-          </div>
-        </div>
-      </div>
     </div>
   </div>
 
@@ -609,66 +580,6 @@ require __DIR__ . '/middleware/auth.php';
         bootstrap.Modal.getOrCreateInstance($('#cuRefillModal')).show();
         paintRefillLog();
       });
-
-      /* Receivables ageing — buckets the live dues by number of days open.
-         Bill-level view (oldest first); tapping a bucket isolates that slice. */
-      let ageRows = [];
-      let ageFilter = null;                    // 0..3, or null = all buckets
-      const AGE_BUCKET = (age) => (age == null || age < 0) ? 0 : age <= 30 ? 0 : age <= 60 ? 1 : age <= 90 ? 2 : 3;
-      const AGE_LABELS = ['0–30 days', '31–60 days', '61–90 days', '90+ days'];
-      function ageBadge(age) {
-        const b = AGE_BUCKET(age);
-        const cls = ['badge-soft-success', 'badge-soft-warning', 'badge-soft-danger', 'badge-soft-danger'][b];
-        return `<span class="badge ${cls}">${age == null ? '—' : age + 'd'}</span>`;
-      }
-      function paintAgeing() {
-        const strip = $('#cuAgeStrip');
-        const sums = [0, 0, 0, 0];
-        const counts = [0, 0, 0, 0];
-        ageRows.forEach((r) => { const b = AGE_BUCKET(r.age_days); sums[b] += r.balance_due; counts[b]++; });
-        strip.innerHTML = AGE_LABELS.map((lbl, i) => `
-          <div class="cu-age-cell w${i + 1}" data-b="${i}" role="button" tabindex="0" title="${counts[i]} open bill(s)"
-               style="cursor:pointer;${ageFilter === i ? 'outline:2px solid var(--mf-primary);outline-offset:1px' : ''}">
-            <div class="a-lbl">${lbl}</div><div class="a-val num">${MF.fmt(sums[i])}</div>
-          </div>`).join('');
-        strip.querySelectorAll('.cu-age-cell').forEach((cell) => {
-          cell.addEventListener('click', () => { const b = Number(cell.dataset.b); ageFilter = ageFilter === b ? null : b; paintAgeing(); });
-          cell.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); cell.click(); } });
-        });
-        const rows = ageFilter == null ? ageRows : ageRows.filter((r) => AGE_BUCKET(r.age_days) === ageFilter);
-        const body = $('#cuAgeBody');
-        if (!rows.length) {
-          body.innerHTML = '<tr><td colspan="6" class="empty-state" style="padding:2rem"><i class="bi bi-check-circle" style="font-size:1.5rem;display:block;margin-bottom:.35rem"></i>Nothing pending in this slice — all clear.</td></tr>';
-        } else {
-          body.innerHTML = rows.map((r) => `
-            <tr>
-              <td class="num td-title">${MF.esc(r.invoice_no || ('S-' + r.id))}</td>
-              <td><div class="td-title">${MF.esc(r.customer_name || '—')}</div></td>
-              <td><span class="cu-type ${r.channel === 'wholesale' ? 'wholesale' : 'retail'}" style="margin-top:0">${r.channel === 'wholesale' ? 'Wholesale' : 'Retail'}</span></td>
-              <td class="num">${MF.esc(r.sale_date ? (MF.fmtDate ? MF.fmtDate(r.sale_date) : r.sale_date) : '—')}</td>
-              <td class="text-center">${ageBadge(r.age_days)}</td>
-              <td class="text-end num fw-semibold text-danger">${MF.fmt(r.balance_due)}</td>
-            </tr>`).join('');
-        }
-        const total = rows.reduce((s, r) => s + r.balance_due, 0);
-        $('#cuAgeFoot').textContent = ageFilter == null
-          ? `${rows.length} open bill(s) · ${MF.fmt(total)} outstanding across all buckets`
-          : `${AGE_LABELS[ageFilter]}: ${rows.length} bill(s) · ${MF.fmt(total)} — tap the bucket again to see everything`;
-      }
-      $('#cuAgeOpen').addEventListener('click', async () => {
-        bootstrap.Modal.getOrCreateInstance($('#cuAgeModal')).show();
-        $('#cuAgeBody').innerHTML = '<tr><td colspan="6" class="text-center text-2" style="padding:1.6rem">Reading the dues ledger…</td></tr>';
-        try {
-          const res = await MF.Api.get('customer-dues.php');
-          const bills = (res.data && res.data.bills) || [];
-          ageRows = bills.filter((b) => Number(b.balance_due) > 0)
-            .sort((a, b) => String(a.sale_date || '').localeCompare(String(b.sale_date || '')));
-          ageFilter = null;
-          paintAgeing();
-        } catch (e) {
-          $('#cuAgeBody').innerHTML = '<tr><td colspan="6" class="text-center" style="padding:1.6rem;color:#B4352F">' + MF.esc(e.message || 'Could not load ageing.') + '</td></tr>';
-        }
-      });
       $('#cuEditBtn').addEventListener('click', () => { if (current) openForm(current); });
       $('#cuAddSave').addEventListener('click', async () => {
         const name = $('#cuName').value.trim();
@@ -740,7 +651,7 @@ require __DIR__ . '/middleware/auth.php';
           rows.forEach((row) => {
             const hit = (D.customers || []).find((c) => String(c.id) === String(row.id));
             if (!hit) return;
-            ['name', 'phone', 'address', 'type', 'gstin', 'business_name', 'dl_no', 'credit_limit', 'credit_days'].forEach((key) => {
+            ['name', 'phone', 'address', 'type', 'gstin', 'business_name', 'dl_no'].forEach((key) => {
               if (Object.prototype.hasOwnProperty.call(row, key) && row[key] != null && row[key] !== '') hit[key] = row[key];
             });
             if (row.businessName && !hit.business_name) hit.business_name = row.businessName;
