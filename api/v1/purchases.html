@@ -17,36 +17,20 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Json::error('Method not allowed.', 405);
 }
 
-/**
- * Purchase entry (GRN) — POST /api/v1/purchases.php
- *
- * Hardened posting flow:
- *  · duplicate guard — (supplier + invoice no) can never post twice
- *  · inter-state invoices carry IGST; local invoices split CGST/SGST
- *  · identical physical lines (med+batch+expiry+rate+disc) merge into ONE batch row
- *  · expiry in the past refuses the whole GRN — nothing partial ever lands in stock
- *  · optional master write-back: per-line MRP/rate promoted into the medicine master
- */
-
 $input = json_decode(file_get_contents('php://input'), true) ?? [];
 
 $supplierId  = (int) ($input['supplierId'] ?? 0);
-$invoiceNo   = trim((string) ($input['invoiceNo'] ?? ''));
-$invoiceDate = trim((string) ($input['invoiceDate'] ?? '')) ?: date('Y-m-d');
+$invoiceNo   = trim($input['invoiceNo'] ?? '');
+$invoiceDate = trim($input['invoiceDate'] ?? '') ?: date('Y-m-d');
 $paymentMode = $input['paymentMode'] ?? 'Credit';
 $amountPaid  = (float) ($input['amountPaid'] ?? 0);
 $items       = $input['items'] ?? [];
-$taxType     = ($input['taxType'] ?? '') === 'IGST' ? 'IGST' : 'CGST';
-$updateMaster = !empty($input['updateMaster']);
 
 if (!$supplierId || !Supplier::find($supplierId)) {
     Json::error('Select a valid supplier.', 422);
 }
 if ($invoiceNo === '') {
     Json::error('Supplier invoice number is required.', 422);
-}
-if ($invoiceDate > date('Y-m-d')) {
-    Json::error('Invoice date cannot be in the future.', 422);
 }
 if (!is_array($items) || count($items) === 0) {
     Json::error('Add at least one item line.', 422);
@@ -55,19 +39,11 @@ if (!in_array($paymentMode, ['Cash', 'Bank', 'UPI', 'Credit'], true)) {
     $paymentMode = 'Credit';
 }
 
-$pdo = Tenant::db();
-
-// Duplicate-GRN guard — the most expensive purchase bug is the same paper bill
-// booked twice (stock doubles, supplier dues double). Refuse outright.
-$dup = $pdo->prepare('SELECT id FROM purchases WHERE supplier_id = ? AND invoice_no = ? LIMIT 1');
-$dup->execute([$supplierId, $invoiceNo]);
-if ($dup->fetch()) {
-    Json::error('Duplicate: invoice "' . $invoiceNo . '" from this supplier is already posted as a GRN. Nothing was saved.', 409);
-}
-
-// --- Server-side compute & merge of every line — never trust client math. ---
-$thisMonth = date('Y-m');
-$merged = [];
+// --- Server-side recompute of every total — never trust client math. ---
+$lines = [];
+$subtotal = 0.0;
+$discount = 0.0;
+$taxTotal = 0.0;
 
 foreach ($items as $item) {
     $medId = (int) ($item['medId'] ?? 0);
@@ -75,9 +51,6 @@ foreach ($items as $item) {
 
     if (!$medId || $qty <= 0) {
         continue; // skip incomplete lines, same as the frontend's own "valid" filter
-    }
-    if ($qty > 100000) {
-        Json::error('Quantity ' . $qty . ' looks like a typo — cap a single line at 1,00,000 units.', 422);
     }
 
     $medicine = Medicine::find($medId);
@@ -89,73 +62,49 @@ foreach ($items as $item) {
     $rate     = max(0, (float) ($item['rate'] ?? 0));
     $discPct  = min(100, max(0, (float) ($item['discPct'] ?? 0)));
     $gstPct   = max(0, (float) ($item['gst'] ?? $medicine['gst_rate']));
-    $mrp      = max(0, (float) ($item['mrp'] ?? $medicine['mrp']));
-    $batchKey = strtoupper(trim((string) ($item['batch'] ?? '')));
-    $expiry   = trim((string) ($item['expiry'] ?? ''));
 
-    if ($expiry !== '' && !preg_match('/^\d{4}-\d{2}$/', $expiry)) {
-        $expiry = ''; // unexpected format → fall back to the auto-2-year expiry below
-    }
-    if ($expiry !== '' && $expiry < $thisMonth) {
-        Json::error('Cannot post ' . $medicine['name'] . ' — batch expiry ' . $expiry . ' is already past.', 422);
-    }
+    $lineBase   = $qty * $rate;
+    $lineDisc   = $lineBase * ($discPct / 100);
+    $lineAmount = $lineBase - $lineDisc;
+    $lineTax    = $lineAmount * ($gstPct / 100);
 
-    // Same medicine, batch, expiry and terms typed on two rows = one physical
-    // batch. Merge them so stock stays a single clean row.
-    $key = $medId . '|' . $batchKey . '|' . $expiry . '|' . $rate . '|' . $discPct;
-    if (isset($merged[$key])) {
-        $merged[$key]['qty'] += $qty;
-        $merged[$key]['freeQty'] += $freeQty;
-        continue;
-    }
-    $merged[$key] = [
+    $subtotal += $lineBase;
+    $discount += $lineDisc;
+    $taxTotal += $lineTax;
+
+    $lines[] = [
         'medicine' => $medicine,
         'medId'    => $medId,
-        'batch'    => $batchKey,
-        'expiry'   => $expiry,
+        'batch'    => strtoupper(trim($item['batch'] ?? '')),
+        'expiry'   => trim($item['expiry'] ?? ''), // "YYYY-MM" from <input type=month>
         'qty'      => $qty,
         'freeQty'  => $freeQty,
         'rate'     => $rate,
         'discPct'  => $discPct,
         'gstPct'   => $gstPct,
-        'mrp'      => $mrp > 0 ? $mrp : (float) $medicine['mrp'],
+        'amount'   => $lineAmount,
     ];
 }
 
-if (count($merged) === 0) {
+if (count($lines) === 0) {
     Json::error('Add at least one valid item line.', 422);
 }
 
-$subtotal = 0.0;
-$discount = 0.0;
-$taxTotal = 0.0;
-
-foreach ($merged as &$line) {
-    $lineBase   = $line['qty'] * $line['rate'];
-    $lineDisc   = $lineBase * ($line['discPct'] / 100);
-    $lineAmount = $lineBase - $lineDisc;
-    $lineTax    = $lineAmount * ($line['gstPct'] / 100);
-
-    $line['amount'] = $lineAmount;
-    $subtotal += $lineBase;
-    $discount += $lineDisc;
-    $taxTotal += $lineTax;
-}
-unset($line);
-
-$taxable  = $subtotal - $discount;
-$igst     = $taxType === 'IGST' ? $taxTotal : 0.0;  // inter-state supply → IGST
-$cgst     = $taxType === 'IGST' ? 0.0 : $taxTotal / 2;
-$sgst     = $cgst;
-$rawGrand = $taxable + $taxTotal;
-$grand    = round($rawGrand);
-$roundOff = $grand - $rawGrand;
+$taxable   = $subtotal - $discount;
+$cgst      = $taxTotal / 2;
+$sgst      = $taxTotal / 2;
+$igst      = 0.0; // local-supplier assumption, same as the reference design
+$rawGrand  = $taxable + $taxTotal;
+$grand     = round($rawGrand);
+$roundOff  = $grand - $rawGrand;
 
 if ($paymentMode === 'Credit') {
     $amountPaid = 0.0;
 }
 $amountPaid = max(0, min($amountPaid, $grand));
 $balanceDue = max(0, $grand - $amountPaid);
+
+$pdo = Tenant::db();
 
 try {
     $pdo->beginTransaction();
@@ -177,7 +126,7 @@ try {
         'balance_due'  => $balanceDue,
     ]);
 
-    foreach ($merged as $line) {
+    foreach ($lines as $line) {
         // Expiry: "YYYY-MM" -> last calendar day of that month.
         $expiryDate = $line['expiry'] !== ''
             ? date('Y-m-t', strtotime($line['expiry'] . '-01'))
@@ -193,7 +142,7 @@ try {
             'quantity'      => $line['qty'] + $line['freeQty'],
             'reserved'      => 0,
             'purchase_rate' => $line['rate'],
-            'mrp'           => $line['mrp'],
+            'mrp'           => (float) $line['medicine']['mrp'],
         ]);
 
         PurchaseItem::create([
@@ -207,16 +156,6 @@ try {
             'gst_pct'     => $line['gstPct'],
             'amount'      => $line['amount'],
         ]);
-
-        // Price changes arrive WITH goods — optionally promote them into the master
-        // so POS rates and profit reports stop going stale.
-        if ($updateMaster) {
-            $masterMrp = (float) $line['medicine']['mrp'];
-            if (abs($masterMrp - $line['mrp']) > 0.001) {
-                $pdo->prepare('UPDATE medicines SET mrp = ?, purchase_rate = ? WHERE id = ?')
-                    ->execute([$line['mrp'], $line['rate'], $line['medId']]);
-            }
-        }
     }
 
     $pdo->commit();
@@ -233,5 +172,5 @@ Json::ok([
     'id'         => $purchaseId,
     'grandTotal' => $grand,
     'balanceDue' => $balanceDue,
-    'batches'    => count($merged),
+    'batches'    => count($lines),
 ]);

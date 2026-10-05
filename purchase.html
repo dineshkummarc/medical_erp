@@ -15,19 +15,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <link href="assets/css/style.css" rel="stylesheet">
-  <style>
-    /* Line-quality flags */
-    .pu-flag-warn td { background:#FFF9EB; }
-    .pu-flag-danger td { background:#FEF3F2; }
-    .pu-hint { font-size:.66rem; color:#9AA3AF; margin-top:2px; white-space:nowrap; }
-    .pu-hint b { color:#64748B; font-weight:600; }
-    tr[data-row] input:focus, tr[data-row] select:focus { box-shadow:0 0 0 2px rgba(15,77,66,.12); }
-    .pu-warn-item { display:flex; gap:7px; align-items:flex-start; font-size:.74rem; line-height:1.35; padding:.3rem 0; }
-    .pu-warn-item i { margin-top:1px; }
-    .pu-warn-item.w-amber { color:#92400E; }
-    .pu-warn-item.w-red { color:#B42318; font-weight:600; }
-    .warn-panel { border:1px dashed #EDF1F4; border-radius:10px; padding:.5rem .65rem; background:#FCFDFD; max-height:130px; overflow:auto; }
-  </style>
 </head>
 <body data-page="purchase">
   <div class="mf-layout">
@@ -74,12 +61,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                     <label class="form-label">Drug License No.</label>
                     <input class="form-control" id="puDl" readonly>
                   </div>
-                  <div class="col-12">
-                    <label class="form-check" style="font-size:.78rem;color:#4B5563">
-                      <input class="form-check-input" type="checkbox" id="puIgst">
-                      <span class="form-check-label">Inter-state supply — bill as <strong>IGST</strong> (auto-detected from GSTIN; override here if the invoice says otherwise)</span>
-                    </label>
-                  </div>
                 </div>
               </div>
             </div>
@@ -88,7 +69,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="card-mf">
               <div class="card-head">
                 <h2 class="card-title"><i class="bi bi-box-seam"></i>Items / Batches Received</h2>
-                <div class="card-tools"><span class="badge badge-soft-secondary">Same med + batch + expiry auto-merge into one batch</span></div>
+                <div class="card-tools"><span class="badge badge-soft-secondary">Each line creates a stock batch</span></div>
               </div>
               <div class="table-scroll" style="max-height:none">
                 <table class="table table-mf">
@@ -97,22 +78,17 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                       <th style="min-width:210px">Medicine</th><th>Batch No</th><th>Expiry</th>
                       <th class="text-center">Qty</th><th class="text-center">Free</th>
                       <th class="text-end">Purchase Rate</th><th class="text-center">Disc%</th>
-                      <th class="text-center">GST%</th><th class="text-end">MRP</th>
-                      <th class="text-end">Amount</th><th></th>
+                      <th class="text-center">GST%</th><th class="text-end">Amount</th><th></th>
                     </tr>
                   </thead>
                   <tbody id="puItemsBody"></tbody>
                 </table>
               </div>
-              <div class="p-3 border-top d-flex flex-wrap gap-2 align-items-center">
-                <input class="form-control" id="puScan" placeholder="Scan barcode…" style="max-width:180px" inputmode="none">
+              <div class="p-3 border-top d-flex flex-wrap gap-2">
                 <input class="form-control" id="puQuick" list="puMedList" placeholder="Type medicine name to add a line…" style="max-width:340px">
                 <datalist id="puMedList"></datalist>
                 <button class="btn btn-mf-soft" id="puAddQuick"><i class="bi bi-plus-lg me-1"></i>Add Line</button>
                 <button class="btn btn-light-mf ms-auto" id="puAddBlank"><i class="bi bi-plus-circle me-1"></i>Add Blank Row</button>
-              </div>
-              <div class="p-2 border-top text-2" style="font-size:.7rem">
-                <i class="bi bi-keyboard me-1"></i>Enter moves: batch → expiry → qty → free → rate → disc → GST → MRP → next medicine. Scan a barcode to bump qty on the open line.
               </div>
             </div>
           </div>
@@ -122,7 +98,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="card-mf mb-3">
               <div class="card-head"><h2 class="card-title"><i class="bi bi-calculator"></i>Totals</h2></div>
               <div class="p-3" id="puSummary"></div>
-              <div class="px-3 pb-3" id="puWarn"></div>
             </div>
             <div class="card-mf">
               <div class="card-head"><h2 class="card-title"><i class="bi bi-credit-card"></i>Payment</h2></div>
@@ -138,10 +113,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <input type="number" class="form-control" id="puPaid" min="0">
                   <div class="form-text">Balance will be posted to supplier dues.</div>
                 </div>
-                <label class="form-check mb-3" style="font-size:.78rem;color:#4B5563">
-                  <input class="form-check-input" type="checkbox" id="puUpdateMaster" checked>
-                  <span class="form-check-label">Update medicine master where the MRP on this invoice changed (price changes travel with stock)</span>
-                </label>
                 <div class="d-grid gap-2">
                   <button class="btn btn-mf" id="puSave"><i class="bi bi-check2-circle me-1"></i>Save Purchase (GRN)</button>
                   <button class="btn btn-light-mf" id="puReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset</button>
@@ -156,7 +127,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
   </div>
 
   <!-- Add Supplier modal -->
-  <div class="modal fade" id="addSupplierModal" tabindex="-1" data-bs-focus="false">
+  <div class="modal fade" id="addSupplierModal" tabindex="-1">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header">
@@ -202,173 +173,73 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       const MF = window.MF, D = window.MF_DATA;
       const $ = (s) => document.querySelector(s);
       let rows = [], seq = 0;
-      let paidTouched = false;      // once the cashier types paid, render() stops auto-filling it
-      let igstTouched = false;      // manual IGST override beats the GSTIN auto-detection
-      let shopGstin = null;         // lazy cache from settings
 
       $('#puSupplier').innerHTML = D.suppliers.map((s) => `<option value="${s.id}">${s.name}</option>`).join('');
       $('#puMedList').innerHTML = D.medicines.map((m) => `<option value="${m.name} — ${m.manufacturer}">`).join('');
       $('#puInvDate').value = MF.today();
 
-      const FIELD_ORDER = ['pu-batch', 'pu-exp', 'pu-qty', 'pu-free', 'pu-rate', 'pu-disc', 'pu-gst', 'pu-mrp'];
-      const GST_SLABS = [0, 5, 12, 18, 28];
-
-      function monthsToExp(ym) {
-        if (!ym || !/^\d{4}-\d{2}$/.test(ym)) return null;
-        const [y, m] = ym.split('-').map(Number);
-        const now = new Date();
-        return (y - now.getFullYear()) * 12 + (m - 1 - now.getMonth());
-      }
-
-      async function fetchShopGstin() {
-        if (shopGstin !== null) return shopGstin;
-        try {
-          const res = await MF.Api.get('settings.php');
-          const data = (res && res.data) || res || {};
-          shopGstin = String(data.store_gstin || '').trim().toUpperCase();
-        } catch (e) { shopGstin = ''; }
-        return shopGstin;
-      }
-      const gstState = (g) => (/^[0-9]{2}[A-Z0-9]{13}$/.test(g || '') ? String(g).slice(0, 2) : '');
-
-      async function autoDetectIgst() {
-        if (igstTouched) return;
-        const s = MF.sup($('#puSupplier').value);
-        const shopState = gstState(await fetchShopGstin());
-        const supState = s ? gstState(String(s.gstin || '').toUpperCase()) : '';
-        $('#puIgst').checked = !!(supState && shopState && supState !== shopState);
-        render();
-      }
-
       function fillSupplier() {
         const s = MF.sup($('#puSupplier').value);
         $('#puGstin').value = s ? s.gstin : '';
         $('#puDl').value = s ? s.dlNo : '';
-        autoDetectIgst();
       }
 
-      /* Last purchase hint: the most recent batch rate for that medicine.
-         Rates drifting from it (and rates over MRP) surface as row flags. */
-      function lastHint(medId) {
-        const list = (Array.isArray(D.batches) ? D.batches : [])
-          .filter((b) => String(b.medId) === String(medId) && Number(b.purchaseRate) > 0)
-          .sort((a, b) => String(b.purchaseDate || '').localeCompare(String(a.purchaseDate || '')));
-        if (!list.length) return '';
-        const b = list[0];
-        return `Last: <b>${MF.fmt(Number(b.purchaseRate), 2)}</b>${b.purchaseDate ? ' · ' + MF.fmtDate(b.purchaseDate) : ''}`;
-      }
-
-      function addRow(medId, focusToBatch) {
+      function addRow(medId) {
         const m = medId ? MF.med(medId) : null;
-        const id = ++seq;
         rows.push({
-          id, medId: medId || '', batch: '', expiry: '',
-          qty: 1, freeQty: 0,
-          rate: m ? Number(m.purchaseRate) || 0 : 0,
-          discPct: 0,
-          gst: m ? Number(m.gst) || 12 : 12,
-          mrp: m ? Number(m.mrp) || 0 : 0,
+          id: ++seq, medId: medId || '', batch: '', expiry: '',
+          qty: 1, freeQty: 0, rate: m ? m.purchaseRate : 0, discPct: 0, gst: m ? m.gst : 12
         });
         render();
-        if (focusToBatch !== false) {
-          const tr = document.querySelector(`tr[data-row="${id}"]`);
-          if (tr) (tr.querySelector('.pu-batch') || tr).focus();
-        }
       }
 
       const lineAmount = (r) => r.qty * r.rate * (1 - r.discPct / 100);
 
       function totals() {
-        const igstOn = $('#puIgst').checked;
         const subtotal = rows.reduce((s, r) => s + r.qty * r.rate, 0);
         const discount = rows.reduce((s, r) => s + r.qty * r.rate * (r.discPct / 100), 0);
         const taxable = subtotal - discount;
+        const igst = false; // inward purchases from local distributors — CGST+SGST
         const tax = rows.reduce((s, r) => s + lineAmount(r) * r.gst / 100, 0);
         const grand = Math.round(taxable + tax);
-        return {
-          subtotal, discount, taxable,
-          cgst: igstOn ? 0 : tax / 2, sgst: igstOn ? 0 : tax / 2, igst: igstOn ? tax : 0,
-          roundOff: grand - (taxable + tax), grand,
-        };
-      }
-
-      /* Line-quality audit: loss sales, rate drift, and short-dated stock —
-         surfaced before the GRN posts, never after. */
-      function rowAudit() {
-        const errs = [], warns = [];
-        rows.forEach((r) => {
-          const m = MF.med(r.medId);
-          if (!m || !(r.qty > 0)) return;
-          if (r.mrp > 0 && r.rate > 0 && r.rate * (1 - r.discPct / 100) > r.mrp) {
-            errs.push(`${m.name}: landed cost ${MF.fmt(r.rate * (1 - r.discPct / 100), 2)} crosses the ${MF.fmt(r.mrp, 2)} MRP — every sale from this batch loses money.`);
-          }
-          const pr = Number(m.purchaseRate) || 0;
-          if (pr > 0 && r.rate > 0 && Math.abs(r.rate - pr) / pr > 0.15) {
-            const dir = r.rate > pr ? 'up' : 'down';
-            warns.push(`${m.name}: rate ${MF.fmt(r.rate, 2)} is ${dir} ${(Math.abs(r.rate - pr) / pr * 100).toFixed(0)}% vs the master purchase rate ${MF.fmt(pr, 2)} — confirm it's not a typo.`);
-          }
-          const mo = monthsToExp(r.expiry);
-          if (mo !== null && mo < 3) {
-            warns.push(`${m.name}: batch expires ${r.expiry} — under 90 days; reorder depth and committed sales should cover it.`);
-          }
-        });
-        return { errs, warns };
-      }
-      function rowFlags(r) {
-        const m = MF.med(r.medId);
-        if (!m) return '';
-        if (r.mrp > 0 && r.rate > 0 && r.rate * (1 - r.discPct / 100) > r.mrp) return 'pu-flag-danger';
-        const pr = Number(m.purchaseRate) || 0;
-        if (drift(r, pr) || (monthsToExp(r.expiry) !== null && monthsToExp(r.expiry) < 3)) return 'pu-flag-warn';
-        return '';
-      }
-      const drift = (r, pr) => pr > 0 && r.rate > 0 && Math.abs(r.rate - pr) / pr > 0.15;
-
-      function gstSelect(r) {
-        return `<select class="form-select form-select-sm pu-gst" style="width:74px;display:inline-block">
-          ${GST_SLABS.map((g) => `<option value="${g}" ${Number(r.gst) === g ? 'selected' : ''}>${g}%</option>`).join('')}
-        </select>`;
+        return { subtotal, discount, taxable, cgst: tax / 2, sgst: tax / 2, igst: 0, roundOff: grand - (taxable + tax), grand };
       }
 
       function render() {
         $('#puItemsBody').innerHTML = rows.length ? rows.map((r) => `
-          <tr data-row="${r.id}" class="${rowFlags(r)}">
+          <tr data-row="${r.id}">
             <td>
               <select class="form-select form-select-sm pu-med">
                 <option value="">— Select medicine —</option>
-                ${D.medicines.map((m) => `<option value="${m.id}" ${Number(r.medId) === Number(m.id) ? 'selected' : ''}>${MF.esc(m.name)}</option>`).join('')}
+                ${D.medicines.map((m) => `<option value="${m.id}" ${r.medId === m.id ? 'selected' : ''}>${MF.esc(m.name)}</option>`).join('')}
               </select>
-              ${r.medId && lastHint(r.medId) ? `<div class="pu-hint"><i class="bi bi-clock-history me-1"></i>${lastHint(r.medId)}</div>` : ''}
             </td>
-            <td><input class="form-control form-control-sm pu-batch num" style="width:96px" placeholder="BATCH" value="${MF.esc(r.batch)}"></td>
+            <td><input class="form-control form-control-sm pu-batch num" style="width:96px" placeholder="BATCH" value="${r.batch}"></td>
             <td><input type="month" class="form-control form-control-sm pu-exp" value="${r.expiry}"></td>
             <td class="text-center"><input type="number" class="form-control form-control-sm text-center pu-qty" style="width:64px;display:inline-block" value="${r.qty}" min="1"></td>
             <td class="text-center"><input type="number" class="form-control form-control-sm text-center pu-free" style="width:56px;display:inline-block" value="${r.freeQty}" min="0"></td>
             <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end pu-rate" style="width:88px;display:inline-block" value="${r.rate}"></td>
             <td class="text-center"><input type="number" class="form-control form-control-sm text-center pu-disc" style="width:60px;display:inline-block" value="${r.discPct}" min="0" max="100"></td>
-            <td class="text-center">${gstSelect(r)}</td>
-            <td class="text-end"><input type="number" step="0.01" class="form-control form-control-sm text-end pu-mrp" style="width:78px;display:inline-block" value="${r.mrp}" min="0"></td>
+            <td class="text-center num text-2">${r.gst}%</td>
             <td class="text-end num fw-semibold">${MF.fmt(lineAmount(r), 2)}</td>
             <td><button class="btn btn-icon btn-light-mf text-danger pu-del"><i class="bi bi-trash3"></i></button></td>
           </tr>`).join('')
-          : `<tr><td colspan="11"><div class="empty-state py-4"><i class="bi bi-box-seam"></i>Scan a barcode or add medicines received in this supplier invoice.</div></td></tr>`;
+          : `<tr><td colspan="10"><div class="empty-state py-4"><i class="bi bi-box-seam"></i>Add medicines received in this supplier invoice.</div></td></tr>`;
 
         $('#puItemsBody').querySelectorAll('tr[data-row]').forEach((tr) => {
           const r = rows.find((x) => x.id === +tr.dataset.row);
           tr.querySelector('.pu-med').addEventListener('change', (e) => {
-            r.medId = e.target.value;
+            r.medId = Number(e.target.value);
             const m = MF.med(r.medId);
-            if (m) { r.rate = Number(m.purchaseRate) || 0; r.gst = Number(m.gst) || 12; r.mrp = Number(m.mrp) || 0; }
+            if (m) { r.rate = m.purchaseRate; r.gst = m.gst; }
             render();
           });
           tr.querySelector('.pu-batch').addEventListener('change', (e) => r.batch = e.target.value.toUpperCase());
-          tr.querySelector('.pu-exp').addEventListener('change', (e) => { r.expiry = e.target.value; render(); });
+          tr.querySelector('.pu-exp').addEventListener('change', (e) => r.expiry = e.target.value);
           tr.querySelector('.pu-qty').addEventListener('change', (e) => { r.qty = Math.max(1, parseInt(e.target.value) || 1); render(); });
           tr.querySelector('.pu-free').addEventListener('change', (e) => { r.freeQty = Math.max(0, parseInt(e.target.value) || 0); render(); });
           tr.querySelector('.pu-rate').addEventListener('change', (e) => { r.rate = Math.max(0, parseFloat(e.target.value) || 0); render(); });
           tr.querySelector('.pu-disc').addEventListener('change', (e) => { r.discPct = Math.min(100, Math.max(0, parseFloat(e.target.value) || 0)); render(); });
-          tr.querySelector('.pu-gst').addEventListener('change', (e) => { r.gst = parseFloat(e.target.value) || 0; render(); });
-          tr.querySelector('.pu-mrp').addEventListener('change', (e) => { r.mrp = Math.max(0, parseFloat(e.target.value) || 0); render(); });
           tr.querySelector('.pu-del').addEventListener('click', () => { rows = rows.filter((x) => x.id !== r.id); render(); });
         });
 
@@ -377,47 +248,22 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           <div class="sum-row"><span class="text-2">Subtotal</span><span class="num">${MF.fmt(t.subtotal, 2)}</span></div>
           <div class="sum-row"><span class="text-2">Discount</span><span class="num text-danger">− ${MF.fmt(t.discount, 2)}</span></div>
           <div class="sum-row"><span class="text-2">Taxable Amount</span><span class="num fw-semibold">${MF.fmt(t.taxable, 2)}</span></div>
-          ${t.igst > 0
-            ? `<div class="sum-row"><span class="text-2">IGST <span class="badge badge-soft-secondary ms-1" style="font-size:.6rem">inter-state</span></span><span class="num">${MF.fmt(t.igst, 2)}</span></div>`
-            : `<div class="sum-row"><span class="text-2">CGST</span><span class="num">${MF.fmt(t.cgst, 2)}</span></div>
-               <div class="sum-row"><span class="text-2">SGST</span><span class="num">${MF.fmt(t.sgst, 2)}</span></div>`}
+          <div class="sum-row"><span class="text-2">CGST</span><span class="num">${MF.fmt(t.cgst, 2)}</span></div>
+          <div class="sum-row"><span class="text-2">SGST</span><span class="num">${MF.fmt(t.sgst, 2)}</span></div>
+          <div class="sum-row"><span class="text-2">IGST</span><span class="num">${MF.fmt(t.igst, 2)}</span></div>
           <div class="sum-row"><span class="text-2">Round Off</span><span class="num">${t.roundOff >= 0 ? '+' : '−'} ${MF.fmt(Math.abs(t.roundOff), 2)}</span></div>
           <div class="sum-row total"><span>Grand Total</span><span class="num text-primary">${MF.fmt(t.grand)}</span></div>`;
-
-        const { errs, warns } = rowAudit();
-        $('#puWarn').innerHTML = (errs.length || warns.length)
-          ? `<div class="warn-panel mb-1">
-              ${errs.map((e) => `<div class="pu-warn-item w-red"><i class="bi bi-x-octagon"></i><span>${MF.esc(e)}</span></div>`).join('')}
-              ${warns.map((w) => `<div class="pu-warn-item w-amber"><i class="bi bi-exclamation-triangle"></i><span>${MF.esc(w)}</span></div>`).join('')}
-            </div>` : '';
-
-        // Don't overwrite the paid box while the cashier is typing into it.
-        const paid = $('#puPaid');
-        if (!paidTouched && paid.value === '' && !paid.disabled) paid.value = t.grand;
+        if (document.getElementById('puPaid').value === '') $('#puPaid').value = t.grand;
       }
-
-      /* Enter walks the line left-to-right, then drops back to the medicine box. */
-      $('#puItemsBody').addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        const cls = FIELD_ORDER.find((c) => e.target.classList.contains(c));
-        if (!cls) return;
-        e.preventDefault();
-        const next = FIELD_ORDER[FIELD_ORDER.indexOf(cls) + 1];
-        if (next) e.target.closest('tr').querySelector('.' + next)?.focus();
-        else { $('#puQuick').focus(); }
-      });
 
       document.addEventListener('change', (e) => {
         if (e.target.name === 'puPay') {
           const credit = e.target.value === 'Credit';
           $('#puPaidWrap').style.opacity = credit ? 0.4 : 1;
           $('#puPaid').disabled = credit;
-          paidTouched = false;
-          $('#puPaid').value = credit ? 0 : totals().grand;
+          if (credit) $('#puPaid').value = 0; else $('#puPaid').value = totals().grand;
         }
       });
-      $('#puIgst').addEventListener('change', () => { igstTouched = true; render(); });
-      $('#puPaid').addEventListener('input', () => { paidTouched = true; });
 
       $('#puAddBlank').addEventListener('click', () => addRow(null));
       $('#puAddQuick').addEventListener('click', () => {
@@ -428,21 +274,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         addRow(m.id); $('#puQuick').value = '';
       });
       $('#puQuick').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#puAddQuick').click(); } });
-
-      /* Barcode capture — increment qty on a still-open line, or add a fresh row. */
-      $('#puScan').addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        const q = $('#puScan').value.trim();
-        if (!q) return;
-        const m = D.medicines.find((x) => String(x.barcode || '') === q);
-        $('#puScan').value = '';
-        if (!m) { MF.toast('Barcode ' + q + ' is not in the medicine master.', 'warn', 'Scan'); return; }
-        const open = rows.filter((r) => Number(r.medId) === Number(m.id) && !r.batch);
-        if (open.length) { open[open.length - 1].qty += 1; render(); }
-        else addRow(m.id);
-      });
-
       $('#puSupplier').addEventListener('change', fillSupplier);
 
       $('#puAddSupplier').addEventListener('click', () => {
@@ -470,71 +301,20 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       $('#puReset').addEventListener('click', async () => {
         if (!rows.length) return;
         const ok = await MF.confirm({ title: 'Reset purchase entry?', message: 'All lines will be removed.', confirmText: 'Reset', tone: 'danger' });
-        if (ok) { rows = []; $('#puInvNo').value = ''; paidTouched = false; render(); }
+        if (ok) { rows = []; $('#puInvNo').value = ''; render(); }
       });
-
-      /* Clean paper GRN for the records file / supplier handover. */
-      function printGrn(meta, valid, t, res) {
-        const store = (D.store && D.store.name) ? D.store.name : 'MediFlow ERP';
-        const rowsHtml = valid.map((r) => {
-          const m = MF.med(r.medId) || {};
-          return `<tr><td>${MF.esc(m.name || '')}</td><td>${MF.esc(r.batch || 'AUTO')}</td><td>${MF.esc(r.expiry || '—')}</td>
-            <td style="text-align:right">${r.qty}${r.freeQty ? ' +' + r.freeQty + ' free' : ''}</td>
-            <td style="text-align:right">${MF.fmt(r.rate, 2)}</td><td style="text-align:right">${r.discPct}%</td>
-            <td style="text-align:center">${r.gst}%</td><td style="text-align:right">${MF.fmt(r.mrp, 2)}</td>
-            <td style="text-align:right;font-weight:600">${MF.fmt(lineAmount(r), 2)}</td></tr>`;
-        }).join('');
-        MF.printHtml(`
-          <div style="font-family:Inter,Arial,sans-serif;font-size:12.5px;color:#1f2937">
-            <div style="text-align:center;margin-bottom:8px">
-              <div style="font-size:16px;font-weight:800">${MF.esc(store)}</div>
-              <div style="font-size:11px;letter-spacing:.14em;color:#6B7280;text-transform:uppercase">Goods Receipt Note · GRN #${res.id}</div>
-            </div>
-            <table style="width:100%;border-collapse:collapse;margin-bottom:8px;font-size:11.5px"><tr>
-              <td>Supplier: <b>${MF.esc(meta.supplier)}</b></td><td style="text-align:right">Invoice: <b>${MF.esc(meta.invoiceNo)}</b></td>
-              <td style="text-align:right">Date: ${MF.esc(meta.date)}</td></tr></table>
-            <table style="width:100%;border-collapse:collapse;font-size:11px">
-              <thead><tr style="border-bottom:1.5px solid #111827">
-                <th style="text-align:left;padding:4px 2px">Medicine</th><th style="text-align:left">Batch</th><th>Expiry</th>
-                <th style="text-align:right">Qty</th><th style="text-align:right">Rate</th><th style="text-align:right">Disc</th>
-                <th>GST</th><th style="text-align:right">MRP</th><th style="text-align:right">Amount</th></tr></thead>
-              <tbody>${rowsHtml}</tbody>
-            </table>
-            <div style="margin-left:auto;margin-top:10px;max-width:240px;font-size:11.5px">
-              <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${MF.fmt(t.subtotal, 2)}</span></div>
-              <div style="display:flex;justify-content:space-between"><span>Discount</span><span>− ${MF.fmt(t.discount, 2)}</span></div>
-              ${t.igst > 0
-                ? `<div style="display:flex;justify-content:space-between"><span>IGST</span><span>${MF.fmt(t.igst, 2)}</span></div>`
-                : `<div style="display:flex;justify-content:space-between"><span>CGST</span><span>${MF.fmt(t.cgst, 2)}</span></div>
-                   <div style="display:flex;justify-content:space-between"><span>SGST</span><span>${MF.fmt(t.sgst, 2)}</span></div>`}
-              <div style="display:flex;justify-content:space-between"><span>Round off</span><span>${MF.fmt(t.roundOff, 2)}</span></div>
-              <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1.5px solid #111827;margin-top:4px;padding-top:4px"><span>GRAND TOTAL</span><span>${MF.fmt(t.grand)}</span></div>
-              <div style="display:flex;justify-content:space-between"><span>Paid (${MF.esc(meta.payMode)})</span><span>${MF.fmt(meta.paid, 2)}</span></div>
-              ${res.balanceDue > 0 ? `<div style="display:flex;justify-content:space-between;color:#B42318;font-weight:700"><span>Balance to supplier</span><span>${MF.fmt(res.balanceDue, 2)}</span></div>` : ''}
-            </div>
-            <div style="display:flex;justify-content:space-between;margin-top:34px;font-size:11px;color:#6B7280">
-              <span>${valid.length} batch line(s) posted to stock${meta.masterUpdated}</span><span>Checked &amp; received by: ______________</span>
-            </div>
-          </div>`);
-      }
 
       $('#puSave').addEventListener('click', async () => {
         const valid = rows.filter((r) => r.medId && r.qty > 0);
         if (!$('#puSupplier').value) { MF.toast('Select a supplier.', 'warn'); return; }
         if (!$('#puInvNo').value.trim()) { MF.toast('Supplier invoice number is required.', 'warn', 'Validation'); return; }
         if (!valid.length) { MF.toast('Add at least one item line.', 'warn', 'Empty GRN'); return; }
-
-        const { errs, warns } = rowAudit();
         const t = totals();
         const s = MF.sup($('#puSupplier').value);
-        const flagsNote = errs.length
-          ? `\n⚠ ${errs.length} LOSS line(s) — landed cost crosses MRP: ${errs.slice(0, 3).join(' ')}${errs.length > 3 ? ' +' + (errs.length - 3) + ' more' : ''}`
-          : (warns.length ? `\n${warns.length} check(s): ${warns.slice(0, 2).join(' ')}${warns.length > 2 ? ' +' + (warns.length - 2) + ' more' : ''}` : '');
         const ok = await MF.confirm({
           title: `Post purchase of ${MF.fmt(t.grand)}?`,
-          message: `${s.name} · Invoice ${$('#puInvNo').value} · ${valid.length} batch(es) will be added to stock${t.igst > 0 ? ' · billed as IGST' : ''}.${flagsNote}`,
-          confirmText: errs.length ? 'Post anyway' : 'Post GRN',
-          tone: errs.length ? 'danger' : 'success',
+          message: `${s.name} · Invoice ${$('#puInvNo').value} · ${valid.length} batch(es) will be added to stock.`,
+          confirmText: 'Post GRN'
         });
         if (!ok) return;
 
@@ -543,31 +323,20 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
         $('#puSave').disabled = true;
         try {
-          const meta = {
-            supplier: s.name,
-            invoiceNo: $('#puInvNo').value.trim(),
-            date: $('#puInvDate').value || MF.today(),
-            payMode, paid,
-            masterUpdated: $('#puUpdateMaster').checked ? ' · master MRP synced' : '',
-          };
           const res = await MF.Api.post('purchases.php', {
             supplierId: s.id,
-            invoiceNo: meta.invoiceNo,
-            invoiceDate: meta.date,
+            invoiceNo: $('#puInvNo').value.trim(),
+            invoiceDate: $('#puInvDate').value || MF.today(),
             paymentMode: payMode,
             amountPaid: paid,
-            taxType: $('#puIgst').checked ? 'IGST' : 'CGST',
-            updateMaster: $('#puUpdateMaster').checked,
             items: valid.map((r) => ({
               medId: r.medId, batch: r.batch, expiry: r.expiry,
-              qty: r.qty, freeQty: r.freeQty, rate: r.rate, discPct: r.discPct, gst: r.gst, mrp: r.mrp,
+              qty: r.qty, freeQty: r.freeQty, rate: r.rate, discPct: r.discPct, gst: r.gst,
             })),
           });
           MF.toast(`Purchase #${res.id} posted · stock updated for ${res.batches} batch(es)`, 'success', 'Purchase saved');
           if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to ${s.name}'s payable dues`, 'info', 'Credit purchase');
-          printGrn(meta, valid, t, res);
           rows = []; $('#puInvNo').value = ''; $('#puPaid').value = '';
-          paidTouched = false;
           await MF.rehydrate();
           render();
         } catch (err) {
@@ -585,8 +354,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           pad.forEach((r) => {
             const m = MF.med(r.medId);
             if (!m) return;
-            rows.push({ id: ++seq, medId: m.id, batch: '', expiry: '', qty: Math.max(1, parseInt(r.qty) || 1), freeQty: 0,
-                        rate: Number(m.purchaseRate) || 0, discPct: 0, gst: Number(m.gst) || 12, mrp: Number(m.mrp) || 0 });
+            rows.push({ id: ++seq, medId: m.id, batch: '', expiry: '', qty: Math.max(1, parseInt(r.qty) || 1), freeQty: 0, rate: Number(m.purchaseRate) || 0, discPct: 0, gst: m.gst ?? 12 });
             added += 1;
           });
           sessionStorage.removeItem('mf-pos-order');
@@ -599,5 +367,5 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     })();
     });
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a435e257efc29aa1',t:'MTc5MDc5OTE2NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
