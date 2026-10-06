@@ -35,9 +35,24 @@ try {
     $pct = (float) ($payload['pct'] ?? 0);
     $mode = (string) ($payload['round'] ?? 'none');       // none | 1 | 0.5
     $targets = $payload['targets'] ?? [];
+    $action = (string) ($payload['action'] ?? 'adjust');  // adjust | derive
 
     if (!count($ids)) Json::error('No medicines selected.', 422);
-    if ($pct > -0.0001 && $pct < 0.0001) Json::error('Percent change must be non-zero.', 422);
+
+    if ($action === 'derive') {
+        // "Set wholesale = MRP × N%" — pct carries the percent OF MRP here.
+        if ($pct < 1 || $pct > 100) Json::error('Percent of MRP must be between 1 and 100.', 422);
+        $factor = $pct / 100;
+        $expr = function (string $col) use ($factor, $mode) {
+            $raw = "$col * " . $factor;
+            if ($mode === '1') return "ROUND($raw, 0)";
+            if ($mode === '0.5') return "ROUND($raw * 2) / 2";
+            return "ROUND($raw, 2)";
+        };
+        $cols = ["wholesale_rate = " . $expr('mrp')];
+    } else {
+        if ($pct > -0.0001 && $pct < 0.0001) Json::error('Percent change must be non-zero.', 422);
+    }
 
     $factor = 1 + ($pct / 100);
     $expr = function (string $col) use ($factor, $mode) {
@@ -47,11 +62,13 @@ try {
         return "ROUND($raw, 2)";
     };
 
-    $cols = [];
-    if (!empty($targets['mrp'])) $cols[] = "mrp = " . $expr('mrp');
-    if (!empty($targets['retail'])) $cols[] = "retail_rate = " . $expr('retail_rate');
-    if (!empty($targets['wholesale'])) $cols[] = "wholesale_rate = " . $expr('wholesale_rate');
-    if (!count($cols)) Json::error('Pick at least one price to update.', 422);
+    if ($action !== 'derive') {
+        $cols = [];
+        if (!empty($targets['mrp'])) $cols[] = "mrp = " . $expr('mrp');
+        if (!empty($targets['retail'])) $cols[] = "retail_rate = " . $expr('retail_rate');
+        if (!empty($targets['wholesale'])) $cols[] = "wholesale_rate = " . $expr('wholesale_rate');
+        if (!count($cols)) Json::error('Pick at least one price to update.', 422);
+    }
 
     $list = implode(',', $ids);
     $where = "id IN ($list) AND status = 'active'";
@@ -62,7 +79,12 @@ try {
     Manufacturer::query("UPDATE medicines SET " . implode(', ', $cols) . " WHERE $where");
 
     if (class_exists('Audit') && method_exists('Audit', 'log')) {
-        try { Audit::log('PRICE_BULK_UPDATE', ($pct > 0 ? '+' : '') . $pct . '% on ' . $matched . ' medicine(s)'); } catch (\Throwable $e) { /* optional */ }
+        try {
+            $note = $action === 'derive'
+                ? 'wholesale = MRP x ' . $pct . '% on ' . $matched . ' medicine(s)'
+                : ($pct > 0 ? '+' : '') . $pct . '% on ' . $matched . ' medicine(s)';
+            Audit::log('PRICE_BULK_UPDATE', $note);
+        } catch (\Throwable $e) { /* optional */ }
     }
 
     Json::ok(['data' => ['matched' => $matched, 'pct' => $pct]]);

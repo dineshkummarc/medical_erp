@@ -588,10 +588,17 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <div class="col-6"><label class="form-label" for="pbMfr">Manufacturer</label><select class="form-select" id="pbMfr"><option value="">All manufacturers</option></select></div>
           </div>
           <div class="row g-2 mb-2 align-items-end">
+            <div class="col-4">
+              <label class="form-label" for="pbAction">Action</label>
+              <select class="form-select" id="pbAction">
+                <option value="adjust">Adjust by %</option>
+                <option value="derive">Wholesale = MRP × %</option>
+              </select>
+            </div>
             <div class="col-5">
-              <label class="form-label" for="pbPct">Change (%)</label>
+              <label class="form-label" for="pbPct" id="pbPctLabel">Change (%)</label>
               <div class="mm-input"><i class="bi bi-percent"></i><input type="number" step="0.5" class="form-control" id="pbPct" placeholder="+5 or -5"></div>
-              <div class="d-flex gap-1 mt-1">
+              <div class="d-flex gap-1 mt-1" id="pbQuick">
                 <button type="button" class="mm-text-btn pb-quick" data-p="-5">−5%</button>
                 <button type="button" class="mm-text-btn pb-quick" data-p="-2">−2%</button>
                 <button type="button" class="mm-text-btn pb-quick" data-p="5">+5%</button>
@@ -2265,11 +2272,26 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (mode === '0.5') return Math.round(x * 2) / 2;
         return Math.round(x * 100) / 100;
       };
+      const pbDerive = (mrp, pct, mode) => {
+        const x = Number(mrp || 0) * (pct / 100);
+        if (mode === '1') return Math.round(x);
+        if (mode === '0.5') return Math.round(x * 2) / 2;
+        return Math.round(x * 100) / 100;
+      };
+      const pbIsDerive = () => ($('#pbAction') && $('#pbAction').value === 'derive');
+      function pbSyncMode() {
+        const d = pbIsDerive();
+        $('#pbPctLabel').textContent = d ? '% of MRP' : 'Change (%)';
+        $('#pbQuick').style.display = d ? 'none' : '';
+        $('#pbMrp').disabled = d; $('#pbRetail').disabled = d; $('#pbWhole').disabled = true;
+        if (d) { $('#pbMrp').checked = false; $('#pbRetail').checked = false; $('#pbWhole').checked = true; }
+      }
       function pbMatches() {
         const cat = $('#pbCat').value, mfr = $('#pbMfr').value;
         return D.medicines.filter((m) => m.status !== 'inactive' && (!cat || m.category === cat) && (!mfr || m.manufacturer === mfr));
       }
       function pbTargets() {
+        if (pbIsDerive()) return { mrp: false, retail: false, wholesale: true };
         const t = { mrp: $('#pbMrp').checked, retail: $('#pbRetail').checked, wholesale: $('#pbWhole').checked };
         return t.mrp || t.retail || t.wholesale ? t : null;
       }
@@ -2280,19 +2302,27 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       function pbPreview() {
         const pct = pbPct(), targets = pbTargets();
         const box = $('#pbPreview');
-        if (pct === null || !pct) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero percentage (e.g. +5 or -5).' ; return; }
-        if (pct <= -100) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>A decrease of 100% or more would zero every price — refused.'; return; }
+        const derive = pbIsDerive();
+        if (pct === null || !pct) { box.hidden = false; box.innerHTML = derive
+          ? '<i class="bi bi-exclamation-circle me-1"></i>Enter % of MRP (e.g. 75 for wholesale at 75% of MRP).'
+          : '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero percentage (e.g. +5 or -5).'; return; }
+        if (derive && (pct < 1 || pct > 100)) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>% of MRP must sit between 1 and 100.'; return; }
+        if (!derive && pct <= -100) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>A decrease of 100% or more would zero every price — refused.'; return; }
         if (!targets) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Tick at least one price column (MRP / Retail / Wholesale).'; return; }
         const list = pbMatches();
         if (!list.length) { box.hidden = false; box.innerHTML = '<i class="bi bi-info-circle me-1"></i>No active medicines match this selection.'; return; }
         const mode = $('#pbRound').value;
-        const col = targets.mrp ? 'mrp' : 'retailRate';
+        const col = derive ? 'wholesaleRate' : (targets.mrp ? 'mrp' : 'retailRate');
         const lines = list.slice(0, 5).map((m) => {
           const cur = Number(m[col] ?? m.mrp ?? 0);
-          return `<div style="display:flex;justify-content:space-between;gap:10px"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(pbCalc(cur, pct, mode), 2)}</strong></span></div>`;
+          const next = derive ? pbDerive(m.mrp, pct, mode) : pbCalc(cur, pct, mode);
+          return `<div style="display:flex;justify-content:space-between;gap:10px"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(next, 2)}</strong></span></div>`;
         }).join('');
         box.hidden = false;
-        box.innerHTML = `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>` + lines +
+        const head = derive
+          ? `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) — wholesale rate = ${pct}% of MRP</div>`
+          : `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>`;
+        box.innerHTML = head + lines +
           (list.length > 5 ? `<div class="text-2" style="font-size:.72rem;margin-top:3px">+ ${list.length - 5} more…</div>` : '');
         pbList = list;
         $('#pbApplyBtn').disabled = false;
@@ -2308,11 +2338,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         try {
           const res = await MF.Api.post('price-bulk-update.php', {
             ids: pbList.map((m) => m.id), pct, round: $('#pbRound').value, targets,
+            action: pbIsDerive() ? 'derive' : 'adjust',
           });
           const n = (res.data && res.data.matched) || pbList.length;
           pbModal().hide();
           await MF.rehydrate(); render();
-          MF.toast(`${n} medicine(s) updated (${pct > 0 ? '+' : ''}${pct}%)`, 'success', 'Bulk price');
+          MF.toast(pbIsDerive()
+            ? `Wholesale rate set at ${pct}% of MRP on ${n} medicine(s)`
+            : `${n} medicine(s) updated (${pct > 0 ? '+' : ''}${pct}%)`, 'success', 'Bulk price');
         } catch (e) {
           MF.toast(e.message || 'Bulk price update failed.', 'err', 'Bulk price');
         } finally {
@@ -2325,6 +2358,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#pbMfr').innerHTML = '<option value="">All manufacturers</option>' + D.manufacturers.map((m) => `<option>${MF.esc(m)}</option>`).join('');
         $('#pbPreview').hidden = true; pbList = [];
         $('#pbApplyBtn').disabled = true;
+        pbSyncMode();
         pbModal().show();
       });
       $('#pbPreviewBtn').addEventListener('click', pbPreview);
@@ -2333,6 +2367,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         $('#' + id).addEventListener('input', () => { $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = []; }));
       ['pbCat', 'pbMfr', 'pbRound', 'pbMrp', 'pbRetail', 'pbWhole'].forEach((id) =>
         $('#' + id).addEventListener('change', () => { $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = []; }));
+      $('#pbAction').addEventListener('change', () => {
+        pbSyncMode();
+        $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = [];
+      });
       $('#pbApplyBtn').addEventListener('click', pbApply);
 
       $('#mmBulkAdd').addEventListener('click', () => {
@@ -2547,7 +2585,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a44a99924e215deb',t:'MTc5MTAxNjM4NA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4621614de127937',t:'MTc5MTI2MjY1Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });

@@ -23,6 +23,8 @@
     selQuery: '',        // last search text — a new search resets the selection to card 1
     printFmt: 'a4',      // 'a4' | 'thermal' — last chosen invoice print format
     discMode: 'percent', // 'percent' (%) | 'flat' (₹) — bill-level discount mode
+    rolePrivileged: true, // whoami.php narrows this to false for staff/cashier accounts
+    lossApproved: null,   // set when the cashier consciously confirmed a below-cost bill
     orderPad: [],        // [{ medId, qty }] — re-order list handed off to New Purchase
     recent: []           // medicine ids, newest first
   };
@@ -185,6 +187,13 @@
       .prf-visit-line { display:flex; justify-content:space-between; gap:.6rem; font-size:.74rem; padding:.18rem 0; }
       .prf-visit-line span:first-child { color:#374151; font-weight:600; }
       .prf-visit-line span:last-child { color:#8A94A0; white-space:nowrap; }
+
+      /* Wholesale-priced line chip + loss-gate styles */
+      .pos-ws {
+        display:inline-block; margin-left:4px; padding:0 5px; border-radius:4px;
+        font-size:.58rem; font-weight:800; letter-spacing:.04em;
+        background:#E0F2FE; color:#0369A1; border:1px solid #BAE6FD;
+      }
 
       /* Order / substitute (out of stock) */
       .pos-order-sub {
@@ -751,6 +760,47 @@
   }
 
   /* ---------------- Cart ---------------- */
+  /* ===== Sell-price engine ====================================================
+     * Rates resolve per customer TYPE, never blindly:
+     *   retail    → retail_rate (fallback MRP)
+     *   wholesale / hospital / clinic → wholesale_rate (fallback retail_rate)
+     * Every price is then clamped to the SELECTED BATCH's MRP — batches bought
+     * before an MRP hike legally cannot bill above their own printed MRP. */
+  function posCust() {
+    return MF.cust($('#posCustomer') ? $('#posCustomer').value : '') || null;
+  }
+  function posCustIsBusiness(cust) {
+    const c = cust === undefined ? posCust() : cust;
+    const t = String((c && c.type) || '').toLowerCase();
+    return t !== '' && t !== 'retail' && String(c ? c.name : '') !== 'Walk-in Customer';
+  }
+  function batchMrpOf(med, b) {
+    const bm = Number(b && b.mrp) || 0;
+    return bm > 0 ? bm : (Number(med.mrp) || 0);
+  }
+  function sellPriceOf(med, b) {
+    const business = posCustIsBusiness();
+    const ws = Number(med.wholesaleRate) || 0;
+    const base = business && ws > 0 ? ws : Number(med.retailRate ?? med.mrp);
+    const cap = batchMrpOf(med, b);
+    return {
+      rate: cap > 0 ? Math.min(base, cap) : base,
+      kind: business && ws > 0 ? 'wholesale' : 'retail',
+      clamped: cap > 0 && base > cap,
+    };
+  }
+  /* Cashier role for the discount cap — fetched once, fail-open (owner = free). */
+  let _posRole = null;
+  async function posRole() {
+    if (_posRole) return _posRole;
+    try {
+      const res = await MF.Api.get('whoami.php');
+      _posRole = res && res.data ? res.data : { role: 'admin', privileged: true };
+    } catch (e) { _posRole = { role: 'admin', privileged: true }; }
+    return _posRole;
+  }
+  const DISC_CAP_STAFF = 10;                    // % — cashier ceiling, admin is unlimited
+
   function addToCart(medId, unit = 'pack') {
     const med = MF.med(medId);
     if (!med) return;
@@ -767,7 +817,8 @@
     }
     const slot = pack ? live.nextStrip : live.nextLoose;
     if (!slot) { MF.toast('No sellable batch available for ' + med.name, 'warn', 'Stock'); return; }
-    const sell = Number(med.retailRate ?? med.mrp);
+    const px = sellPriceOf(med, slot.batch || slot);
+    const sell = px.rate;
     const rate = pack ? sell : sell / packSize(med);
     const line = state.cart.find((l) => l.batchId == slot.id && (pack ? l.unit !== 'loose' : l.unit === 'loose'));
     if (line) line.qty++;
@@ -776,7 +827,7 @@
       const discPct = med.discountType === 'rupee'
         ? (rate > 0 ? Math.min(100, (rawDisc / rate) * 100) : 0)
         : Math.min(100, rawDisc);
-      state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct, unit: pack ? 'pack' : 'loose' });
+      state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct, unit: pack ? 'pack' : 'loose', kind: px.kind });
     }
     if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
     rememberRecent(medId);
@@ -1040,7 +1091,7 @@
             return `<tr>
               <td style="min-width:170px">
                 <div class="td-title">${MF.esc(med.name)}</div>
-                <div class="td-sub num">B: ${b.batchNo} · Exp ${MF.fmtMonthYear(b.expiry)} · GST ${med.gst}%${l.unit === 'loose' ? ` · Loose` : ''}</div>
+                <div class="td-sub num">B: ${b.batchNo} · Exp ${MF.fmtMonthYear(b.expiry)} · GST ${med.gst}%${l.unit === 'loose' ? ` · Loose` : ''}${l.kind === 'wholesale' ? '<span class="pos-ws">WS</span>' : ''}</div>
                 <div class="td-sub num">${lineMeasure(l, med)}</div>
               </td>
               <td class="text-center">
@@ -1078,7 +1129,14 @@
             const extra = l.unit === 'loose' ? room.tablets : room.strips;
             l.qty = Math.max(1, Math.min(l.qty + extra, parseInt(el.value) || 1));
           }
-          if (a === 'disc') l.discPct = Math.max(0, Math.min(100, parseFloat(el.value) || 0));
+          if (a === 'disc') {
+            let v = Math.max(0, Math.min(100, parseFloat(el.value) || 0));
+            if (!state.rolePrivileged && v > DISC_CAP_STAFF) {
+              v = DISC_CAP_STAFF;
+              MF.toast(`Cashier discount ceiling is ${DISC_CAP_STAFF}% per line — an admin login can go higher.`, 'warn', 'Discount cap');
+            }
+            l.discPct = v;
+          }
           if (a === 'rm') state.cart.splice(i, 1);
           renderCart(); renderSummary();
         });
@@ -1279,6 +1337,32 @@
 
   /* ---------------- Payments ---------------- */
   function bindPayments() {
+    /* Customer type change re-prices the whole cart — retail ↔ wholesale rates.
+       Discounts typed so far stay; only the base rate follows the account. */
+    const repriceCart = () => {
+      if (!state.cart.length) return;
+      let toWs = 0, toRetail = 0;
+      state.cart.forEach((l) => {
+        const m = MF.med(l.medId);
+        const b = D.batches.find((x) => String(x.id) === String(l.batchId));
+        if (!m) return;
+        const px = sellPriceOf(m, b);
+        const newRate = l.unit === 'loose' ? px.rate / packSize(m) : px.rate;
+        if (Math.abs(newRate - l.rate) > 0.004) {
+          l.rate = newRate;
+          px.kind === 'wholesale' ? toWs++ : toRetail++;
+        }
+        l.kind = px.kind;
+      });
+      if (toWs) MF.toast(`${toWs} line(s) re-priced at wholesale rates.`, 'info', 'Wholesale');
+      else if (toRetail) MF.toast(`${toRetail} line(s) re-priced at retail rates.`, 'info', 'Retail pricing');
+      renderCart();
+    };
+    $('#posCustomer').addEventListener('change', repriceCart);
+
+    /* Role for the discount cap — resolved once, fail-open for admins. */
+    posRole().then((r) => { state.rolePrivileged = r.privileged !== false; });
+
     document.querySelectorAll('input[name="posPay"]').forEach((r) =>
       r.addEventListener('change', () => {
         state.payment = r.value;
@@ -1998,6 +2082,76 @@
       </div>`);
   }
 
+  /* ===== Below-cost floor =====================================================
+     * Below-MRP selling is normal; below-COST selling is a choice — so it must be
+     * confirmed, then recorded in the sale_audit ledger. */
+  function ensureLossModal() {
+    if (document.getElementById('posLossModal')) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="modal fade" id="posLossModal" tabindex="-1" data-bs-focus="false" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-cash-coin me-2" style="color:#B42318"></i>Selling below purchase cost</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="posLossBody"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light-mf" data-bs-dismiss="modal">Back to bill</button>
+            <button type="button" class="btn btn-danger" id="posLossProceed"><i class="bi bi-arrow-down-circle me-1"></i>Allow this loss sale</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+  }
+  function belowCostLines(t) {
+    const billPct = (t && t.billDiscPct) || 0;
+    return state.cart.map((l) => {
+      const m = MF.med(l.medId);
+      const b = D.batches.find((x) => String(x.id) === String(l.batchId));
+      const costPack = Number(b && b.purchaseRate) || 0;      // batches store rate per pack
+      if (!m || costPack <= 0) return null;
+      const costUnit = l.unit === 'loose' ? costPack / Math.max(1, packSize(m)) : costPack;
+      const afterLine = l.rate * (1 - (l.discPct || 0) / 100);
+      const eff = afterLine * (1 - billPct / 100);
+      if (eff + 0.004 < costUnit) {
+        return { name: m.name, eff, cost: costUnit, loss: costUnit - eff, qty: l.qty, unit: l.unit };
+      }
+      return null;
+    }).filter(Boolean);
+  }
+  function lossGate(loss) {
+    ensureLossModal();
+    const el = document.getElementById('posLossModal');
+    const totalLoss = loss.reduce((s, x) => s + x.loss * x.qty, 0);
+    document.getElementById('posLossBody').innerHTML = `
+      <p class="mb-2" style="font-size:.86rem">${loss.length} line(s) on this bill are priced <strong>below their purchase cost</strong> after discounts:</p>
+      <table class="table table-sm mb-2" style="font-size:.82rem">
+        <thead><tr><th>Medicine</th><th class="text-end">Cost</th><th class="text-end">Selling</th><th class="text-end">Loss/unit</th></tr></thead>
+        <tbody>${loss.map((x) => `<tr>
+            <td class="fw-semibold">${MF.esc(x.name)}${x.unit === 'loose' ? ' <span class="text-2">(loose)</span>' : ''}</td>
+            <td class="text-end num">${MF.fmt(x.cost, 2)}</td>
+            <td class="text-end num">${MF.fmt(x.eff, 2)}</td>
+            <td class="text-end num fw-bold" style="color:#B42318">−${MF.fmt(x.loss, 2)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <div class="alert alert-danger py-2 mb-0" role="note" style="font-size:.78rem;border-radius:10px">
+        <i class="bi bi-cash-stack me-1"></i>Total margin given up on this bill: <strong>${MF.fmt(totalLoss, 2)}</strong>.
+        Clearing dated stock deliberately is fine — this keeps the choice on record.
+      </div>`;
+    return new Promise((resolve) => {
+      const modal = bootstrap.Modal.getOrCreateInstance(el);
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; el.removeEventListener('hidden.bs.modal', onHide); resolve(ok); };
+      const onHide = () => finish(false);
+      el.addEventListener('hidden.bs.modal', onHide);
+      document.getElementById('posLossProceed').onclick = () => { finish(true); modal.hide(); };
+      modal.show();
+    });
+  }
+
   async function completeSale() {
     if (state.tenderOpen) { document.getElementById('posTenderOk')?.click(); return; }
     if (!state.cart.length) { MF.toast('Cart is empty', 'warn', 'Cannot complete sale'); return; }
@@ -2018,6 +2172,12 @@
       }
     }
     const t = calcTotals();
+    // Cost floor first (cheaper to fix than a credit issue later at approval time).
+    const loss = belowCostLines(t);
+    if (loss.length) {
+      if (!await lossGate(loss)) { MF.toast('Sale paused — raise the rates or remove the deep-discount lines.', 'info', 'Cost floor'); return; }
+      state.lossApproved = loss.map((x) => x.name);
+    } else state.lossApproved = null;
     if (!await creditGate(t)) { MF.toast('Sale paused — adjust the payment mode or collect dues first.', 'info', 'Credit gate'); return; }
     const tender = await openTender(t);
     if (!tender) return;
@@ -2037,6 +2197,14 @@
       });
       MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
+      if (state.lossApproved && state.lossApproved.length) {
+        MF.Api.post('sale-audit.php', {
+          event: 'BELOW_COST_SALE',
+          invoiceNo: res.invoiceNo,
+          detail: `${state.lossApproved.length} line(s) sold below landed cost on ${res.invoiceNo}: ${state.lossApproved.join('; ')}. Cashier confirmed at POS.`,
+        }).catch(() => { /* best effort — the sale itself is saved */ });
+      }
+      state.lossApproved = null;
       noteCompletedInvoice(res.invoiceNo);
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
@@ -2566,6 +2734,26 @@
       location.href = 'purchase.php';
     });
     $('#posGlobalDisc').addEventListener('input', renderSummary);
+    $('#posGlobalDisc').addEventListener('change', () => {
+      if (state.rolePrivileged) return renderSummary();
+      const el = $('#posGlobalDisc');
+      let v = parseFloat(el.value) || 0;
+      if (v <= 0) return;
+      if (state.discMode !== 'flat') {
+        if (v > DISC_CAP_STAFF) {
+          el.value = DISC_CAP_STAFF;
+          MF.toast(`Cashier bill-discount ceiling is ${DISC_CAP_STAFF}% — an admin login can go higher.`, 'warn', 'Discount cap');
+        }
+      } else {
+        const base = calcTotals().subtotal;
+        const capRs = base * DISC_CAP_STAFF / 100;
+        if (v > capRs && base > 0) {
+          el.value = capRs.toFixed(0);
+          MF.toast(`Cashier bill-discount ceiling is ${DISC_CAP_STAFF}% (${MF.fmt(capRs)}) — ask an admin.`, 'warn', 'Discount cap');
+        }
+      }
+      renderSummary();
+    });
     const dPct = $('#posDiscPct'), dRs = $('#posDiscRs');
     if (dPct) dPct.addEventListener('click', () => setDiscMode('percent'));
     if (dRs) dRs.addEventListener('click', () => setDiscMode('flat'));

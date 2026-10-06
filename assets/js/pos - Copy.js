@@ -57,10 +57,11 @@
       }
       .pos-loose-add:active { transform:translateY(0); box-shadow:none; background:#0f2444; color:#fff; }
       .pos-loose-add:focus-visible { outline:2px solid #16325c; outline-offset:2px; }
-      /* "% off" chip on the quick card — teal pill beside the retail price */
+      /* "% off" chip on the quick card — premium indigo pill beside the retail price */
       .pos-off {
-        display:inline-block; margin-left:.35rem; padding:0 .42rem; border-radius:50rem; vertical-align:middle;
-        background:#E6F1EE; color:#0F766E; font-size:.62rem; font-weight:800; letter-spacing:.02em; line-height:1.5;
+        display:inline-block; margin-left:.35rem; padding:.06em .42rem .12em; border-radius:50rem; vertical-align:middle;
+        background:#EEF0FF; color:#4F46E5; font-size:.72rem; font-weight:800;
+        letter-spacing:.01em; line-height:1.25; box-shadow:inset 0 0 0 1px rgba(79,70,229,.18);
       }
       /* Search clear control — occupies the right side of the search input, visible only with text */
       .pos-search-wrap { position:relative; flex:1; min-width:0; }
@@ -72,6 +73,118 @@
       }
       .pos-clear:hover { background:#DCE4E9; color:#172026; }
       .pos-clear:focus-visible { outline:2px solid #2E8B78; outline-offset:2px; }
+
+      /* ================= Quick Refill ================= */
+      /* Button beside the search bar */
+      .pos-refill-btn {
+        flex:0 0 auto; display:inline-flex; align-items:center; gap:.42rem; white-space:nowrap;
+        border:1px solid #E5E7EB; background:#fff; color:#176B5B; border-radius:.5rem;
+        font-size:.78rem; font-weight:650; padding:.45rem .75rem; letter-spacing:.005em;
+        transition:all .16s ease; box-shadow:0 1px 2px rgba(16,24,40,.05);
+      }
+      .pos-refill-btn i { font-size:.95rem; }
+      .pos-refill-btn:hover { background:#E6F1EE; border-color:#8FCDC0; color:#0F4D42; transform:translateY(-1px); box-shadow:0 3px 8px rgba(23,107,91,.18); }
+      .pos-refill-btn:active { transform:translateY(0); }
+      @media (max-width: 575.98px) { .pos-refill-btn span { display:none; } .pos-refill-btn { padding:.45rem .6rem; } }
+
+      /* Overlay + slide-in panel */
+      .pos-refill-overlay {
+        position:fixed; inset:0; background:rgba(10,22,18,.42); z-index:1060;
+        opacity:0; transition:opacity .22s ease; backdrop-filter:blur(2px);
+      }
+      .pos-refill-overlay.show { opacity:1; }
+      .pos-refill-panel {
+        position:fixed; top:0; right:0; bottom:0; width:min(408px, 96vw); z-index:1070;
+        background:#fff; border-left:1px solid #E7ECF1; box-shadow:-24px 0 60px rgba(15,40,32,.22);
+        display:flex; flex-direction:column; transform:translateX(105%);
+        transition:transform .26s cubic-bezier(.32,.72,.24,1);
+      }
+      .pos-refill-panel.show { transform:translateX(0); }
+      .prf-head {
+        display:flex; align-items:center; gap:.7rem; padding:.9rem 1rem;
+        border-bottom:1px solid #EEF1F4; background:linear-gradient(180deg,#FBFCFD,#fff);
+      }
+      .prf-avatar {
+        width:42px; height:42px; flex:0 0 42px; border-radius:12px; display:grid; place-items:center;
+        background:#E7F5EE; color:#146C43; font-weight:800; font-size:.8rem; letter-spacing:.02em;
+      }
+      .prf-who { flex:1; min-width:0; display:flex; flex-direction:column; gap:1px; }
+      .prf-who strong { font-size:.92rem; letter-spacing:-.005em; color:#172026; }
+      .prf-who span { font-size:.72rem; color:#6B7280; font-variant-numeric:tabular-nums; }
+      .prf-close {
+        width:30px; height:30px; border-radius:8px; border:0; background:#fff;
+        color:#6B7280; display:grid; place-items:center; font-size:.8rem;
+      }
+      .prf-close:hover { background:#F1F3F5; color:#172026; }
+      .prf-body { flex:1; overflow-y:auto; padding:1rem; }
+      .prf-search {
+        flex:0 0 auto; border:1px solid #176B5B; background:#176B5B; color:#fff; border-radius:.5rem;
+        font-size:.78rem; font-weight:650; padding:.45rem .8rem; display:inline-flex; align-items:center; gap:.35rem;
+      }
+      .prf-search:hover { background:#0F4D42; border-color:#0F4D42; }
+      .prf-msg { line-height:1.45; }
+      .prf-msg.is-err { color:#B4352F; }
+      .prf-msg.is-info { color:#176B5B; font-weight:600; }
+
+      .prf-facts { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-bottom:.2rem; }
+      .prf-chip {
+        border:1px solid #EDF1F4; border-radius:.6rem; background:#F8FAFB; padding:.55rem .7rem; min-width:0;
+      }
+      .prf-k { display:block; font-size:.6rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase; color:#8A94A0; margin-bottom:2px; }
+      .prf-chip b { font-size:.78rem; color:#172026; font-weight:700; }
+      .prf-sec-title { font-size:.84rem; margin:.85rem 0 .4rem; }
+      .prf-history {
+        border:0; background:transparent; padding:0; font-size:.72rem; font-weight:600; color:#5a6675;
+        text-decoration:underline; text-underline-offset:2px;
+      }
+      .prf-history:hover { color:#176B5B; }
+      .prf-table { border:1px solid #EDF1F4; border-radius:.65rem; overflow:hidden; }
+      .prf-thead, .prf-row {
+        display:grid; grid-template-columns:minmax(0,1fr) auto; align-items:center; gap:.6rem;
+      }
+      .prf-thead {
+        padding:.45rem .75rem; background:#FAFBFC; border-bottom:1px solid #EDF1F4;
+        font-size:.6rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:#8A94A0;
+      }
+      .prf-thead span:last-child { font-size:.62rem; }
+      .prf-row { padding:.55rem .75rem; background:#fff; transition:background .12s; cursor:pointer; }
+      .prf-row + .prf-row { border-top:1px solid #F2F5F7; }
+      .prf-row:hover { background:#FAFBFC; }
+      .prf-row .prf-med { display:flex; align-items:center; gap:.6rem; min-width:0; font-size:.8rem; font-weight:600; color:#172026; }
+      .prf-row .prf-med .gone { font-size:.66rem; color:#b02a37; font-weight:600; margin-left:4px; }
+      .prf-row .prf-qty { font-size:.72rem; color:#5f6b7a; font-weight:500; text-align:right; white-space:nowrap; }
+      .prf-check { width:1.05rem; height:1.05rem; accent-color:#176B5B; cursor:pointer; flex:0 0 auto; }
+      .prf-check:disabled { accent-color:#cbd3dc; cursor:not-allowed; }
+      .prf-row.is-off { opacity:.55; }
+      .prf-foot { padding:.85rem 1rem; border-top:1px solid #EEF1F4; background:#fff; }
+      .prf-refill {
+        width:100%; border:0; border-radius:.6rem; background:#0B8A5F; color:#fff; font-size:.86rem; font-weight:700;
+        padding:.7rem 1rem; display:inline-flex; align-items:center; justify-content:center; gap:.5rem;
+        transition:background .15s, transform .15s, box-shadow .15s; box-shadow:0 6px 18px rgba(11,138,95,.28);
+      }
+      .prf-refill:hover:not(:disabled) { background:#096f4c; transform:translateY(-1px); box-shadow:0 8px 22px rgba(11,138,95,.34); }
+      .prf-refill:active:not(:disabled) { transform:translateY(0); }
+      .prf-refill:disabled { background:#9fb3ab; box-shadow:none; cursor:not-allowed; }
+      .prf-refill i { font-size:1rem; }
+
+      /* Full history list */
+      .prf-visit { border:1px solid #EDF1F4; border-radius:.65rem; background:#fff; overflow:hidden; }
+      .prf-visit + .prf-visit { margin-top:.5rem; }
+      .prf-visit-head {
+        width:100%; display:grid; grid-template-columns:minmax(0,1fr) auto auto; align-items:center; gap:.6rem;
+        padding:.55rem .75rem; background:#fff; border:0; cursor:pointer; text-align:left;
+      }
+      .prf-visit-head:hover { background:#F8FAFB; }
+      .prf-visit-head .v-inv { font-size:.78rem; font-weight:700; color:#172026; }
+      .prf-visit-head .v-date { font-size:.64rem; color:#8A94A0; margin-top:1px; }
+      .prf-visit-head .v-amt { font-size:.8rem; font-weight:700; color:#0F4D42; font-variant-numeric:tabular-nums; }
+      .prf-visit-head .v-caret { color:#8A94A0; font-size:.8rem; transition:transform .2s; }
+      .prf-visit.open .v-caret { transform:rotate(180deg); color:#176B5B; }
+      .prf-visit-items { display:none; border-top:1px solid #F2F5F7; background:#FAFBFC; padding:.45rem .75rem .6rem; }
+      .prf-visit.open .prf-visit-items { display:block; }
+      .prf-visit-line { display:flex; justify-content:space-between; gap:.6rem; font-size:.74rem; padding:.18rem 0; }
+      .prf-visit-line span:first-child { color:#374151; font-weight:600; }
+      .prf-visit-line span:last-child { color:#8A94A0; white-space:nowrap; }
 
       /* Order / substitute (out of stock) */
       .pos-order-sub {
@@ -1803,6 +1916,88 @@
       : html;
   }
 
+  /* ===== Business credit gate =====
+     * A credit bill to a business account with a cap set warns (and asks for a
+     * cashier confirmation) when the projected dues would cross the cap.
+     * Retail accounts are exempt — their policy fields stay NULL server-side. */
+  function ensureCreditModal() {
+    if (document.getElementById('posCreditModal')) return;
+    const wrap = document.createElement('div');
+    wrap.innerHTML = `<div class="modal fade" id="posCreditModal" tabindex="-1" data-bs-focus="false" data-bs-backdrop="static" data-bs-keyboard="false">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title"><i class="bi bi-shield-exclamation me-2" style="color:#B42318"></i>Credit limit exceeded</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+          </div>
+          <div class="modal-body" id="posCreditBody"></div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-light-mf" data-bs-dismiss="modal">Cancel billing</button>
+            <button type="button" class="btn btn-danger" id="posCreditProceed"><i class="bi bi-exclamation-triangle me-1"></i>Sell on credit anyway</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    document.body.appendChild(wrap.firstElementChild);
+  }
+  function posCreditConfirm(html) {
+    return new Promise((resolve) => {
+      ensureCreditModal();
+      const el = document.getElementById('posCreditModal');
+      document.getElementById('posCreditBody').innerHTML = html;
+      const modal = bootstrap.Modal.getOrCreateInstance(el);
+      let done = false;
+      const finish = (ok) => { if (done) return; done = true; el.removeEventListener('hidden.bs.modal', onHide); resolve(ok); };
+      const onHide = () => finish(false);
+      el.addEventListener('hidden.bs.modal', onHide);
+      document.getElementById('posCreditProceed').onclick = () => { finish(true); modal.hide(); };
+      modal.show();
+    });
+  }
+  async function creditGate(t) {
+    if (state.payment !== 'credit') return true;
+    const cust = MF.cust($('#posCustomer') ? $('#posCustomer').value : '');
+    if (!cust || cust.name === 'Walk-in Customer') return true;      // walk-in credit is already blocked at the payment radios
+    const typeKey = String(cust.type || '').toLowerCase();
+    if (typeKey === '' || typeKey === 'retail') return true;          // policy applies to business accounts only
+    const limit = Number(cust.credit_limit ?? cust.creditLimit ?? 0);
+    if (!(limit > 0)) return true;                                    // no cap configured on this account
+    const bill = Math.max(0, Number(t && t.grand) || 0);
+    let duesNow = null;
+    try {
+      const res = await MF.Api.get('customer-dues.php?id=' + encodeURIComponent(cust.id));
+      duesNow = Number(res && res.data && res.data.customer ? res.data.customer.outstanding : 0);
+      if (!Number.isFinite(duesNow)) duesNow = null;
+    } catch (e) { duesNow = null; }
+    if (duesNow === null) return true;                                // ledger unavailable — don't freeze the counter; dues still post server-side
+    const headroom = limit - duesNow;
+    if (bill <= headroom) {
+      const left = headroom - bill;
+      if (left < limit * 0.2) {
+        MF.toast(`${cust.name} will be down to ${MF.fmt(Math.max(0, left))} of the ${MF.fmt(limit)} credit cap after this bill.`, 'warn', 'Credit watch');
+      }
+      return true;
+    }
+    const projected = duesNow + bill;
+    const overBy = projected - limit;
+    return posCreditConfirm(`
+      <p class="mb-2" style="font-size:.86rem">This credit bill to <strong>${MF.esc(cust.name)}</strong>${cust.business_name ? ' (' + MF.esc(cust.business_name) + ')' : ''} will take the account past its cap:</p>
+      <table class="table table-sm mb-2" style="font-size:.84rem">
+        <tbody>
+          <tr><td class="text-2">Credit limit</td><td class="text-end num fw-semibold">${MF.fmt(limit)}</td></tr>
+          <tr><td class="text-2">Outstanding today</td><td class="text-end num">${MF.fmt(duesNow)}</td></tr>
+          <tr><td class="text-2">Headroom left</td><td class="text-end num">${MF.fmt(Math.max(0, headroom))}</td></tr>
+          <tr><td class="text-2">This bill on credit</td><td class="text-end num fw-semibold">${MF.fmt(bill)}</td></tr>
+          <tr class="table-danger"><td class="fw-semibold">Dues after this bill</td>
+            <td class="text-end num fw-bold">${MF.fmt(projected)} <span class="badge bg-danger ms-1">+${MF.fmt(overBy)} over</span></td></tr>
+        </tbody>
+      </table>
+      ${cust.credit_days ? `<div class="text-2 mb-2" style="font-size:.74rem">Account terms: payment due within <strong>${cust.credit_days} day${Number(cust.credit_days) === 1 ? '' : 's'}</strong>.</div>` : ''}
+      <div class="alert alert-warning py-2 mb-0" role="note" style="font-size:.76rem;border-radius:10px">
+        <i class="bi bi-lightbulb me-1"></i>Cleaner: collect the existing ${MF.fmt(duesNow)} first, or bill this one on cash/UPI.
+      </div>`);
+  }
+
   async function completeSale() {
     if (state.tenderOpen) { document.getElementById('posTenderOk')?.click(); return; }
     if (!state.cart.length) { MF.toast('Cart is empty', 'warn', 'Cannot complete sale'); return; }
@@ -1823,6 +2018,7 @@
       }
     }
     const t = calcTotals();
+    if (!await creditGate(t)) { MF.toast('Sale paused — adjust the payment mode or collect dues first.', 'info', 'Credit gate'); return; }
     const tender = await openTender(t);
     if (!tender) return;
     state.tender = tender;
@@ -2121,6 +2317,186 @@
       searchMeds(e.target.value);
     });
     $('#posSearch').addEventListener('keydown', onSearchKeys);
+
+    /* ================= Quick Refill side panel ================= */
+    const refillPanel = $('#posRefillPanel');
+    const refillOverlay = $('#posRefillOverlay');
+    let refillData = null;          // last lookup result
+    let refillChecked = new Set();  // selected row indexes
+    let refillMobile = '';          // the digits the current customer was found with
+
+    function refillMsg(text, cls) {
+      const el = $('#prfMsg');
+      el.textContent = text;
+      el.className = 'prf-msg text-2 small mt-2' + (cls ? ' ' + cls : '');
+    }
+    function refillPaintButton() {
+      const n = refillChecked.size;
+      const btn = $('#prfRefillBtn');
+      btn.disabled = !n;
+      btn.querySelector('span').textContent = 'Refill selected (' + n + ' item' + (n === 1 ? '' : 's') + ')';
+    }
+    function refillReset() {
+      refillData = null;
+      refillChecked = new Set();
+      $('#prfResult').hidden = true;
+      $('#prfLookup').hidden = false;
+      $('#prfAvatar').textContent = '?';
+      $('#prfName').textContent = 'Quick refill';
+      $('#prfSub').textContent = 'Find a regular by mobile number';
+      refillMsg('Type a mobile number to pull up the customer\u2019s last prescription.');
+      refillPaintButton();
+    }
+    function refillOpen() {
+      refillReset();
+      refillPanel.hidden = false;
+      refillOverlay.hidden = false;
+      requestAnimationFrame(() => { refillPanel.classList.add('show'); refillOverlay.classList.add('show'); });
+      setTimeout(() => $('#prfMobile').focus(), 220);
+    }
+    function refillClose() {
+      refillPanel.classList.remove('show');
+      refillOverlay.classList.remove('show');
+      setTimeout(() => { refillPanel.hidden = true; refillOverlay.hidden = true; }, 280);
+    }
+    function refillMatch(name) {
+      const key = String(name || '').trim().toLowerCase();
+      if (!key) return null;
+      return D.medicines.find((m) => String(m.name || '').toLowerCase() === key)
+        || D.medicines.find((m) => { const x = String(m.name || '').toLowerCase(); return key.startsWith(x) || x.startsWith(key); })
+        || D.medicines.find((m) => { const x = String(m.name || '').toLowerCase(); return key.includes(x) || x.includes(key); });
+    }
+    function refillPaintResult(data) {
+      refillData = data;
+      refillChecked = new Set();
+      $('#prfLookup').hidden = true;
+      $('#prfResult').hidden = false;
+      $('#prfAvatar').textContent = data.customer.initials || 'P';
+      $('#prfName').textContent = data.customer.name;
+      const bought = Number(data.customer.purchases) || 0;
+      $('#prfSub').textContent = (data.customer.phone || '') + (bought ? ' · ' + bought + ' purchase' + (bought === 1 ? '' : 's') : ' · no purchases yet');
+      const d = data.daysSince;
+      $('#prfLast').textContent = d == null ? 'No purchases yet' : d === 0 ? 'Today' : d === 1 ? 'Yesterday' : d + ' days ago';
+      $('#prfDoctor').textContent = data.doctor || '—';
+      const box = $('#prfItems');
+      if (!data.items.length) {
+        box.innerHTML = '<div class="prf-row" style="cursor:default"><span class="prf-med"><i class="bi bi-inbox"></i><span>No items in this customer\u2019s last sale.</span></span><span class="prf-qty"></span></div>';
+      } else {
+        box.innerHTML = data.items.map((it, i) => {
+          const ok = !!refillMatch(it.name);
+          if (ok) refillChecked.add(i);
+          return '<div class="prf-row' + (ok ? '' : ' is-off') + '">' +
+            '<span class="prf-med"><input type="checkbox" class="prf-check" data-i="' + i + '"' + (ok ? ' checked' : ' disabled') + '>' +
+            '<span>' + MF.esc(it.name) + (ok ? '' : ' <span class="gone">not in master</span>') + '</span></span>' +
+            '<span class="prf-qty">' + MF.esc(it.qtyLabel) + '</span></div>';
+        }).join('');
+      }
+      refillPaintButton();
+    }
+    async function refillSearch() {
+      const v = ($('#prfMobile').value || '').replace(/[^0-9]/g, '');
+      if (v.length < 6) { refillMsg('Enter at least 6 digits of the mobile number.', 'is-err'); $('#prfMobile').focus(); return; }
+      refillMsg('Searching…', 'is-info');
+      const btn = $('#prfSearchBtn');
+      btn.disabled = true;
+      try {
+        let data = null;
+        if (MF.Api && MF.Api.live) {
+          const res = await MF.Api.get('patient-lookup.php?mobile=' + encodeURIComponent(v));
+          data = res && res.data;
+        } else {
+          refillMsg('Not connected to the API — patient lookup needs the live backend.', 'is-err');
+          return;
+        }
+        if (!data || !data.customer) { refillMsg('No customer found for ' + v + '. Save them from the customers page first.', 'is-err'); return; }
+        refillMobile = v;
+        refillPaintResult(data);
+      } catch (e) {
+        refillMsg((e && e.message) ? e.message : 'Lookup failed — check the API file is deployed.', 'is-err');
+      } finally { btn.disabled = false; }
+    }
+    async function refillApply() {
+      if (!refillData || !refillChecked.size) return;
+      const picked = [...refillChecked].map((i) => refillData.items[i]).filter(Boolean);
+      let added = 0, skipped = 0;
+      for (const it of picked) {
+        const med = refillMatch(it.name);
+        if (!med) { skipped++; continue; }
+        added++;
+        const unit = (it.unit === 'loose' && med.allowLoose) ? 'loose' : 'pack';
+        const times = Math.max(1, Math.min(50, Number(it.qty) || 1));
+        for (let n = 0; n < times; n++) addToCart(med.id, unit);
+      }
+      if (MF.Api && MF.Api.live) {
+        try {
+          await MF.Api.post('patient-refill.php', {
+            customer_id: refillData.customer.id,
+            customer_name: refillData.customer.name,
+            items: picked.map((it) => ({ medId: it.medId, name: it.name, qty: it.qty, unit: it.unit })),
+          });
+        } catch (e) { /* optional log — never block the sale */ }
+      }
+      refillClose();
+      MF.toast('Items added to current invoice' + (skipped ? ' · ' + skipped + ' skipped (not in master)' : ''), skipped ? 'warn' : 'success', 'Quick refill');
+    }
+    $('#posRefillBtn').addEventListener('click', refillOpen);
+    $('#prfClose').addEventListener('click', refillClose);
+    refillOverlay.addEventListener('click', refillClose);
+    $('#prfSearchBtn').addEventListener('click', refillSearch);
+    $('#prfMobile').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); refillSearch(); } if (e.key === 'Escape') refillClose(); });
+    /* Full history — swaps the prescription list for every past visit (items expand inline) */
+    async function refillHistory() {
+      if (!refillMobile) return;
+      const box = $('#prfHistList');
+      $('#prfResult').hidden = true;
+      $('#prfHist').hidden = false;
+      box.innerHTML = '<div class="prf-msg text-2 small">Loading history…</div>';
+      try {
+        const res = await MF.Api.get('patient-lookup.php?mobile=' + encodeURIComponent(refillMobile) + '&history=1');
+        const data = res && res.data;
+        const rows = (data && data.history) || [];
+        $('#prfHistVisits').textContent = String((data && data.visits) || 0);
+        $('#prfHistSpend').textContent = MF.fmt(Number((data && data.lifetimeSpend) || 0), 2);
+        if (!rows.length) {
+          box.innerHTML = '<div class="prf-visit"><div class="prf-visit-line" style="padding:.6rem .75rem">No purchases recorded for this customer yet.</div></div>';
+          return;
+        }
+        box.innerHTML = rows.map((r, i) => {
+          const lines = (r.items || []).map((it) =>
+            '<div class="prf-visit-line"><span>' + MF.esc(it.name) + '</span><span>' + MF.esc(it.qtyLabel) + ' · ' + MF.fmt(Number(it.amount) || 0, 2) + '</span></div>').join('');
+          return '<div class="prf-visit" data-h="' + i + '">' +
+            '<button type="button" class="prf-visit-head"><span><span class="v-inv">' + MF.esc(r.invoice || ('Sale #' + r.id)) + '</span><div class="v-date">' + MF.esc(MF.fmtDate ? MF.fmtDate(r.date) : r.date) + (r.doctor ? ' · ' + MF.esc(r.doctor) : '') + '</div></span>' +
+            '<span class="v-amt">' + MF.fmt(Number(r.total) || 0, 2) + '</span><i class="bi bi-chevron-down v-caret"></i></button>' +
+            '<div class="prf-visit-items">' + lines + '</div></div>';
+        }).join('');
+        if (rows.length) $('#prfHist').querySelector('.prf-visit')?.classList.add('open');
+      } catch (e) {
+        box.innerHTML = '<div class="prf-msg text-2 small is-err">' + MF.esc((e && e.message) ? e.message : 'Could not load history.') + '</div>';
+      }
+    }
+    $('#prfHistory').addEventListener('click', refillHistory);
+    $('#prfHistBack').addEventListener('click', () => { $('#prfHist').hidden = true; $('#prfResult').hidden = false; });
+    $('#prfHistList').addEventListener('click', (e) => {
+      const head = e.target.closest('.prf-visit-head');
+      if (!head) return;
+      head.closest('.prf-visit').classList.toggle('open');
+    });
+    $('#prfItems').addEventListener('change', (e) => {
+      const cb = e.target.closest('.prf-check');
+      if (!cb || cb.disabled) return;
+      const i = +cb.dataset.i;
+      if (cb.checked) refillChecked.add(i); else refillChecked.delete(i);
+      refillPaintButton();
+    });
+    $('#prfItems').addEventListener('click', (e) => {
+      if (e.target.closest('.prf-check')) return;
+      const row = e.target.closest('.prf-row');
+      if (!row || row.classList.contains('is-off')) return;
+      const cb = row.querySelector('.prf-check');
+      if (cb && !cb.disabled) { cb.checked = !cb.checked; cb.dispatchEvent(new Event('change', { bubbles: true })); }
+    });
+    $('#prfRefillBtn').addEventListener('click', refillApply);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !refillPanel.hidden) { /* handled by panel inputs too */ refillClose(); } });
     const pickTabs = $('#posPickTabs');
     if (pickTabs) pickTabs.addEventListener('click', (e) => {
       const btn = e.target.closest('[data-pick]');
