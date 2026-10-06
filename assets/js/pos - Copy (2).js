@@ -26,10 +26,7 @@
     rolePrivileged: true, // whoami.php narrows this to false for staff/cashier accounts
     lossApproved: null,   // set when the cashier consciously confirmed a below-cost bill
     orderPad: [],        // [{ medId, qty }] — re-order list handed off to New Purchase
-    recent: [],          // medicine ids, newest first
-    pendingQty: 0,       // qty-first entry: "3*amox" parks 3 until the next add
-    cartIdx: -1,         // keyboard cart editing — active line (-1 = none)
-    lastBill: null       // snapshot of the last completed bill for instant reprints
+    recent: []           // medicine ids, newest first
   };
 
   const $ = (s) => document.querySelector(s);
@@ -694,25 +691,8 @@
     return hits[0] || null;
   }
 
-  /* Qty-first entry: "3*amox" (or 3x / 3×) parks qty 3 for the next add — counter-speed habit. */
-  function paintQtyFlag() {
-    const f = $('#posQtyFlag');
-    if (!f) return;
-    if (state.pendingQty > 0) { f.hidden = false; f.textContent = '×' + state.pendingQty; }
-    else f.hidden = true;
-  }
-  function qtyFlagReset() { state.pendingQty = 0; paintQtyFlag(); }
-  function qtyPrefixParse(input) {
-    const m = String(input.value || '').match(/^\s*(\d{1,3})\s*[*xX×]\s*(.*)$/);
-    if (!m) return;
-    state.pendingQty = Math.max(1, Math.min(999, parseInt(m[1], 10) || 1));
-    input.value = m[2] || '';
-    paintQtyFlag();
-  }
-
   function resetSearch(box) {
     box.value = '';
-    qtyFlagReset();
     state.selIdx = 0;
     state.selQuery = '';
     const cb = document.getElementById('posSearchClear');
@@ -848,18 +828,6 @@
         ? (rate > 0 ? Math.min(100, (rawDisc / rate) * 100) : 0)
         : Math.min(100, rawDisc);
       state.cart.push({ medId, batchId: slot.id, qty: 1, rate, mrp: med.mrp, discPct, unit: pack ? 'pack' : 'loose', kind: px.kind });
-    }
-    // Qty-first entry ("3*amox") — top up the line we just touched, clamped to batch room.
-    if (state.pendingQty > 0) {
-      const row = line || state.cart[state.cart.length - 1];
-      if (row) {
-        const room = lineRoom(row);
-        const left = pack ? room.strips : room.tablets;
-        const extra = Math.min(state.pendingQty - 1, Math.max(0, left));
-        if (extra > 0) row.qty += extra;
-        if (extra < state.pendingQty - 1) MF.toast(`Only ${row.qty} available in this batch — short of the ${state.pendingQty} requested`, 'warn', 'Stock');
-      }
-      qtyFlagReset();
     }
     if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
     rememberRecent(medId);
@@ -1106,29 +1074,6 @@
     return { subtotal, discount, gst, net, grand, roundOff, billDisc, billDiscPct };
   }
 
-  /* Keyboard cart editing — arrows pick a line (mouse-free), +/− qty, Del removes.
-   Render-safe: syncCartKb() re-asserts the highlight after every renderCart(). */
-  function setCartIdx(i) {
-    state.cartIdx = state.cart.length ? Math.max(-1, Math.min(state.cart.length - 1, i)) : -1;
-    $('#posCartBody')?.querySelectorAll('tbody tr[data-ki]').forEach((tr) =>
-      tr.classList.toggle('is-kb', +tr.dataset.ki === state.cartIdx));
-    if (state.cartIdx >= 0) $('#posCartBody')?.querySelector('tr.is-kb')?.scrollIntoView({ block: 'nearest' });
-  }
-  function cartKbAdjust(delta) {
-    const btn = $('#posCartBody')?.querySelector(`[data-a="${delta > 0 ? 'inc' : 'dec'}"][data-i="${state.cartIdx}"]`);
-    if (btn) btn.click(); // reuse the stock-clamped UI path — never invent stock math twice
-  }
-  function cartKbRemove() {
-    if (state.cartIdx < 0) return;
-    const btn = $('#posCartBody')?.querySelector(`[data-a="rm"][data-i="${state.cartIdx}"]`);
-    if (btn) btn.click();
-  }
-  function syncCartKb() {
-    const hint = $('#posKbHint'); if (hint) hint.hidden = state.cart.length === 0;
-    if (state.cartIdx >= state.cart.length) state.cartIdx = state.cart.length - 1;
-    $('#posCartBody')?.querySelectorAll('tbody tr[data-ki]').forEach((tr) =>
-      tr.classList.toggle('is-kb', +tr.dataset.ki === state.cartIdx));
-  }
   function renderCart() {
     const box = $('#posCartBody');
     if (!state.cart.length) {
@@ -1143,7 +1088,7 @@
             const med = MF.med(l.medId);
             const b = D.batches.find((x) => x.id === l.batchId);
             const c = calcLine(l);
-            return `<tr data-ki="${i}" tabindex="-1" title="Click to select line for keyboard editing">
+            return `<tr>
               <td style="min-width:170px">
                 <div class="td-title">${MF.esc(med.name)}</div>
                 <div class="td-sub num">B: ${b.batchNo} · Exp ${MF.fmtMonthYear(b.expiry)} · GST ${med.gst}%${l.unit === 'loose' ? ` · Loose` : ''}${l.kind === 'wholesale' ? '<span class="pos-ws">WS</span>' : ''}</div>
@@ -1196,11 +1141,8 @@
           renderCart(); renderSummary();
         });
       });
-      box.querySelectorAll('tbody tr[data-ki]').forEach((tr) =>
-        tr.addEventListener('click', (e) => { if (!e.target.closest('button,input,select,a')) setCartIdx(+tr.dataset.ki); }));
     }
     renderSummary();
-    syncCartKb();
     renderRxChip();
     refreshPicks();
     refreshDraftBtn();
@@ -1687,7 +1629,6 @@
     state.cart = draft.cart;
     if ($('#posCustomer') && draft.customer) $('#posCustomer').value = draft.customer;
     if ($('#posDoctor') && draft.doctor) $('#posDoctor').value = draft.doctor;
-    if (window.POSUI) POSUI.syncPickers();
     if ($('#posGlobalDisc')) $('#posGlobalDisc').value = draft.disc || 0;
     if (draft.discMode) { state.discMode = draft.discMode === 'flat' ? 'flat' : 'percent'; paintDiscToggle(); }
     if (draft.payment) {
@@ -1765,7 +1706,6 @@
       body.querySelectorAll('[data-load]').forEach((b) => b.addEventListener('click', () => {
         const h = state.heldBills.find((x) => x.id === +b.dataset.load);
         state.cart = h.items; $('#posCustomer').value = h.customer;
-        if (window.POSUI) POSUI.syncPickers();
         state.heldBills = state.heldBills.filter((x) => x.id !== h.id);
         updateHoldBadge(); renderCart();
         bootstrap.Modal.getInstance($('#posHeldModal')).hide();
@@ -2022,19 +1962,12 @@
     });
   }
 
-  function receiptHtml(invNo, t, fmt, snap) {
-    // snap = frozen bill context for reprints (cart/payment/tender/customer as-was);
-    // omitted on the live path, where current state is the context.
-    const liveCust = MF.cust($('#posCustomer').value);
-    const cust = snap && snap.cust ? snap.cust : (liveCust || { name: 'Customer' });
-    const cart = snap && snap.cart ? snap.cart : state.cart;
-    const pay = snap && snap.payment ? snap.payment : state.payment;
-    const split = snap && snap.split ? snap.split : state.split;
-    const tender = snap && 'tender' in snap ? snap.tender : state.tender;
-    const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: `Split (Cash ${MF.fmt(split.cash)} + UPI ${MF.fmt(split.upi)})` }[pay] || pay;
-    const tenderRows = pay === 'cash' && tender
-      ? `<div class="sum-row"><span class="text-2">Cash paid</span><span class="num">${MF.fmt(tender.cashReceived)}</span></div>
-         <div class="sum-row"><span class="text-2">Change</span><span class="num">${MF.fmt(tender.changeReturned)}</span></div>`
+  function receiptHtml(invNo, t, fmt) {
+    const cust = MF.cust($('#posCustomer').value);
+    const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: `Split (Cash ${MF.fmt(state.split.cash)} + UPI ${MF.fmt(state.split.upi)})` }[state.payment];
+    const tenderRows = state.payment === 'cash' && state.tender
+      ? `<div class="sum-row"><span class="text-2">Cash paid</span><span class="num">${MF.fmt(state.tender.cashReceived)}</span></div>
+         <div class="sum-row"><span class="text-2">Change</span><span class="num">${MF.fmt(state.tender.changeReturned)}</span></div>`
       : '';
     const html = `
       <div class="text-center mb-3">
@@ -2045,10 +1978,10 @@
       <div class="d-flex justify-content-between small mb-2">
         <span>Invoice: <strong>${invNo}</strong></span><span>${MF.fmtDate(MF.today())}</span>
       </div>
-      <div class="small mb-2">Customer: <strong>${MF.esc(cust.name || 'Customer')}</strong> · Payment: <strong>${payLabel}</strong></div>
+      <div class="small mb-2">Customer: <strong>${MF.esc(cust.name)}</strong> · Payment: <strong>${payLabel}</strong></div>
       <table class="table table-sm table-bordered small">
         <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Rate</th><th class="text-end">Amt</th></tr></thead>
-        <tbody>${cart.map((l) => {
+        <tbody>${state.cart.map((l) => {
           const m = MF.med(l.medId), c = calcLine(l);
           return `<tr><td>${MF.esc(m.name)}</td><td class="text-center">${l.qty}</td><td class="text-end num">${MF.fmt(l.rate, 2)}</td><td class="text-end num">${MF.fmt(c.net, 2)}</td></tr>`;
         }).join('')}</tbody>
@@ -2065,56 +1998,6 @@
     return fmt === 'thermal'
       ? `<div style="width:72mm; margin:0 auto; font-size:11px; line-height:1.42;">${html}</div>`
       : html;
-  }
-
-  /* ===== Last-bill reprint chip =====
-   Paper jams don't wait for the Sales-invoices page. A frozen snapshot of the
-   bill we just completed lets the cashier reprint A4/thermal right from the
-   meta bar — even after the cart is reset, even offline. */
-  function saveLastBill(invNo, t) {
-    const cust = MF.cust($('#posCustomer').value);
-    state.lastBill = {
-      invNo,
-      grand: t.grand,
-      at: Date.now(),
-      snap: {
-        cart: JSON.parse(JSON.stringify(state.cart)),
-        payment: state.payment,
-        split: { cash: state.split.cash, upi: state.split.upi },
-        tender: state.tender ? { cashReceived: state.tender.cashReceived, changeReturned: state.tender.changeReturned } : null,
-        cust: cust ? { id: cust.id, name: cust.name, phone: cust.phone || '' } : null,
-      },
-      t: { subtotal: t.subtotal, discount: t.discount, roundOff: t.roundOff, grand: t.grand },
-    };
-    try {
-      localStorage.setItem('mf-pos-lastbill', JSON.stringify({ v: 1, bill: state.lastBill }));
-    } catch (e) { /* quota — memory-only is fine */ }
-  }
-  function paintLastBill() {
-    const chip = $('#posLastBill');
-    if (!chip) return;
-    let b = state.lastBill;
-    if (!b) {
-      try { b = (JSON.parse(localStorage.getItem('mf-pos-lastbill') || 'null') || {}).bill || null; } catch (e) { b = null; }
-      if (b) state.lastBill = b;
-    }
-    if (!b) { chip.classList.remove('show'); return; }
-    $('#posLastBillTxt').textContent = b.invNo + ' · ' + MF.fmt(b.grand);
-    chip.classList.add('show');
-  }
-  function reprintLastBill(fmt) {
-    const b = state.lastBill;
-    if (!b) { MF.toast('No completed bill to reprint yet on this counter.', 'warn', 'Reprint'); return; }
-    MF.printHtml(receiptHtml(b.invNo, b.t, fmt, b.snap));
-  }
-  function initLastBillChip() {
-    const chip = $('#posLastBill'), menu = $('#posReprintMenu');
-    if (!chip || !menu) return;
-    paintLastBill();
-    chip.addEventListener('click', (e) => { e.stopPropagation(); menu.hidden = !menu.hidden; });
-    document.addEventListener('click', (e) => { if (!e.target.closest('#posReprintMenu')) menu.hidden = true; });
-    $('#posReprintThermal')?.addEventListener('click', () => { menu.hidden = true; reprintLastBill('thermal'); });
-    $('#posReprintA4')?.addEventListener('click', () => { menu.hidden = true; reprintLastBill('a4'); });
   }
 
   /* ===== Business credit gate =====
@@ -2313,8 +2196,6 @@
         items: state.cart.map((l) => ({ medId: l.medId, batchId: l.batchId, qty: l.qty, rate: l.rate, discPct: l.discPct, unit: l.unit || 'pack' })),
       });
       MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
-      saveLastBill(res.invoiceNo, t);
-      paintLastBill();
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
       if (state.lossApproved && state.lossApproved.length) {
         MF.Api.post('sale-audit.php', {
@@ -2328,10 +2209,8 @@
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
       state.tender = null;
-      state.cartIdx = -1;
       await MF.rehydrate(); // refresh D.batches so stock levels are current
       $('#posCustomer').value = walkInId();
-      if (window.POSUI) POSUI.syncPickers();
       renderCart();
       searchMeds($('#posSearch').value); // redraw Quick picks / search cards with the new stock
 
@@ -2487,7 +2366,6 @@
     if (cust && row.customer_id && [...cust.options].some((o) => String(o.value) === String(row.customer_id))) {
       cust.value = row.customer_id;
     }
-    if (window.POSUI) POSUI.syncPickers();
     paintRxMeta(row);
     if (String(state.loadedRxId || '') === String(row.id)) return;
     const added = await addRxMedicines(row);
@@ -2518,7 +2396,6 @@
     if (sel && bill.rxId) sel.value = String(bill.rxId);
     const doc = $('#posDoctor');
     if (doc && bill.doctorId) doc.value = bill.doctorId;
-    if (window.POSUI) POSUI.syncPickers();
     paintRxMeta({
       rx_no: bill.rxNo,
       patient_name: bill.patient,
@@ -2552,7 +2429,6 @@
     } else if (doc) {
       doc.value = bill.doctorId || '';
     }
-    if (window.POSUI) POSUI.syncPickers();
     if (!state._rxApplied) {
       let added = 0;
       (bill.items || []).forEach((item) => {
@@ -2577,165 +2453,9 @@
   }
 
   /* ---------------- Init ---------------- */
-  /* ================= Searchable pickers (customer / doctor) =================
-   The raw <select> stays the single source of truth — drafts, held bills, the
-   credit gate and post-sale resets keep working untouched. The lookup box only
-   mirrors and drives it, reading options live at open time (rehydrate-safe). */
-  const pickerState = {};
-  function pickerItems(selId) {
-    const sel = $(selId); if (!sel) return [];
-    return [...sel.options].filter((o) => o.value !== '').map((o) => {
-      let sub = '';
-      if (selId === '#posCustomer') {
-        const c = MF.cust(o.value);
-        sub = (c && c.phone) ? c.phone : (/default/i.test(o.text) ? 'Walk-in desk default' : '');
-      } else {
-        const d = (D.doctors || []).find((x) => String(x.id) === String(o.value));
-        sub = d ? String(d.specialty || d.speciality || d.reg_no || '') : '';
-      }
-      return { id: String(o.value), name: String(o.text).replace(/\s*\(default\)\s*$/, ''), sub };
-    });
-  }
-  function pickerRecentsKey(selId) { return 'mf-pos-recentpicks-' + selId.slice(1); }
-  function pickerPushRecent(selId, id) {
-    let ids = []; try { ids = JSON.parse(localStorage.getItem(pickerRecentsKey(selId)) || '[]'); } catch (e) { /* start fresh */ }
-    ids = [String(id), ...ids.filter((x) => String(x) !== String(id))].slice(0, 8);
-    try { localStorage.setItem(pickerRecentsKey(selId), JSON.stringify(ids)); } catch (e) { /* storage locked */ }
-  }
-  function pickerSyncLabel(selId) {
-    const st = pickerState[selId]; if (!st) return;
-    const opt = st.sel.selectedOptions && st.sel.selectedOptions[0];
-    st.input.value = opt ? String(opt.text).replace(/\s*\(default\)\s*$/, '') : '';
-  }
-  window.POSUI = Object.assign(window.POSUI || {}, {
-    syncPickers() { Object.keys(pickerState).forEach(pickerSyncLabel); }
-  });
-  function pickerPaintMenu(st) {
-    const q = String(st.input.value || '').trim().toLowerCase();
-    const all = pickerItems(st.selId);
-    const match = (it) => !q || it.name.toLowerCase().includes(q) || (it.sub && it.sub.toLowerCase().includes(q));
-    const recIds = []; try { JSON.parse(localStorage.getItem(pickerRecentsKey(st.selId)) || '[]').forEach((x) => recIds.push(String(x))); } catch (e) { /* none */ }
-    const recents = recIds.map((id) => all.find((it) => it.id === id)).filter(Boolean).filter(match).slice(0, 4);
-    const recentIds = new Set(recents.map((it) => it.id));
-    const rest = all.filter((it) => !recentIds.has(it.id)).filter(match);
-    st.list = [...recents, ...rest];
-    st.hot = st.list.length ? 0 : -1;
-    const optHtml = (it, i) =>
-      `<button type="button" class="pos-lookup-opt${i === st.hot ? ' is-hot' : ''}" data-pk="${MF.esc(it.id)}"><span class="nm">${MF.esc(it.name)}</span>${it.sub ? `<span class="ph">${MF.esc(it.sub)}</span>` : ''}</button>`;
-    let html = '';
-    let pos = 0;
-    if (recents.length) { html += `<div class="pos-lookup-rec">Recent</div>` + recents.map((it) => optHtml(it, pos++)).join(''); }
-    if (rest.length) { html += (recents.length ? `<div class="pos-lookup-rec">All</div>` : '') + rest.map((it) => optHtml(it, pos++)).join(''); }
-    if (!st.list.length) html = `<div class="pos-lookup-empty">No match — add ${st.kind} below.</div>`;
-    html += `<button type="button" class="pos-lookup-add" data-pk-add="1"><i class="bi bi-plus-circle-dotted"></i>Add new ${st.kind}</button>`;
-    st.menu.innerHTML = html;
-  }
-  function pickerOpen(st) {
-    if (st.open) return;
-    Object.values(pickerState).forEach((o) => { if (o !== st) o.menu.hidden = true, o.open = false; });
-    st.open = true;
-    pickerPaintMenu(st);
-    st.menu.hidden = false;
-  }
-  function pickerClose(st, revert) {
-    if (!st.open) return;
-    st.open = false;
-    st.menu.hidden = true;
-    if (revert !== false) pickerSyncLabel(st.selId);
-  }
-  function pickerChoose(st, id) {
-    st.sel.value = id;
-    st.sel.dispatchEvent(new Event('change', { bubbles: true })); // repricing, credit gate, drafts
-    pickerPushRecent(st.selId, id);
-    pickerClose(st, false);
-    pickerSyncLabel(st.selId);
-    $('#posSearch').focus();
-  }
-  function initPicker(selId, addBtnId, kind) {
-    const sel = $(selId); if (!sel || pickerState[selId]) return;
-    sel.classList.add('pos-lookup-ghost');
-    const wrap = document.createElement('div');
-    wrap.className = 'pos-lookup';
-    sel.parentNode.insertBefore(wrap, sel);
-    wrap.appendChild(sel);
-    wrap.insertAdjacentHTML('beforeend',
-      `<input class="pos-lookup-input" type="text" autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" placeholder="Type to search ${kind}…" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-label="Search ${kind}"><i class="bi bi-chevron-down pos-lookup-caret"></i><div class="pos-lookup-menu" role="listbox" hidden></div>`);
-    const st = pickerState[selId] = { selId, sel, wrap, kind, addBtnId, list: [], hot: -1, open: false,
-      input: wrap.querySelector('input'), menu: wrap.querySelector('.pos-lookup-menu') };
-    pickerSyncLabel(selId);
-    st.input.addEventListener('focus', () => { st.input.select(); pickerOpen(st); });
-    st.input.addEventListener('click', () => { if (!st.open) pickerOpen(st); });
-    st.input.addEventListener('input', () => { if (!st.open) pickerOpen(st); else pickerPaintMenu(st); });
-    st.input.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (!st.open) return pickerOpen(st);
-        const step = e.key === 'ArrowDown' ? 1 : -1;
-        st.hot = st.list.length ? (st.hot + step + st.list.length) % st.list.length : -1;
-        [...st.menu.querySelectorAll('.pos-lookup-opt')].forEach((el, i) => el.classList.toggle('is-hot', i === st.hot));
-        st.menu.querySelector('.pos-lookup-opt.is-hot')?.scrollIntoView({ block: 'nearest' });
-        return;
-      }
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        if (st.open && st.hot >= 0 && st.list[st.hot]) pickerChoose(st, st.list[st.hot].id);
-        else pickerClose(st);
-        return;
-      }
-      if (e.key === 'Escape') { e.stopPropagation(); pickerClose(st); $('#posSearch').focus(); }
-    });
-    st.menu.addEventListener('mousedown', (e) => e.preventDefault()); // keep input focus while clicking
-    st.menu.addEventListener('click', (e) => {
-      const add = e.target.closest('[data-pk-add]');
-      if (add) {
-        pickerClose(st, false);
-        const btn = $(st.addBtnId);
-        if (btn) btn.click(); // reuse the existing quick-add modal — zero duplication
-        return;
-      }
-      const opt = e.target.closest('.pos-lookup-opt');
-      if (opt) pickerChoose(st, opt.dataset.pk);
-    });
-    st.sel.addEventListener('change', () => pickerSyncLabel(selId));
-    document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) pickerClose(st); });
-  }
-
   document.addEventListener('DOMContentLoaded', async () => {
     if (!document.getElementById('posSearch')) return;
     await MF.boot();
-
-    initPicker('#posCustomer', '#posAddCustomer', 'customer');
-    initPicker('#posDoctor', '#posAddDoctor', 'doctor');
-    initLastBillChip();
-
-    /* Keyboard cart editing (scope: everything 1–5). Only when focus is NOT inside
-       a field or a modal — typing in the search box keeps driving search arrows. */
-    document.addEventListener('keydown', (e) => {
-      if (!document.getElementById('posCartBody')) return;
-      if (e.target.closest('input, textarea, select, [contenteditable], .modal')) return;
-      if (!state.cart.length) return;
-      const k = e.key;
-      if (k === 'ArrowDown' || k === 'ArrowUp') {
-        e.preventDefault();
-        setCartIdx(state.cartIdx < 0 ? (k === 'ArrowDown' ? 0 : state.cart.length - 1) : state.cartIdx + (k === 'ArrowDown' ? 1 : -1));
-      } else if (k === '+' || k === '=') {
-        if (state.cartIdx >= 0) { e.preventDefault(); cartKbAdjust(1); }
-      } else if (k === '-' || k === '_') {
-        if (state.cartIdx >= 0) { e.preventDefault(); cartKbAdjust(-1); }
-      } else if (k === 'Delete' || k === 'Backspace') {
-        if (state.cartIdx >= 0) { e.preventDefault(); cartKbRemove(); }
-      } else if (k === 'Escape' && state.cartIdx >= 0) {
-        e.preventDefault();
-        setCartIdx(-1);
-        $('#posSearch').focus();
-      }
-    });
-
-    // Qty-first flag badge inside the search box — JS-injected, no markup churn.
-    const searchWrap = $('.pos-search-wrap');
-    if (searchWrap && !$('#posQtyFlag')) {
-      searchWrap.insertAdjacentHTML('beforeend', '<span class="pos-qtyflag" id="posQtyFlag" hidden></span>');
-    }
 
     try {
       const savedRecent = JSON.parse(sessionStorage.getItem('mf-pos-recent') || '[]');
@@ -2756,7 +2476,6 @@
     }
     $('#posSearch').addEventListener('input', (e) => {
       state.subSeed = null;
-      qtyPrefixParse(e.target); // "3*term" parks qty 3; term alone continues below
       const v = e.target.value.trim();
       // Barcode scanner: a full, exact barcode typed in one burst adds the pack straight to the cart.
       if (v.length >= 6) {

@@ -138,44 +138,6 @@ if ($cashier === '') $cashier = 'Cashier';
       min-width:17px; height:17px; border-radius:999px; background:var(--mf-primary); color:#fff;
       font-size:.66rem; font-weight:800; display:inline-flex; align-items:center; justify-content:center; padding:0 4px;
     }
-
-    /* Searchable picker — wraps the raw <select> (kept as the data source, hidden). */
-    .pos-lookup { position:relative; flex:1; min-width:0; }
-    .pos-lookup-input { width:100%; height:38px; font-size:13px; padding:.375rem .75rem; padding-right:1.9rem;
-      border:1px solid #d7e0ea; border-radius:.5rem; background:#fff; color:#1b2430; font-weight:600; }
-    .pos-lookup-input:focus { border-color:#2E8B78; box-shadow:0 0 0 3px rgba(46,139,120,.12); outline:0; }
-    .pos-lookup-caret { position:absolute; right:9px; top:50%; transform:translateY(-50%); color:#8b9bb0; font-size:.8rem; pointer-events:none; }
-    .pos-lookup-menu { position:absolute; top:calc(100% + 4px); left:0; right:0; z-index:1080; max-height:264px; overflow:auto;
-      background:#fff; border:1px solid #e3ebf4; border-radius:10px; box-shadow:0 14px 36px rgba(16,32,64,.16); padding:5px; }
-    .pos-lookup-opt { display:flex; flex-direction:column; align-items:stretch; gap:1px; width:100%; text-align:left;
-      border:0; background:#fff; border-radius:8px; padding:7px 10px; cursor:pointer; }
-    .pos-lookup-opt:hover, .pos-lookup-opt.is-hot { background:#f2f7f6; }
-    .pos-lookup-opt .nm { font-size:.86rem; font-weight:650; color:#1b2430; }
-    .pos-lookup-opt .ph { font-size:.7rem; color:#8b9bb0; font-variant-numeric:tabular-nums; }
-    .pos-lookup-rec { font-size:.62rem; font-weight:800; letter-spacing:.06em; text-transform:uppercase; color:#8b9bb0; padding:5px 10px 3px; }
-    .pos-lookup-add { display:flex; align-items:center; gap:8px; width:100%; border:0; background:transparent;
-      color:#176B5B; font-weight:700; font-size:.82rem; border-radius:8px; padding:8px 10px; border-top:1px solid #e3ebf4; }
-    .pos-lookup-add:hover { background:#eef6f4; }
-    .pos-lookup-empty { color:#8b9bb0; font-size:.78rem; text-align:center; padding:10px 6px; }
-    select.pos-lookup-ghost { position:absolute !important; width:1px !important; height:1px !important; opacity:0 !important; pointer-events:none !important; }
-
-    /* Last-bill reprint chip in the meta bar */
-    .pos-lastbill { border:1px solid #d7ebe6; background:#fff; color:#176B5B; border-radius:999px;
-      font-size:.72rem; font-weight:750; padding:2px 10px; display:none; align-items:center; gap:6px; }
-    .pos-lastbill.show { display:inline-flex; }
-    .pos-lastbill:hover { background:var(--mf-primary-soft); }
-    .pos-reprint-menu { position:absolute; top:100%; right:0; margin-top:8px; z-index:1085; min-width:190px;
-      background:#fff; border:1px solid #e3ebf4; border-radius:10px; box-shadow:0 14px 36px rgba(16,32,64,.16); padding:6px; }
-    .pos-reprint-menu button { display:flex; align-items:center; gap:9px; width:100%; border:0; background:#fff;
-      font-size:.82rem; font-weight:650; border-radius:7px; padding:7px 10px; }
-    .pos-reprint-menu button:hover { background:#f4f7fb; }
-
-    /* Qty-first entry flag + cart keyboard hint */
-    .pos-qtyflag { position:absolute; right:34px; top:50%; transform:translateY(-50%); z-index:5;
-      background:#176B5B; color:#fff; border-radius:7px; font-size:.72rem; font-weight:800; padding:2px 8px; pointer-events:none; }
-    .pos-kb-hint { color:#8b9bb0; font-size:.7rem; margin-top:6px; }
-    .pos-kb-hint b { color:#516278; }
-    #posCartBody tr.is-kb td { background:#eef6f4 !important; box-shadow:inset 3px 0 0 #176B5B; }
   </style>
 </head>
 <body data-page="retail-pos">
@@ -196,13 +158,6 @@ if ($cashier === '') $cashier = 'Cashier';
             <span class="pos-meta-item">Cashier <strong><?= htmlspecialchars($cashier) ?></strong></span>
             <span class="pos-meta-item">Counter <strong id="posMetaCounter" class="num">1</strong></span>
             <span class="pos-meta-item" id="posMetaNet" title="Connection status"><span class="pos-dot"></span><strong id="posMetaNetTxt">Online</strong></span>
-            <span style="position:relative">
-              <button type="button" class="pos-lastbill" id="posLastBill" title="Reprint the bill just completed — for paper jams"><i class="bi bi-printer"></i><span id="posLastBillTxt"></span></button>
-              <div class="pos-reprint-menu" id="posReprintMenu" hidden>
-                <button type="button" id="posReprintThermal"><i class="bi bi-receipt"></i>Reprint · Thermal 80mm</button>
-                <button type="button" id="posReprintA4"><i class="bi bi-file-earmark-ruled"></i>Reprint · A4</button>
-              </div>
-            </span>
           </div>
         </div>
 
@@ -285,7 +240,6 @@ if ($cashier === '') $cashier = 'Cashier';
               </div>
 
               <div id="posCartBody"></div>
-              <div class="pos-kb-hint" id="posKbHint" hidden>Keyboard: <b>↑ ↓</b> pick a line · <b>+ −</b> qty · <b>Del</b> remove · <b>Esc</b> back to search</div>
 
               <div class="row g-2 align-items-end mt-2">
                 <div class="col-6">
@@ -517,8 +471,7 @@ if ($cashier === '') $cashier = 'Cashier';
     </div>
   </aside>
 
-  <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.1"></script>
+  <script src="assets/js/pos.js?v=2026-10-03.1"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
@@ -602,7 +555,6 @@ if ($cashier === '') $cashier = 'Cashier';
         } finally {
           btn.disabled = false;
           btn.innerHTML = idle;
-          if (window.POSUI && POSUI.syncPickers) POSUI.syncPickers(); // select .value was set directly — repaint the lookup boxes
         }
       });
     });
