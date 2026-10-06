@@ -643,6 +643,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             <label class="form-label" for="pbAction">Action</label>
             <select class="form-select" id="pbAction">
               <option value="adjust">Adjust rates by a percentage (+5% / −5%)</option>
+              <option value="flat">Adjust rates by rupees (+₹2 / −₹0.50)</option>
               <option value="derive">Set wholesale rate = % of MRP (e.g. 75)</option>
             </select>
             <div class="pb-inp-row">
@@ -2338,11 +2339,32 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         if (mode === '0.5') return Math.round(x * 2) / 2;
         return Math.round(x * 100) / 100;
       };
+      const pbFlat = (v, amt, mode) => {
+        const x = Number(v || 0) + amt;
+        const r = mode === '1' ? Math.round(x) : mode === '0.5' ? Math.round(x * 2) / 2 : Math.round(x * 100) / 100;
+        return Math.max(0, r);
+      };
       const pbIsDerive = () => ($('#pbAction') && $('#pbAction').value === 'derive');
+      const pbIsFlat = () => ($('#pbAction') && $('#pbAction').value === 'flat');
+      // Quick chips re-render per mode: %-presets for %, ₹-presets for rupee.
+      const PB_CHIPS = {
+        adjust: [['-5', '−5%'], ['-2', '−2%'], ['5', '+5%'], ['10', '+10%']],
+        flat: [['-2', '−₹2'], ['-1', '−₹1'], ['1', '+₹1'], ['2', '+₹2'], ['5', '+₹5']],
+      };
+      function pbRenderChips() {
+        const m = String($('#pbAction').value);
+        if (m === 'derive') { $('#pbQuick').style.display = 'none'; return; }
+        $('#pbQuick').style.display = '';
+        $('#pbQuick').innerHTML = (PB_CHIPS[m === 'flat' ? 'flat' : 'adjust'])
+          .map(([v, l]) => `<button type="button" class="pb-chip pb-quick" data-p="${v}">${l}</button>`).join('');
+      }
       function pbSyncMode() {
-        const d = pbIsDerive();
-        $('#pbPctLabel').textContent = d ? '% of MRP' : 'Change (%)';
-        $('#pbQuick').style.display = d ? 'none' : '';
+        const d = pbIsDerive(), f = pbIsFlat();
+        $('#pbPctLabel').textContent = d ? '% of MRP' : f ? 'Amount (₹)' : 'Change (%)';
+        $('#pbPct').placeholder = d ? '75' : f ? '+2 or -0.50' : '+5 or -5';
+        const ic = $('#pbPct').closest('.mm-input') && $('#pbPct').closest('.mm-input').querySelector('i');
+        if (ic) ic.className = 'bi ' + (f ? 'bi-currency-rupee' : 'bi-percent');
+        pbRenderChips();
         ['pbMrp', 'pbRetail', 'pbWhole'].forEach((id) => {
           const el = $('#' + id);
           el.disabled = d;
@@ -2363,30 +2385,57 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const v = parseFloat($('#pbPct').value);
         return Number.isFinite(v) ? v : null;
       }
+      function pbNext(cur, pct, mode) {
+        if (pbIsDerive()) return pbDerive(cur, pct, mode);
+        if (pbIsFlat()) return pbFlat(cur, pct, mode);
+        return pbCalc(cur, pct, mode);
+      }
       function pbPreview() {
         const pct = pbPct(), targets = pbTargets();
         const box = $('#pbPreview');
-        const derive = pbIsDerive();
+        const derive = pbIsDerive(), flat = pbIsFlat();
         if (pct === null || !pct) { box.hidden = false; box.innerHTML = derive
           ? '<i class="bi bi-exclamation-circle me-1"></i>Enter % of MRP (e.g. 75 for wholesale at 75% of MRP).'
-          : '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero percentage (e.g. +5 or -5).'; return; }
+          : flat
+            ? '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero rupee amount (e.g. +2 or -0.50).'
+            : '<i class="bi bi-exclamation-circle me-1"></i>Enter a non-zero percentage (e.g. +5 or -5).'; return; }
         if (derive && (pct < 1 || pct > 100)) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>% of MRP must sit between 1 and 100.'; return; }
-        if (!derive && pct <= -100) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>A decrease of 100% or more would zero every price — refused.'; return; }
+        if (!derive && !flat && pct <= -100) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>A decrease of 100% or more would zero every price — refused.'; return; }
         if (!targets) { box.hidden = false; box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>Tick at least one price column (MRP / Retail / Wholesale).'; return; }
         const list = pbMatches();
         if (!list.length) { box.hidden = false; box.innerHTML = '<i class="bi bi-info-circle me-1"></i>No active medicines match this selection.'; return; }
         const mode = $('#pbRound').value;
         const col = derive ? 'wholesaleRate' : (targets.mrp ? 'mrp' : 'retailRate');
-        const lines = list.slice(0, 5).map((m) => {
+        // Rupee impact, not just percentages — computed over EVERY matched item.
+        const pairs = list.map((m) => {
           const cur = Number(m[col] ?? m.mrp ?? 0);
-          const next = derive ? pbDerive(m.mrp, pct, mode) : pbCalc(cur, pct, mode);
-          return `<div class="pb-prev-line"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(next, 2)}</strong></span></div>`;
+          return { m, cur, next: pbNext(derive ? m.mrp : cur, pct, mode) };
+        });
+        let willFloor = 0, dSum = 0, dMin = Infinity, dMax = -Infinity, pMin = Infinity, pMax = -Infinity;
+        pairs.forEach((p) => {
+          const d = p.next - p.cur;
+          dSum += d; dMin = Math.min(dMin, d); dMax = Math.max(dMax, d);
+          if (p.cur > 0) { const pp = (d / p.cur) * 100; pMin = Math.min(pMin, pp); pMax = Math.max(pMax, pp); }
+          if (flat && pct < 0 && p.cur + pct <= 0) willFloor++;
+        });
+        const lines = pairs.slice(0, 5).map((p) => {
+          const floored = flat && pct < 0 && p.cur + pct <= 0;
+          return `<div class="pb-prev-line"><span>${MF.esc(p.m.name)}</span><span class="num">${MF.fmt(p.cur, 2)} → <strong>${MF.fmt(p.next, 2)}</strong>${floored ? ' <span style="color:#B42318;font-size:.62rem">(hits ₹0)</span>' : ''}</span></div>`;
         }).join('');
+        const avgDelta = dSum / pairs.length;
+        // MF.fmt can't sign negatives cleanly (₹-1.20) — deltas get their own formatter.
+        const pbD = (d) => (d < 0 ? '−' : '+') + '₹' + Math.abs(d).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        const pctRange = isFinite(pMin) ? ` · per-item ${pMin.toFixed(1)}% to ${pMax.toFixed(1)}%` : '';
+        const summary = flat
+          ? `<div class="text-2" style="font-size:.72rem;margin-bottom:4px">Effect per item: <strong>${pbD(avgDelta)} avg</strong> · range ${pbD(dMin)} to ${pbD(dMax)}${pctRange}${willFloor ? ` · <span style="color:#B42318;font-weight:700">${willFloor} price(s) floor to ₹0</span>` : ''}</div>`
+          : `<div class="text-2" style="font-size:.72rem;margin-bottom:4px">In rupees: <strong>${pbD(avgDelta)} avg per item</strong> · min ${pbD(dMin)} · max ${pbD(dMax)}</div>`;
         box.hidden = false;
         const head = derive
           ? `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) — wholesale rate = ${pct}% of MRP</div>`
-          : `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>`;
-        box.innerHTML = `<div class="pb-prev-wrap">${head + lines +
+          : flat
+            ? `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) — flat ${pct > 0 ? '+' : '−'}₹${Math.abs(pct)} on ${[targets.mrp && 'MRP', targets.retail && 'retail', targets.wholesale && 'wholesale'].filter(Boolean).join(' + ')}</div>`
+            : `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>`;
+        box.innerHTML = `<div class="pb-prev-wrap">${(derive ? '' : summary) + head + lines +
           (list.length > 5 ? `<div class="text-2" style="font-size:.72rem;margin-top:3px">+ ${list.length - 5} more…</div>` : '')}</div>`;
         pbList = list;
         $('#pbApplyBtn').disabled = false;
@@ -2402,14 +2451,18 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         try {
           const res = await MF.Api.post('price-bulk-update.php', {
             ids: pbList.map((m) => m.id), pct, round: $('#pbRound').value, targets,
-            action: pbIsDerive() ? 'derive' : 'adjust',
+            action: pbIsDerive() ? 'derive' : (pbIsFlat() ? 'flat' : 'adjust'),
           });
           const n = (res.data && res.data.matched) || pbList.length;
+          const floored = (res.data && res.data.floored) || 0;
           pbModal().hide();
           await MF.rehydrate(); render();
           MF.toast(pbIsDerive()
             ? `Wholesale rate set at ${pct}% of MRP on ${n} medicine(s)`
-            : `${n} medicine(s) updated (${pct > 0 ? '+' : ''}${pct}%)`, 'success', 'Bulk price');
+            : pbIsFlat()
+              ? `${n} medicine(s) updated (flat ${pct > 0 ? '+' : '−'}₹${Math.abs(pct)})${floored ? ` · ${floored} price(s) hit zero (floored)` : ''}`
+              : `${n} medicine(s) updated (${pct > 0 ? '+' : ''}${pct}%)`, 'success', 'Bulk price');
+          if (floored) MF.toast(`${floored} price(s) hit zero (floored) — check the cheap lines before printing tags.`, 'warn', 'Bulk price');
         } catch (e) {
           MF.toast(e.message || 'Bulk price update failed.', 'err', 'Bulk price');
         } finally {
@@ -2426,7 +2479,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         pbModal().show();
       });
       $('#pbPreviewBtn').addEventListener('click', pbPreview);
-      document.querySelectorAll('.pb-quick').forEach((b) => b.addEventListener('click', () => { $('#pbPct').value = b.dataset.p; pbPreview(); }));
+      // Chips re-render per mode (₹ vs %), so bind ONCE on the container — delegated.
+      $('#pbQuick').addEventListener('click', (ev) => {
+        const b = ev.target.closest('.pb-quick');
+        if (!b) return;
+        $('#pbPct').value = b.dataset.p; pbPreview();
+      });
       ['pbCat', 'pbMfr', 'pbPct', 'pbRound', 'pbMrp', 'pbRetail', 'pbWhole'].forEach((id) =>
         $('#' + id).addEventListener('input', () => { $('#pbApplyBtn').disabled = true; $('#pbPreview').hidden = true; pbList = []; }));
       ['pbCat', 'pbMfr', 'pbRound', 'pbMrp', 'pbRetail', 'pbWhole'].forEach((id) =>
@@ -2649,7 +2707,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464c79d8b1c2d70',t:'MTc5MTI5MDkwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464db5e3b54e9c4',t:'MTc5MTI5MTcwOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });
