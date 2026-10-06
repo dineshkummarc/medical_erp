@@ -106,15 +106,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-sched-opt.is-on.h { background:#0369A1; }
     .mm-sched-opt.is-on.sh1 { background:#6D28D9; }
     .mm-sched-opt.is-on.x { background:#B42318; }
-    .mm-sched-opt.is-on.g { background:#B45309; }
-    .mm-sched-opt.is-on.ndps { background:#7F1D1D; }
-    .mm-sched-opt.is-on.other { background:#475569; }
-    /* Schedule not in the active master (inactive or orphaned): keep it visible but muted so
-       editing an old medicine never silently flips its schedule to OTC. */
-    .mm-sched-opt.is-off { color:#94a3b8; font-weight:600; }
-    .mm-sched-opt.is-off.is-on { color:#fff; }
-    .mm-sched-add { background:#f8fafc; color:#2E8B78; border-right:0; font-size:.95rem; }
-    .mm-sched-add:hover { background:#eef6f4; }
     .mm-chips {
       display:flex; flex-wrap:wrap; gap:8px; align-items:center;
       border:1px solid #E5E7EB; border-radius:8px; background:#fff; padding:6px 12px; min-height:38px;
@@ -598,9 +589,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               </select>
             </div>
             <div class="col-6 col-md-2">
-              <!-- Options are filled from the Schedule / Class master at boot. -->
               <select class="form-select" id="mmSchedule">
                 <option value="">All Schedules</option>
+                <option>OTC</option><option>H</option><option>H1</option><option>X</option>
               </select>
             </div>
             <div class="col-md-1"><button class="btn btn-light-mf w-100" id="mmClear"><i class="bi bi-x-lg"></i> Clear</button></div>
@@ -769,8 +760,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
             </div>
             <div class="col-12">
               <label class="form-label">Drug schedule</label>
-              <!-- Pills render from the Schedule/Class master (schedule-classes) — nothing here is hardcoded. -->
-              <div class="mm-sched" id="fSchedGroup" role="radiogroup" aria-label="Drug schedule"></div>
+              <div class="mm-sched" id="fSchedGroup" role="radiogroup" aria-label="Drug schedule">
+                <button type="button" class="mm-sched-opt otc is-on" data-sched="OTC">None (OTC)</button>
+                <button type="button" class="mm-sched-opt h" data-sched="H">Schedule H</button>
+                <button type="button" class="mm-sched-opt sh1" data-sched="H1">Schedule H1</button>
+                <button type="button" class="mm-sched-opt x" data-sched="X">Schedule X</button>
+              </div>
               <div class="mm-hint" id="fSchedHint">OTC items can be sold without a prescription.</div>
               <input type="hidden" id="fSchedule" value="OTC">
             </div>
@@ -1032,45 +1027,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         <div class="modal-body p-0" id="mmBatchBody"></div>
         <div class="modal-footer">
           <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Close</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Quick schedule add — stays inside the Add Medicine flow (kind is locked to 'schedule'). -->
-  <div class="modal fade" id="mmSchedQuickModal" tabindex="-1" data-bs-focus="false">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:400px">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-shield-plus me-2"></i>New schedule</h5>
-          <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
-        </div>
-        <div class="modal-body">
-          <div class="row g-3">
-            <div class="col-6">
-              <label class="form-label" for="sqCode">Code <span class="req">*</span></label>
-              <input class="form-control" id="sqCode" placeholder="e.g. G or H2" autocomplete="off" maxlength="20" data-lpignore="true" data-1p-ignore="true">
-            </div>
-            <div class="col-6 d-flex align-items-end gap-3 pb-1">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="sqRx">
-                <label class="form-check-label" for="sqRx">Rx required</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="sqReg">
-                <label class="form-check-label" for="sqReg">Register</label>
-              </div>
-            </div>
-            <div class="col-12">
-              <label class="form-label" for="sqName">Name <span class="req">*</span></label>
-              <input class="form-control" id="sqName" placeholder="e.g. Schedule G" autocomplete="off" maxlength="80" data-lpignore="true" data-1p-ignore="true">
-            </div>
-          </div>
-          <div class="mm-hint">Saved into the Schedule / Class master as Active. Billing rules and the pill colours above follow it immediately.</div>
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-light-mf" data-bs-dismiss="modal" type="button">Cancel</button>
-          <button class="btn btn-mf" id="sqSave" type="button"><i class="bi bi-check2 me-1"></i>Save schedule</button>
         </div>
       </div>
     </div>
@@ -1426,82 +1382,12 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         new bootstrap.Modal($('#mmFormModal')).show();
       }
 
-      // Drug schedules are MASTER-DRIVEN (schedule-classes.php, kind='schedule').
-      // The constant below is only the offline/boot fallback — and the hint base
-      // for master rows that carry no description. Nothing in the UI is hardcoded.
-      const SCHED_HINT_BASE = {
-        OTC: 'OTC items can be sold without a prescription.',
-        H: 'Needs a prescription. Billing will require the doctor name.',
-        H1: 'Needs a prescription and goes into the H1 register. Billing will require doctor and patient details.',
-        X: 'Restricted drug. Sale needs a prescription and special records.'
+      const SCHEDULES = {
+        OTC: { hint: 'OTC items can be sold without a prescription.', rx: false },
+        H: { hint: 'Needs a prescription. Billing will require the doctor name.', rx: true },
+        H1: { hint: 'Needs a prescription and goes into the H1 register. Billing will require doctor and patient details.', rx: true },
+        X: { hint: 'Restricted drug. Sale needs a prescription and special records.', rx: true }
       };
-      const SCHED_FALLBACK = [
-        { id: 'fb-otc', code: 'OTC', name: 'Over the counter', description: SCHED_HINT_BASE.OTC, rx_required: 0, register_required: 0, status: 'Active', sort_order: 10 },
-        { id: 'fb-h', code: 'H', name: 'Schedule H', description: SCHED_HINT_BASE.H, rx_required: 1, register_required: 0, status: 'Active', sort_order: 20 },
-        { id: 'fb-h1', code: 'H1', name: 'Schedule H1', description: SCHED_HINT_BASE.H1, rx_required: 1, register_required: 1, status: 'Active', sort_order: 30 },
-        { id: 'fb-x', code: 'X', name: 'Schedule X', description: SCHED_HINT_BASE.X, rx_required: 1, register_required: 1, status: 'Active', sort_order: 40 }
-      ];
-      let schedRows = SCHED_FALLBACK.slice(); // full master set, any status
-      // SCHEDULES stays the read-compat map ({hint, rx}) used by list/detail/save code.
-      let SCHEDULES = {};
-      function schedRebuildMap() {
-        const map = {};
-        schedRows.forEach((r) => {
-          map[r.code] = {
-            hint: r.description || SCHED_HINT_BASE[r.code] || ('Schedule ' + r.code),
-            rx: !!Number(r.rx_required)
-          };
-        });
-        if (!map.OTC) map.OTC = { hint: SCHED_HINT_BASE.OTC, rx: false };
-        SCHEDULES = map;
-      }
-      schedRebuildMap();
-      function schedRowByCode(code) {
-        const key = String(code || '').trim().toUpperCase();
-        if (!key) return null;
-        return schedRows.find((r) => r.code === key) || null;
-      }
-      function schedActive() {
-        return schedRows.filter((r) => /^act/i.test(String(r.status || 'Active')))
-          .sort((a, b) => (a.sort_order - b.sort_order) || a.code.localeCompare(b.code));
-      }
-      async function schedLoad() {
-        if (MF.Api && MF.Api.live) {
-          try {
-            const res = await MF.Api.get('schedule-classes.php');
-            const rows = (res.data || []).filter((r) => r.kind === 'schedule')
-              .map((r) => ({
-                id: r.id, code: String(r.code || '').toUpperCase(), name: r.name || r.code,
-                description: r.description || '', rx_required: Number(r.rx_required) ? 1 : 0,
-                register_required: Number(r.register_required) ? 1 : 0,
-                status: r.status || 'Active', sort_order: Number(r.sort_order ?? 100)
-              })).filter((r) => r.code);
-            if (rows.length) schedRows = rows;
-          } catch (e) { /* offline or table missing — fallback set stands */ }
-        }
-        if (!Array.isArray(D.scheduleClasses)) D.scheduleClasses = schedRows;
-        else D.scheduleClasses = schedRows;
-        schedRebuildMap();
-      }
-      // Filter dropdown mirrors the master; orphan codes found in medicine data are
-      // listed too, flagged — a data-hygiene signal instead of an invisible mismatch.
-      function fillScheduleFilter() {
-        const sel = $('#mmSchedule'); if (!sel) return;
-        const keep = sel.value;
-        const rows = schedActive();
-        const have = new Set(rows.map((r) => r.code));
-        const orphans = [];
-        (D.medicines || []).forEach((m) => {
-          const c = String(m.schedule || '').trim().toUpperCase();
-          if (c && !have.has(c) && !schedRowByCode(c) && !orphans.includes(c)) orphans.push(c);
-        });
-        let out = '<option value="">All Schedules</option>';
-        rows.forEach((r) => { out += `<option value="${MF.esc(r.code)}">${MF.esc(r.code)}${r.name && r.name !== r.code ? ' · ' + MF.esc(r.name) : ''}</option>`; });
-        if (orphans.length) out += orphans.sort().map((c) => `<option value="${MF.esc(c)}">${MF.esc(c)} (not in master)</option>`).join('');
-        sel.innerHTML = out;
-        if (keep && [...sel.options].some((o) => o.value === keep)) sel.value = keep;
-        else { sel.value = ''; state.schedule = ''; }
-      }
       const EXPIRY_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
       function expiryToField(value) {
         if (!value) return '';
@@ -1569,115 +1455,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         win.document.write('<!doctype html><title>Label</title><style>body{font-family:Inter,sans-serif;margin:24px;text-align:center}h1{font-size:18px;margin:0 0 12px}p{letter-spacing:.12em;font-size:16px}</style><h1>' + MF.esc(name) + '</h1>' + (svg || '') + '<p>' + MF.esc(code) + '</p><' + 'script>window.onload=function(){window.print()}<' + '/script>');
         win.document.close();
       }
-      function schedTone(code) {
-        const c = String(code || '').toUpperCase();
-        if (c === 'OTC') return 'otc';
-        if (c === 'H') return 'h';
-        if (c === 'H1') return 'sh1';
-        if (c === 'X') return 'x';
-        if (c === 'G') return 'g';
-        if (c === 'NDPS') return 'ndps';
-        return 'other';
-      }
-      function schedRulesTag(row) {
-        if (!row) return '';
-        if (Number(row.register_required)) return 'Rx + register';
-        if (Number(row.rx_required)) return 'Rx required';
-        return 'Open sale';
-      }
-      // Pills = active master rows + (while editing) a muted pill for a code the
-      // medicine carries that is inactive / absent, so re-saving never flips it.
-      function renderSchedPills() {
-        const sel = String($('#fSchedule').value || 'OTC').toUpperCase();
-        const rows = schedActive();
-        const html = rows.map((r) =>
-          `<button type="button" class="mm-sched-opt ${schedTone(r.code)}" data-sched="${MF.esc(r.code)}" title="${MF.esc(r.name + ' — ' + schedRulesTag(r))}">${MF.esc(r.code === 'OTC' ? 'None (OTC)' : r.code)}${Number(r.rx_required) ? ' <i class="bi bi-prescription ms-1" title="Rx required"></i>' : ''}</button>`
-        );
-        if (!rows.some((r) => r.code === sel)) {
-          const row = schedRowByCode(sel);
-          html.push(`<button type="button" class="mm-sched-opt ${schedTone(sel)} is-off" data-sched="${MF.esc(sel)}" title="${row ? 'Inactive in the Schedule / Class master' : 'Not in the Schedule / Class master'} — kept as-is on this medicine">${MF.esc(sel)} ${row ? '(inactive)' : '(not in master)'}</button>`);
-        }
-        html.push(`<button type="button" class="mm-sched-opt mm-sched-add" id="fSchedAdd" title="Create a new schedule"><i class="bi bi-plus-lg"></i></button>`);
-        $('#fSchedGroup').innerHTML = html.join('');
-        document.querySelectorAll('#fSchedGroup .mm-sched-opt').forEach((b) => b.classList.toggle('is-on', b.dataset.sched === sel));
-      }
       function setSchedule(code) {
-        const key = String(code || 'OTC').toUpperCase();
-        // Unknown codes are kept (orphan round-trip) — never silently flipped to OTC.
+        const key = SCHEDULES[code] ? code : 'OTC';
         $('#fSchedule').value = key;
-        renderSchedPills();
-        const full = schedRowByCode(key);
-        if (full) {
-          const rx = Number(full.rx_required), reg = Number(full.register_required);
-          $('#fSchedHint').textContent = (full.description || SCHEDULES[key].hint) + (/^inact/i.test(String(full.status)) ? ' (Inactive in master — existing choice kept.)' : '') + (rx ? ` ${reg ? 'Rx and register' : 'Prescription'} required while billing.` : '');
-          if ($('#fRx')) $('#fRx').checked = !!rx;
-        } else if (SCHEDULES[key]) {
-          $('#fSchedHint').textContent = SCHEDULES[key].hint;
-          if ($('#fRx')) $('#fRx').checked = SCHEDULES[key].rx;
-        } else {
-          $('#fSchedHint').textContent = `“${key}” is not in the Schedule/Class master — kept as-is on this medicine.`;
-          if ($('#fRx')) $('#fRx').checked = false;
-        }
+        document.querySelectorAll('#fSchedGroup .mm-sched-opt').forEach((b) => b.classList.toggle('is-on', b.dataset.sched === key));
+        $('#fSchedHint').textContent = SCHEDULES[key].hint;
+        if ($('#fRx')) $('#fRx').checked = SCHEDULES[key].rx;
       }
-      // Quick schedule add — creates in the Schedule/Class master without leaving this form.
-      function schedQuickOpen() {
-        $('#sqCode').value = ''; $('#sqName').value = '';
-        $('#sqRx').checked = true; $('#sqReg').checked = false;
-        bootstrap.Modal.getOrCreateInstance($('#mmSchedQuickModal')).show();
-        setTimeout(() => $('#sqCode').focus(), 250);
-      }
-      async function schedQuickSave() {
-        const code = $('#sqCode').value.trim().toUpperCase();
-        const name = $('#sqName').value.trim();
-        if (!code) { MF.toast('Code is required (e.g. G or H2).', 'err', 'Schedule'); return; }
-        if (!/^[A-Z0-9][A-Z0-9 .&+\-/]{0,19}$/.test(code)) { MF.toast('Code can use letters, numbers and . & + - / only.', 'err', 'Schedule'); return; }
-        if (!name) { MF.toast('Name is required.', 'err', 'Schedule'); return; }
-        const existing = schedRowByCode(code);
-        if (existing) {
-          // Already there — just adopt it instead of failing the flow.
-          bootstrap.Modal.getInstance($('#mmSchedQuickModal'))?.hide();
-          setSchedule(code);
-          MF.toast(code + ' already exists — selected it.', 'info', 'Schedule');
-          return;
-        }
-        const btn = $('#sqSave');
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-arrow-clockwise me-1 spin"></i>Saving…';
-        const body = { kind: 'schedule', code, name, rx_required: $('#sqRx').checked ? 1 : 0, register_required: $('#sqReg').checked ? 1 : 0, status: 'Active' };
-        try {
-          let saved = null;
-          if (MF.Api && MF.Api.live) {
-            const res = await MF.Api.post('schedule-classes.php', body);
-            saved = res && res.id ? { id: res.id } : null;
-          }
-          await schedLoad(); // re-pull so ids/order/status are authoritative
-          if (!MF.Api.live && !schedRowByCode(code)) {
-            // Offline fallback: stage it locally so the pill works this session.
-            schedRows.push(Object.assign({ id: 'local-' + Date.now(), description: '', sort_order: 90 }, body));
-            if (Array.isArray(D.scheduleClasses)) D.scheduleClasses = schedRows;
-            schedRebuildMap();
-          }
-          bootstrap.Modal.getInstance($('#mmSchedQuickModal'))?.hide();
-          setSchedule(code);
-          fillScheduleFilter();
-          MF.toast(code + ' added to the Schedule / Class master.', 'success', 'Schedule');
-        } catch (e) {
-          MF.toast(e.message || 'Could not save the schedule.', 'err', 'Schedule');
-        } finally {
-          btn.disabled = false;
-          btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Save schedule';
-        }
-      }
-      $('#sqSave').addEventListener('click', schedQuickSave);
-      $('#mmSchedQuickModal').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); schedQuickSave(); } });
       let groups = [];
-            function schedSaveRx() {
-        const key = String($('#fSchedule').value || 'OTC').toUpperCase();
-        if (SCHEDULES[key]) return !!SCHEDULES[key].rx;
-        // Code is not in any master row — keep whatever this medicine already carried.
-        const cur = editingId ? (MF.med(editingId) || {}) : {};
-        return !!cur.rxRequired;
-      }
       function renderGroups() {
         $('#fGroupList').innerHTML = groups.map((s, i) => `<span class="mm-chip">${MF.esc(s)}<button type="button" data-group="${i}" aria-label="Remove">&times;</button></span>`).join('');
         $('#fGenericGroup').value = groups.join(', ');
@@ -1871,7 +1656,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         syncExpiryHint();
       });
       $('#fSchedGroup').addEventListener('click', (e) => {
-        if (e.target.closest('#fSchedAdd')) { schedQuickOpen(); return; }
         const btn = e.target.closest('[data-sched]');
         if (!btn) return;
         setSchedule(btn.dataset.sched);
@@ -1971,7 +1755,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
           mrp: +$('#fMrp').value, retailRate: +$('#fRetail').value || +$('#fMrp').value, purchaseRate: $('#fPtr').value === '' ? '' : +$('#fPtr').value,
           defaultDiscount: $('#fDisc').value === '' ? '' : +$('#fDisc').value, discountType: $('#fDiscType').value || 'percent',
           wholesaleRate: $('#fWholesale').value === '' ? '' : +$('#fWholesale').value, minStock: $('#fMin').value === '' ? '' : +$('#fMin').value,
-          reorderLevel: $('#fReorder').value === '' ? '' : +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: schedSaveRx(), expiryAlertDays: $('#fExpiryAlert').value,
+          reorderLevel: $('#fReorder').value === '' ? '' : +$('#fReorder').value, rack: $('#fRack').value.trim(), rxRequired: !!(SCHEDULES[$('#fSchedule').value] && SCHEDULES[$('#fSchedule').value].rx), expiryAlertDays: $('#fExpiryAlert').value,
           status: $('#fActive').checked ? 'Active' : 'Inactive'
         };
         const wasNew = !editingId;
@@ -2407,11 +2191,9 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       };
       function bulkSchedule(s) {
         const v = String(s || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
-        if (!v) return '';
-        const row = schedRowByCode(v);
-        if (row) return /^inact/i.test(String(row.status || 'Active')) ? '' : row.code; // inactive rows are not importable
-        if (v === 'NDPS') return bulkSchedule('X'); // legacy CSV alias when no NDPS row exists in the master
-        return ''; // unknown to the Schedule / Class master — the validator reports it
+        if (!v) return 'OTC';
+        if (v === 'NDPS') return 'X';
+        return SCHEDULES[v] ? v : '';
       }
       function bulkExpiry(text) { // 12-2027 · 12-27 · 2027-09-05 · Dec 2027 · Dec-2028 · Dec-27
         const t = String(text || '').trim(); if (!t) return '';
@@ -2913,8 +2695,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
       document.addEventListener('DOMContentLoaded', async () => {
         await MF.boot();
-        await schedLoad();        // schedule pills, filter and rx rules come from the master
-        fillScheduleFilter();     // before premium selects bind, and before the ?schedule= param lands
         buildLookups();
         bindPremiumSelects();
         const p = new URLSearchParams(location.search);
@@ -2927,7 +2707,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a466314cef66e89d',t:'MTc5MTMwNTcxNA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464db5e3b54e9c4',t:'MTc5MTI5MTcwOQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });
