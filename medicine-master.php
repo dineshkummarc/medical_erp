@@ -532,9 +532,14 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .pb-pill input:checked + span::before { background:#176B5B; }
     .pb-pill.is-disabled { cursor:not-allowed; }
     .pb-pill.is-disabled span { opacity:.45; border-style:dashed; }
+    #pbPreview.mm-pack-note { display:block; align-items:stretch; padding:8px 12px; }
+    #pbPreview .pb-prev-wrap { max-height:150px; overflow-y:auto; padding-right:2px; }
+    #pbPreview .pb-prev-head { font-weight:700; margin-bottom:4px; font-size:.8rem; }
     #pbPreview .pb-prev-line { display:flex; justify-content:space-between; gap:10px; font-size:.78rem; padding:.16rem 0; }
     #pbPreview .pb-prev-line span:first-child { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     #pbPreview .pb-prev-line .num { white-space:nowrap; }
+    .pb-inp-row { display:grid; grid-template-columns:1fr 1fr; gap:.6rem; margin-top:8px; }
+    @media (max-width:480px) { .pb-inp-row { grid-template-columns:1fr; } }
     .pb-alert {
       display:flex; gap:.45rem; align-items:flex-start; margin-top:9px;
       border:1px solid #F6D7A2; background:#FFF9EB; border-radius:10px;
@@ -619,7 +624,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
   <!-- Bulk price update -->
   <div class="modal fade" id="mmPriceBulkModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:600px">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable" style="max-width:600px">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title"><i class="bi bi-tag me-2"></i>Bulk price update</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
@@ -640,8 +645,8 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
               <option value="adjust">Adjust rates by a percentage (+5% / −5%)</option>
               <option value="derive">Set wholesale rate = % of MRP (e.g. 75)</option>
             </select>
-            <div class="row g-2 mt-1 mb-0 align-items-end">
-              <div class="col-6">
+            <div class="pb-inp-row">
+              <div>
                 <label class="form-label" for="pbPct" id="pbPctLabel">Change (%)</label>
                 <div class="mm-input"><i class="bi bi-percent"></i><input type="number" step="0.5" class="form-control" id="pbPct" placeholder="+5 or -5"></div>
                 <div class="pb-quick-wrap" id="pbQuick">
@@ -651,7 +656,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
                   <button type="button" class="pb-chip pb-quick" data-p="10">+10%</button>
                 </div>
               </div>
-              <div class="col-6">
+              <div>
                 <label class="form-label" for="pbRound">Round prices to</label>
                 <select class="form-select" id="pbRound">
                   <option value="none">2 decimals (₹41.20)</option>
@@ -2379,10 +2384,10 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         }).join('');
         box.hidden = false;
         const head = derive
-          ? `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) — wholesale rate = ${pct}% of MRP</div>`
-          : `<div style="font-weight:700;margin-bottom:4px"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>`;
-        box.innerHTML = head + lines +
-          (list.length > 5 ? `<div class="text-2" style="font-size:.72rem;margin-top:3px">+ ${list.length - 5} more…</div>` : '');
+          ? `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) — wholesale rate = ${pct}% of MRP</div>`
+          : `<div class="pb-prev-head"><i class="bi bi-check2-circle me-1" style="color:#0F766E"></i>${list.length} medicine(s) will be updated${pct > 0 ? ' (increase ' + pct + '%)' : ' (decrease ' + Math.abs(pct) + '%)'}</div>`;
+        box.innerHTML = `<div class="pb-prev-wrap">${head + lines +
+          (list.length > 5 ? `<div class="text-2" style="font-size:.72rem;margin-top:3px">+ ${list.length - 5} more…</div>` : '')}</div>`;
         pbList = list;
         $('#pbApplyBtn').disabled = false;
       }
@@ -2644,7 +2649,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464bd1a18083a39',t:'MTc5MTI5MDQ2OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464c79d8b1c2d70',t:'MTc5MTI5MDkwMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });
