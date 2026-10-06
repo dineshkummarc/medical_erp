@@ -500,47 +500,6 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
     .mm-adj-switch button.is-on.remove { background:#c62828; color:#fff; }
     .mm-adj-preview { margin-top:8px; font-size:.82rem; font-weight:650; color:#176B5B; }
     .mm-adj-preview.remove { color:#c62828; }
-
-    /* ===== Bulk price update modal — sectioned layout ===== */
-    .pb-sec { border:1px solid #EDF1F4; border-radius:12px; padding:.7rem .8rem .75rem; background:#FCFDFD; }
-    .pb-sec + .pb-sec { margin-top:9px; }
-    .pb-sec-title {
-      display:flex; align-items:center; gap:.4rem;
-      font-size:.66rem; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
-      color:#64748B; margin-bottom:6px;
-    }
-    .pb-sec-title i { font-size:.72rem; color:#176B5B; }
-    .pb-sub { font-size:.72rem; color:#9AA3AF; margin:-2px 0 7px; }
-    .pb-quick-wrap { display:flex; gap:5px; margin-top:6px; flex-wrap:wrap; }
-    .pb-chip {
-      flex:1 1 0; min-width:52px; border:1px solid #E3E9F1; background:#fff; color:#334155;
-      border-radius:999px; padding:.22rem .1rem; font-size:.7rem; font-weight:700;
-      transition:all .15s;
-    }
-    .pb-chip:hover { border-color:#176B5B; color:#176B5B; background:#F3FAF8; }
-    .pb-chip:active { transform:scale(.97); }
-    .pb-pills { display:flex; gap:6px; flex-wrap:wrap; }
-    .pb-pill { cursor:pointer; }
-    .pb-pill input { display:none; }
-    .pb-pill span {
-      display:inline-flex; align-items:center; gap:5px; padding:.32rem .75rem;
-      border:1px solid #E3E9F1; border-radius:999px; background:#fff;
-      font-size:.74rem; font-weight:650; color:#64748B; transition:all .15s; user-select:none;
-    }
-    .pb-pill span::before { content:''; width:7px; height:7px; border-radius:50%; background:#DDE3EA; transition:background .15s; }
-    .pb-pill input:checked + span { border-color:#176B5B; background:#F3FAF8; color:#0F4D42; }
-    .pb-pill input:checked + span::before { background:#176B5B; }
-    .pb-pill.is-disabled { cursor:not-allowed; }
-    .pb-pill.is-disabled span { opacity:.45; border-style:dashed; }
-    #pbPreview .pb-prev-line { display:flex; justify-content:space-between; gap:10px; font-size:.78rem; padding:.16rem 0; }
-    #pbPreview .pb-prev-line span:first-child { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    #pbPreview .pb-prev-line .num { white-space:nowrap; }
-    .pb-alert {
-      display:flex; gap:.45rem; align-items:flex-start; margin-top:9px;
-      border:1px solid #F6D7A2; background:#FFF9EB; border-radius:10px;
-      padding:.5rem .65rem; font-size:.73rem; color:#7C4A03; line-height:1.4;
-    }
-    .pb-alert i { margin-top:2px; }
   </style>
 </head>
 <body data-page="medicine-master">
@@ -619,67 +578,53 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
 
   <!-- Bulk price update -->
   <div class="modal fade" id="mmPriceBulkModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered" style="max-width:600px">
+    <div class="modal-dialog modal-dialog-centered" style="max-width:560px">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title"><i class="bi bi-tag me-2"></i>Bulk price update</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
-
-          <div class="pb-sec">
-            <div class="pb-sec-title"><i class="bi bi-funnel"></i>Which medicines?</div>
-            <div class="pb-sub">Narrow to a category or manufacturer, or leave both on All for the whole catalogue.</div>
-            <div class="row g-2">
-              <div class="col-6"><label class="form-label" for="pbCat">Category</label><select class="form-select" id="pbCat"><option value="">All categories</option></select></div>
-              <div class="col-6"><label class="form-label" for="pbMfr">Manufacturer</label><select class="form-select" id="pbMfr"><option value="">All manufacturers</option></select></div>
-            </div>
+          <div class="mm-hint mb-2">Change MRP / retail / wholesale rates by one percentage for a whole category or manufacturer — server-side, in one write.</div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label" for="pbCat">Category</label><select class="form-select" id="pbCat"><option value="">All categories</option></select></div>
+            <div class="col-6"><label class="form-label" for="pbMfr">Manufacturer</label><select class="form-select" id="pbMfr"><option value="">All manufacturers</option></select></div>
           </div>
-
-          <div class="pb-sec">
-            <div class="pb-sec-title"><i class="bi bi-tag"></i>What change?</div>
-            <label class="form-label" for="pbAction">Action</label>
-            <select class="form-select" id="pbAction">
-              <option value="adjust">Adjust rates by a percentage (+5% / −5%)</option>
-              <option value="derive">Set wholesale rate = % of MRP (e.g. 75)</option>
-            </select>
-            <div class="row g-2 mt-1 mb-0 align-items-end">
-              <div class="col-6">
-                <label class="form-label" for="pbPct" id="pbPctLabel">Change (%)</label>
-                <div class="mm-input"><i class="bi bi-percent"></i><input type="number" step="0.5" class="form-control" id="pbPct" placeholder="+5 or -5"></div>
-                <div class="pb-quick-wrap" id="pbQuick">
-                  <button type="button" class="pb-chip pb-quick" data-p="-5">−5%</button>
-                  <button type="button" class="pb-chip pb-quick" data-p="-2">−2%</button>
-                  <button type="button" class="pb-chip pb-quick" data-p="5">+5%</button>
-                  <button type="button" class="pb-chip pb-quick" data-p="10">+10%</button>
-                </div>
-              </div>
-              <div class="col-6">
-                <label class="form-label" for="pbRound">Round prices to</label>
-                <select class="form-select" id="pbRound">
-                  <option value="none">2 decimals (₹41.20)</option>
-                  <option value="0.5">Nearest ₹0.50 (₹41.50)</option>
-                  <option value="1">Nearest whole ₹ (₹41)</option>
-                </select>
+          <div class="row g-2 mb-2 align-items-end">
+            <div class="col-4">
+              <label class="form-label" for="pbAction">Action</label>
+              <select class="form-select" id="pbAction">
+                <option value="adjust">Adjust by %</option>
+                <option value="derive">Wholesale = MRP × %</option>
+              </select>
+            </div>
+            <div class="col-5">
+              <label class="form-label" for="pbPct" id="pbPctLabel">Change (%)</label>
+              <div class="mm-input"><i class="bi bi-percent"></i><input type="number" step="0.5" class="form-control" id="pbPct" placeholder="+5 or -5"></div>
+              <div class="d-flex gap-1 mt-1" id="pbQuick">
+                <button type="button" class="mm-text-btn pb-quick" data-p="-5">−5%</button>
+                <button type="button" class="mm-text-btn pb-quick" data-p="-2">−2%</button>
+                <button type="button" class="mm-text-btn pb-quick" data-p="5">+5%</button>
+                <button type="button" class="mm-text-btn pb-quick" data-p="10">+10%</button>
               </div>
             </div>
+            <div class="col-4">
+              <label class="form-label" for="pbRound">Round to</label>
+              <select class="form-select" id="pbRound"><option value="none">2 decimals</option><option value="0.5">Nearest 0.50</option><option value="1">Nearest whole ₹</option></select>
+            </div>
+            <div class="col-3"><button type="button" class="btn btn-light-mf w-100" id="pbPreviewBtn">Preview</button></div>
           </div>
-
-          <div class="pb-sec">
-            <div class="pb-sec-title"><i class="bi bi-check2-square"></i>Prices to update</div>
-            <div class="pb-pills">
-              <label class="pb-pill" for="pbMrp"><input type="checkbox" id="pbMrp" checked><span>MRP</span></label>
-              <label class="pb-pill" for="pbRetail"><input type="checkbox" id="pbRetail" checked><span>Retail rate</span></label>
-              <label class="pb-pill" for="pbWhole"><input type="checkbox" id="pbWhole"><span>Wholesale rate</span></label>
+          <div class="row g-2 mb-2">
+            <div class="col-12 d-flex gap-3">
+              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbMrp" checked><span class="form-check-label">MRP</span></label>
+              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbRetail" checked><span class="form-check-label">Retail rate</span></label>
+              <label class="form-check" style="font-size:.8rem"><input class="form-check-input" type="checkbox" id="pbWhole"><span class="form-check-label">Wholesale rate</span></label>
             </div>
           </div>
-
-          <div class="mm-pack-note mt-2" id="pbPreview" hidden></div>
-          <div class="pb-alert" role="note">
-            <i class="bi bi-exclamation-triangle"></i>
-            <span>Prices are rewritten on the server for every matched medicine in one update — it cannot be undone. Preview first, then Apply.</span>
+          <div class="mm-pack-note" id="pbPreview" hidden></div>
+          <div class="alert alert-warning py-2 mt-2 mb-0" role="note" style="font-size:.74rem;border-radius:10px">
+            <i class="bi bi-exclamation-triangle me-1"></i>This rewrites prices on the server for every matched medicine. "—"? prices are left untouched only if the field is skipped above.
           </div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
-          <button type="button" class="btn btn-light-mf" id="pbPreviewBtn"><i class="bi bi-eye me-1"></i>Preview</button>
           <button class="btn btn-mf" id="pbApplyBtn" disabled><i class="bi bi-check2 me-1"></i>Apply update</button>
         </div>
       </div>
@@ -2338,11 +2283,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const d = pbIsDerive();
         $('#pbPctLabel').textContent = d ? '% of MRP' : 'Change (%)';
         $('#pbQuick').style.display = d ? 'none' : '';
-        ['pbMrp', 'pbRetail', 'pbWhole'].forEach((id) => {
-          const el = $('#' + id);
-          el.disabled = d;
-          el.closest('.pb-pill').classList.toggle('is-disabled', d);
-        });
+        $('#pbMrp').disabled = d; $('#pbRetail').disabled = d; $('#pbWhole').disabled = true;
         if (d) { $('#pbMrp').checked = false; $('#pbRetail').checked = false; $('#pbWhole').checked = true; }
       }
       function pbMatches() {
@@ -2375,7 +2316,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
         const lines = list.slice(0, 5).map((m) => {
           const cur = Number(m[col] ?? m.mrp ?? 0);
           const next = derive ? pbDerive(m.mrp, pct, mode) : pbCalc(cur, pct, mode);
-          return `<div class="pb-prev-line"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(next, 2)}</strong></span></div>`;
+          return `<div style="display:flex;justify-content:space-between;gap:10px"><span>${MF.esc(m.name)}</span><span class="num">${MF.fmt(cur, 2)} → <strong>${MF.fmt(next, 2)}</strong></span></div>`;
         }).join('');
         box.hidden = false;
         const head = derive
@@ -2644,7 +2585,7 @@ require __DIR__ . '/middleware/auth.php'; // redirects to /login.php if not logg
       });
     })();
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a464bd1a18083a39',t:'MTc5MTI5MDQ2OQ=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a4621614de127937',t:'MTc5MTI2MjY1Ng=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
 ') === 'add') openForm(null);
       });
