@@ -1767,33 +1767,11 @@
     el.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
-  /* Held bills live in localStorage too — the counter MUST be able to park a bill,
-   hop to another page (or the browser dies), and find it waiting. 18 h horizon:
-   overnight holds face stale prices/stock, so they retire silently instead of
-   billing yesterday's numbers. */
-  const HELD_KEY = 'mf-pos-held-v1';
-  const HELD_TTL = 18 * 3600 * 1000;
-  function saveHeld() {
-    try { localStorage.setItem(HELD_KEY, JSON.stringify(state.heldBills)); } catch (e) { /* storage locked */ }
-  }
-  function loadHeld() {
-    try {
-      const raw = JSON.parse(localStorage.getItem(HELD_KEY) || '[]');
-      const now = Date.now();
-      const fresh = (Array.isArray(raw) ? raw : []).filter((h) => h && Array.isArray(h.items) && h.items.length && (now - (h.at || now)) < HELD_TTL);
-      state.heldBills = fresh;
-      if (fresh.length) state.holdSeq = fresh.reduce((m, h) => Math.max(m, (+h.id || 0) + 1), state.holdSeq || 1);
-      const dropped = (Array.isArray(raw) ? raw.length : 0) - fresh.length;
-      if (dropped > 0) { saveHeld(); console.debug('[pos] retired', dropped, 'stale held bill(s) past 18h'); }
-    } catch (e) { /* corrupt store — start clean */ }
-  }
-
   function holdBill() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to hold', 'warn'); return; }
     state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)), at: Date.now() });
     state.cart = []; renderCart();
     updateHoldBadge();
-    saveHeld();
     MF.toast('Bill held. Retrieve it from the Held Bills chip.', 'info', 'Bill held');
   }
 
@@ -1835,14 +1813,12 @@
         if (window.POSUI) POSUI.syncPickers();
         state.heldBills = state.heldBills.filter((x) => x.id !== h.id);
         updateHoldBadge(); renderCart();
-        saveHeld();
         bootstrap.Modal.getInstance($('#posHeldModal')).hide();
         MF.toast('Held bill loaded into cart', 'success');
       }));
       body.querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => {
         state.heldBills = state.heldBills.filter((x) => x.id !== +b.dataset.del);
         updateHoldBadge(); showHeldBills();
-        saveHeld();
       }));
     }
   }
@@ -2612,10 +2588,8 @@
       if (![...cust.options].some((o) => String(o.value) === cid)) {
         // Same resilience as the doctor fallback above: a freshly-created account
         // (Scan & Send "new customer" attach) isn't in the bill's option list yet —
-        // insert it, or the .value assignment silently no-ops. Resolve the real
-        // name from the customer book — an Rx row often has no customer_name field.
-        const known = (MF.cust && MF.cust(cid)) || null;
-        cust.insertAdjacentHTML('beforeend', `<option value="${MF.esc(cid)}">${MF.esc((known && known.name) || row.customer_name || row.customerName || 'Customer #' + cid)}</option>`);
+        // insert it, or the .value assignment silently no-ops.
+        cust.insertAdjacentHTML('beforeend', `<option value="${MF.esc(cid)}">${MF.esc(row.customer_name || row.customerName || 'Customer #' + cid)}</option>`);
       }
       cust.value = cid;
     }
@@ -2989,7 +2963,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.11 — age + no-phone attach + held persistence'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.10 — rx-pick customer-insert fallback'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3083,22 +3057,18 @@
       hits = (D.customers || []).filter((c) => String(c.phone || '').replace(/\D/g, '').slice(-10) === sxPhone10 && c.phone);
     }
     let custOpts = '<option value="">— keep current bill customer —</option>';
-    if (hits.length !== 1) {
-      // Offer a real account even with NO phone — name-only customers are perfectly
-      // valid; the attach step dedupes against an exact-name match instead of
-      // spawning clones.
-      custOpts += `<option value="__new__">➕ New customer — ${sxHasPhone ? 'uses patient name + ☎ ' + MF.esc(sxActive.sender_phone) : 'uses patient name (no phone given)'}</option>`;
+    if (sxHasPhone && hits.length !== 1) {
+      custOpts += `<option value="__new__">➕ New customer — uses patient name + ☎ ${MF.esc(sxActive.sender_phone)}</option>`;
     }
     custOpts += (D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join('');
     $('#sxCustomer').innerHTML = custOpts;
     $('#sxDate').value = MF.today();
-    $('#sxAge').value = '';
     if (hits.length === 1) {
       // Known sender: pre-fill both halves with the matched account.
       $('#sxPatient').value = hits[0].name;
       $('#sxCustomer').value = hits[0].id;
-    } else {
-      // Unknown sender (phone or not): default the accountable move, visibly.
+    } else if (sxHasPhone) {
+      // New face with a usable number → default the right move, visibly.
       $('#sxCustomer').value = '__new__';
     }
     // Live label: as the patient name is typed, the new-customer option echoes it.
@@ -3108,8 +3078,7 @@
         const o = [...$('#sxCustomer').options].find((x) => x.value === '__new__');
         if (!o) return;
         const nm = $('#sxPatient').value.trim();
-        const ph = (sxActive && sxActive.sender_phone) || '';
-        o.textContent = `➕ New customer — ${nm ? '"' + nm + '"' : 'uses patient name'}${ph ? ' · ☎ ' + ph : ' (no phone given)'}`;
+        o.textContent = `➕ New customer — ${nm ? '"' + nm + '" · ' : 'uses patient name + '}☎ ${(sxActive && sxActive.sender_phone) || ''}`;
       });
     }
     $('#sxFormWrap').hidden = false;
@@ -3129,14 +3098,7 @@
       if (customerId === '__new__') {
         // Triple-use click: one typed patient name becomes the customer record,
         // the Rx's patient, and the bill's customer (via onRxPick just below).
-        // Duplicate guard first: a name-only sender (no phone) would otherwise
-        // mint a fresh clone on every visit. Exact-name match → reuse that account.
-        const nameKey = patient.trim().toLowerCase().replace(/\s+/g, ' ');
-        const twin = (D.customers || []).find((c) => String(c.name || '').trim().toLowerCase().replace(/\s+/g, ' ') === nameKey);
-        if (twin) {
-          customerId = twin.id;
-          MF.toast('Matched existing customer "' + twin.name + '" — no duplicate created.', 'info', 'Scan & Send Rx');
-        } else try {
+        try {
           const cres = await MF.Api.post('customers.php', {
             name: patient,
             phone: String(sxActive.sender_phone || '').replace(/\D/g, ''),
@@ -3154,7 +3116,6 @@
       if (!customerId) customerId = $('#posCustomer') ? $('#posCustomer').value : '';
       const res = await MF.Api.post('prescriptions.php', {
         customer_id: customerId || 0, patient_name: patient,
-        patient_age: parseInt($('#sxAge').value, 10) || 0,
         doctor_id: doctorId, rx_date: $('#sxDate').value || MF.today(),
         diagnosis: 'Scan & Send — see attached photo', status: 'Ready',
         image_path: sxActive.image_path,
@@ -3162,7 +3123,7 @@
       });
       await MF.Api.post('rx-inbox.php', { action: 'claim', id: sxActive.id });
       $('#sxFormWrap').hidden = true;
-      ['sxPatient', 'sxAge'].forEach((id) => { $('#' + id).value = ''; });
+      ['sxPatient'].forEach((id) => { $('#' + id).value = ''; });
       sxActive = null;
       await refreshScanRx(false);
       MF.toast('Prescription saved and ready to pick.', 'success', 'Scan & Send Rx');
@@ -3236,10 +3197,6 @@
     $('#rpSave')?.addEventListener('click', rpSave);
     $('#rpManual')?.addEventListener('click', rpMarkManual);
     $('#rpCancel')?.addEventListener('click', () => { $('#rpFormWrap').hidden = true; rpActive = null; });
-
-    // Held bills survive page hops: restore what was parked before boot.
-    loadHeld();
-    updateHoldBadge();
 
     // Scan & Send Rx inbox: boot silently, then poll every 9 s (paused while tab hidden).
     refreshScanRx(false);
