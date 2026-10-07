@@ -2583,8 +2583,15 @@
       doc.value = row.doctor_id || row.doctorId || '';
     }
     const cust = $('#posCustomer');
-    if (cust && row.customer_id && [...cust.options].some((o) => String(o.value) === String(row.customer_id))) {
-      cust.value = row.customer_id;
+    if (cust && row.customer_id) {
+      const cid = String(row.customer_id);
+      if (![...cust.options].some((o) => String(o.value) === cid)) {
+        // Same resilience as the doctor fallback above: a freshly-created account
+        // (Scan & Send "new customer" attach) isn't in the bill's option list yet —
+        // insert it, or the .value assignment silently no-ops.
+        cust.insertAdjacentHTML('beforeend', `<option value="${MF.esc(cid)}">${MF.esc(row.customer_name || row.customerName || 'Customer #' + cid)}</option>`);
+      }
+      cust.value = cid;
     }
     if (window.POSUI) POSUI.syncPickers();
     paintRxMeta(row);
@@ -2956,7 +2963,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.9 — scan-rx new-customer attach'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.10 — rx-pick customer-insert fallback'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3098,8 +3105,8 @@
             address: '',
           });
           customerId = cres.id || '';
-          if (!customerId) {
-            customerId = 'C' + Date.now(); // demo fallback
+          if (!customerId) customerId = 'C' + Date.now(); // demo fallback
+          if (!(D.customers || []).some((c) => String(c.id) === String(customerId))) {
             (D.customers = D.customers || []).push({ id: customerId, name: patient, phone: sxActive.sender_phone || '' });
           }
         } catch (ce) {
