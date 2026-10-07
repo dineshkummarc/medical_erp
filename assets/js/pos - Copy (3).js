@@ -881,10 +881,7 @@
       }
       qtyFlagReset();
     }
-    if (med.rxRequired) {
-      MF.toast(med.name + ' is Schedule ' + med.schedule + ' — pick the Doctor and the patient above (highlighted), or attach the recorded prescription.', 'info', 'Rx item');
-      rxNudgeSync();
-    }
+    if (med.rxRequired) MF.toast(med.name + ' is Schedule ' + med.schedule + ' — verify prescription', 'info', 'Rx item');
     rememberRecent(medId);
     renderCart();
   }
@@ -1148,7 +1145,6 @@
   }
   function syncCartKb() {
     const hint = $('#posKbHint'); if (hint) hint.hidden = state.cart.length === 0;
-    rxNudgeSync(); // cart emptied/loaded — glow follows the cart's Rx state
     if (state.cartIdx >= state.cart.length) state.cartIdx = state.cart.length - 1;
     $('#posCartBody')?.querySelectorAll('tbody tr[data-ki]').forEach((tr) =>
       tr.classList.toggle('is-kb', +tr.dataset.ki === state.cartIdx));
@@ -1355,22 +1351,6 @@
       if (sch) return sch;
     }
     return '';
-  }
-
-  /* Rx nudge: while the cart holds a prescription-controlled item, the two pickers
-     that settle the compliance (doctor + patient) glow until BOTH are resolved.
-     Guidance without a modal — nothing stands in the checkout lane. */
-  function rxNudgeSync() {
-    const custWrap = pickerState['#posCustomer'] && pickerState['#posCustomer'].wrap;
-    const docWrap = pickerState['#posDoctor'] && pickerState['#posDoctor'].wrap;
-    if (!custWrap || !docWrap) return;
-    if (!state.cart.some(needsRx)) {
-      custWrap.classList.remove('is-rx');
-      docWrap.classList.remove('is-rx');
-      return;
-    }
-    docWrap.classList.toggle('is-rx', !$('#posDoctor').value);
-    custWrap.classList.toggle('is-rx', String($('#posCustomer').value) === String(walkInId()));
   }
 
   /* Turn the Rx switch on ourselves — scheduled drugs force it, OTC stays manual. */
@@ -2679,7 +2659,7 @@
     st.input.value = opt ? String(opt.text).replace(/\s*\(default\)\s*$/, '') : '';
   }
   window.POSUI = Object.assign(window.POSUI || {}, {
-    syncPickers() { Object.keys(pickerState).forEach(pickerSyncLabel); rxNudgeSync(); }
+    syncPickers() { Object.keys(pickerState).forEach(pickerSyncLabel); }
   });
   function pickerPaintMenu(st) {
     const q = String(st.input.value || '').trim().toLowerCase();
@@ -2734,7 +2714,6 @@
     pickerPushRecent(st.selId, id);
     pickerClose(st, false);
     pickerSyncLabel(st.selId);
-    rxNudgeSync(); // a field just got settled — the glow may clear
     $('#posSearch').focus();
   }
   function initPicker(selId, addBtnId, kind) {
