@@ -1800,6 +1800,18 @@
       at: Date.now(),
     });
     state.cart = []; renderCart();
+    // Holding parks, it must NOT leave a half-baked context on the counter —
+    // same sterile default as after a completed sale.
+    $('#posCustomer').value = walkInId();
+    const docH = $('#posDoctor'); if (docH) docH.value = '';
+    const rxH = $('#posRx'); if (rxH) rxH.value = '';
+    setRxAttached(false);
+    state.loadedRxId = '';
+    state._rxBill = null;
+    rxFlag.cust = false; rxFlag.doc = false;
+    paintRxMeta(null);
+    if (window.POSUI) POSUI.syncPickers();
+    $('#posSearch')?.focus();
     updateHoldBadge();
     saveHeld();
     MF.toast('Bill held. Retrieve it from the Held Bills chip.', 'info', 'Bill held');
@@ -3088,7 +3100,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.12 — rx phone + held-rx restore + busy-bill guard + post-sale reset'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.13 — inbox phone + fresh-modal defaults + hold-reset'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3132,7 +3144,9 @@
       return `<div class="d-flex align-items-center gap-2 p-2 border-bottom">
         <img src="${MF.esc(r.image_path)}" alt="Rx photo" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e3ebf4;cursor:pointer" data-sximg="${MF.esc(r.image_path)}">
         <div class="flex-grow-1" style="min-width:0">
-          <div class="fw-semibold" style="font-size:.84rem">${r.sender_phone ? MF.esc('☎ ' + r.sender_phone) : 'No number given'}</div>
+          <div class="fw-semibold" style="font-size:.84rem">${r.sender_phone
+            ? MF.esc('☎ ' + r.sender_phone)
+            : `<button type="button" class="btn btn-mf-soft btn-sm py-0 px-2" data-sxph="${r.id}" style="font-size:.72rem" title="They're in the shop — take their number now"><i class="bi bi-telephone-plus me-1"></i>Add phone</button>`}</div>
           <div class="text-2" style="font-size:.72rem">${MF.esc(when)}${r.note ? ' · ' + MF.esc(r.note) : ''}</div>
         </div>
         <button type="button" class="btn btn-mf-soft btn-sm" data-sx="${r.id}"><i class="bi bi-paperclip me-1"></i>Attach</button>
@@ -3140,6 +3154,39 @@
     }).join('');
     box.querySelectorAll('[data-sx]').forEach((b) => b.addEventListener('click', () => sxOpenForm(b.dataset.sx)));
     box.querySelectorAll('[data-sximg]').forEach((img) => img.addEventListener('click', () => window.open(img.dataset.sximg, '_blank')));
+    box.querySelectorAll('[data-sxph]').forEach((b) => b.addEventListener('click', () => sxEditInboxPhone(b)));
+  }
+  // Phone-less sender? The customer is standing right there — capture the number
+  // onto the inbox row so attach's customer-matching (match / new-customer) wakes up.
+  function sxEditInboxPhone(btn) {
+    const id = +btn.dataset.sxph;
+    const row = state.rxInbox.find((r) => +r.id === id);
+    const cell = btn.parentNode;
+    cell.innerHTML = `<div class="d-flex gap-1 align-items-center flex-wrap">
+      <input class="form-control form-control-sm" style="max-width:150px" inputmode="numeric" maxlength="10" placeholder="10-digit mobile">
+      <button type="button" class="btn btn-mf btn-sm" data-save>Save</button>
+      <button type="button" class="btn btn-light-mf btn-sm" data-cancel>Cancel</button>
+    </div>`;
+    const inp = cell.querySelector('input');
+    inp.focus();
+    const save = async () => {
+      const ph = inp.value.replace(/\D/g, '');
+      if (!/^\d{10}$/.test(ph)) { MF.toast('Enter a valid 10-digit mobile.', 'warn', 'Add phone'); return; }
+      try {
+        await MF.Api.post('rx-inbox.php', { action: 'phone', id, phone: ph });
+        if (row) row.sender_phone = ph;
+        await refreshScanRx(false).catch(() => {});
+        MF.toast('Number saved — attach will now match this customer.', 'success', 'Scan & Send Rx');
+      } catch (e) {
+        MF.toast(e.message || 'Could not save the number.', 'err', 'Add phone');
+      }
+    };
+    cell.querySelector('[data-save]').addEventListener('click', save);
+    cell.querySelector('[data-cancel]').addEventListener('click', paintScanRxList);
+    inp.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); save(); }
+      if (e.key === 'Escape') { e.preventDefault(); paintScanRxList(); }
+    });
   }
   // Central doctor-option refill for the Scan & Send modal — also called by the
   // inline quick-add flow after a doctor is created mid-attach.
@@ -3170,6 +3217,9 @@
     sxActive = state.rxInbox.find((r) => String(r.id) === String(id)) || null;
     if (!sxActive) return;
     $('#sxFormTitle').textContent = 'Attach — photo #' + sxActive.id;
+    // Every photo is a fresh entry — nothing bleeds in from the previous attach.
+    $('#sxPatient').value = '';
+    $('#sxDoctor').value = '';
     MF.refillSxDoctor();
     // Bill-as-customer choices (patient ≠ account — father billing for the family):
     //   ''        → keep whoever is already on the bill (explicit default)

@@ -110,17 +110,4 @@ if ($action === 'claim' || $action === 'dismiss') {
     }
 }
 
-// Cashier can enrich a pending photo with the sender's number (they asked in-shop)
-// so the attach flow's customer-matching lights up. 10-15 digits stored digits-only.
-if ($action === 'phone') {
-    $phone = preg_replace('/\D+/', '', (string) ($input['phone'] ?? ''));
-    if (strlen($phone) < 10 || strlen($phone) > 15) Json::error('Enter a valid 10-digit mobile.', 422);
-    try {
-        qrInbox('UPDATE rx_inbox SET sender_phone = ' . sqlStr($phone) . ' WHERE id = ' . $id);
-        Json::ok(['data' => ['id' => $id, 'sender_phone' => $phone]]);
-    } catch (Throwable $e) {
-        Json::error('Inbox update failed.', 500);
-    }
-}
-
 Json::error('Unknown action.', 400);
