@@ -713,6 +713,8 @@
   function resetSearch(box) {
     box.value = '';
     qtyFlagReset();
+    if (searchTimer) { clearTimeout(searchTimer); searchTimer = null; }
+    searchMeds(''); // back to Quick picks instantly — no stale hits under a cleared box
     state.selIdx = 0;
     state.selQuery = '';
     const cb = document.getElementById('posSearchClear');
@@ -721,6 +723,8 @@
   }
 
   function onSearchKeys(e) {
+    // A pending debounced render must never leave Enter/arrows acting on stale cards.
+    if (e.key === 'Enter' || e.key === 'ArrowDown' || e.key === 'ArrowUp') flushSearchMeds();
     const cards = resultCards();
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       if (!cards.length) return;
@@ -744,6 +748,22 @@
   }
 
   /* ---------------- Medicine search ---------------- */
+  /* Debounced result rendering: typing fires ONE render after a 120ms pause —
+     barcode exact-add and the ×3 qty flag stay synchronous in the input handler.
+     flushSearchMeds() must run before any code reads the rendered cards (Enter /
+     arrows) so a fast typist can never add from stale results. */
+  let searchTimer = null;
+  function queueSearchMeds(q) {
+    if (searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => { searchTimer = null; searchMeds(q); }, 120);
+  }
+  function flushSearchMeds() {
+    if (!searchTimer) return;
+    clearTimeout(searchTimer);
+    searchTimer = null;
+    searchMeds($('#posSearch') ? $('#posSearch').value : '');
+  }
+
   function searchMeds(q) {
     const qRaw = String(q || '');
     if (qRaw !== state.selQuery) { state.selIdx = 0; state.selQuery = qRaw; }
@@ -2616,16 +2636,30 @@
     const match = (it) => !q || it.name.toLowerCase().includes(q) || (it.sub && it.sub.toLowerCase().includes(q));
     const recIds = []; try { JSON.parse(localStorage.getItem(pickerRecentsKey(st.selId)) || '[]').forEach((x) => recIds.push(String(x))); } catch (e) { /* none */ }
     const recents = recIds.map((id) => all.find((it) => it.id === id)).filter(Boolean).filter(match).slice(0, 4);
+    // Progressive disclosure: an empty search renders recents + top slice only — the full
+    // book is always one typed letter away, never 1000 buttons deep. Data stays complete.
+    const CAP_IDLE = 25, CAP_TYPED = 50;
     const recentIds = new Set(recents.map((it) => it.id));
-    const rest = all.filter((it) => !recentIds.has(it.id)).filter(match);
-    st.list = [...recents, ...rest];
+    let rest = all.filter((it) => !recentIds.has(it.id)).filter(match);
+    // Walk-in Customer is the counter's default — pin it right under Recents, always.
+    const pinned = [];
+    if (st.selId === '#posCustomer' && typeof walkInId === 'function') {
+      const wid = String(walkInId() || '');
+      const pin = rest.find((it) => it.id === wid);
+      if (pin) { pinned.push(pin); rest = rest.filter((it) => it.id !== wid); }
+    }
+    const cap = q ? CAP_TYPED : CAP_IDLE;
+    const shown = [...pinned, ...rest].slice(0, cap);
+    const moreHidden = rest.length + pinned.length - shown.length;
+    st.list = [...recents, ...shown];
     st.hot = st.list.length ? 0 : -1;
     const optHtml = (it, i) =>
       `<button type="button" class="pos-lookup-opt${i === st.hot ? ' is-hot' : ''}" data-pk="${MF.esc(it.id)}"><span class="nm">${MF.esc(it.name)}</span>${it.sub ? `<span class="ph">${MF.esc(it.sub)}</span>` : ''}</button>`;
     let html = '';
     let pos = 0;
     if (recents.length) { html += `<div class="pos-lookup-rec">Recent</div>` + recents.map((it) => optHtml(it, pos++)).join(''); }
-    if (rest.length) { html += (recents.length ? `<div class="pos-lookup-rec">All</div>` : '') + rest.map((it) => optHtml(it, pos++)).join(''); }
+    if (shown.length) { html += (recents.length ? `<div class="pos-lookup-rec">${q ? 'Matches' : 'All'}</div>` : '') + shown.map((it) => optHtml(it, pos++)).join(''); }
+    if (moreHidden > 0) html += `<div class="pos-lookup-empty">… ${MF.num(moreHidden)} more — keep typing to narrow</div>`;
     if (!st.list.length) html = `<div class="pos-lookup-empty">No match — add ${st.kind} below.</div>`;
     html += `<button type="button" class="pos-lookup-add" data-pk-add="1"><i class="bi bi-plus-circle-dotted"></i>Add new ${st.kind}</button>`;
     st.menu.innerHTML = html;
@@ -2763,7 +2797,8 @@
         const exact = exactBarcodeMatch(v);
         if (exact) { addToCart(exact.id); resetSearch(e.target); return; }
       }
-      searchMeds(e.target.value);
+      // Render coalesced — barcode add above stays synchronous; only card painting waits.
+      queueSearchMeds(e.target.value);
     });
     $('#posSearch').addEventListener('keydown', onSearchKeys);
 
