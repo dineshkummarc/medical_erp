@@ -3100,7 +3100,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.13 — inbox phone + fresh-modal defaults + hold-reset'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.14 — inbox $esc fix + number text kept'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3144,9 +3144,9 @@
       return `<div class="d-flex align-items-center gap-2 p-2 border-bottom">
         <img src="${MF.esc(r.image_path)}" alt="Rx photo" style="width:64px;height:64px;object-fit:cover;border-radius:8px;border:1px solid #e3ebf4;cursor:pointer" data-sximg="${MF.esc(r.image_path)}">
         <div class="flex-grow-1" style="min-width:0">
-          <div class="fw-semibold" style="font-size:.84rem">${r.sender_phone
+          <div class="fw-semibold d-flex align-items-center gap-2 flex-wrap" style="font-size:.84rem">${r.sender_phone
             ? MF.esc('☎ ' + r.sender_phone)
-            : `<button type="button" class="btn btn-mf-soft btn-sm py-0 px-2" data-sxph="${r.id}" style="font-size:.72rem" title="They're in the shop — take their number now"><i class="bi bi-telephone-plus me-1"></i>Add phone</button>`}</div>
+            : `<span class="text-2" style="font-weight:500">No number given</span><button type="button" class="btn btn-mf-soft btn-sm py-0 px-2" data-sxph="${r.id}" style="font-size:.72rem" title="They're in the shop — take their number now"><i class="bi bi-telephone-plus me-1"></i>Add phone</button>`}</div>
           <div class="text-2" style="font-size:.72rem">${MF.esc(when)}${r.note ? ' · ' + MF.esc(r.note) : ''}</div>
         </div>
         <button type="button" class="btn btn-mf-soft btn-sm" data-sx="${r.id}"><i class="bi bi-paperclip me-1"></i>Attach</button>
