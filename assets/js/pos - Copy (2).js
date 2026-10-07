@@ -1790,15 +1790,7 @@
 
   function holdBill() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to hold', 'warn'); return; }
-    const docSel = $('#posDoctor');
-    state.heldBills.push({
-      id: state.holdSeq++,
-      customer: $('#posCustomer').value,
-      doctor: docSel ? docSel.value : '',               // context survives the hold
-      rxId: $('#posRx') ? $('#posRx').value : '',        // attached script survives too
-      items: JSON.parse(JSON.stringify(state.cart)),
-      at: Date.now(),
-    });
+    state.heldBills.push({ id: state.holdSeq++, customer: $('#posCustomer').value, items: JSON.parse(JSON.stringify(state.cart)), at: Date.now() });
     state.cart = []; renderCart();
     updateHoldBadge();
     saveHeld();
@@ -1840,27 +1832,6 @@
       body.querySelectorAll('[data-load]').forEach((b) => b.addEventListener('click', () => {
         const h = state.heldBills.find((x) => x.id === +b.dataset.load);
         state.cart = h.items; $('#posCustomer').value = h.customer;
-        // Resurrect the doctor (insert-option fallback, same trick as onRxPick).
-        const docSel = $('#posDoctor');
-        if (docSel && h.doctor) {
-          if (![...docSel.options].some((o) => String(o.value) === String(h.doctor))) {
-            const dd = (D.doctors || []).find((x) => String(x.id) === String(h.doctor));
-            docSel.insertAdjacentHTML('beforeend', `<option value="${MF.esc(h.doctor)}">${MF.esc(dd ? dd.name : 'Doctor')}</option>`);
-          }
-          docSel.value = String(h.doctor);
-        }
-        // Resurrect the attached Rx chip: items are already in the cart (they were
-        // cart lines when held), so we re-link the panel WITHOUT re-adding medicines.
-        const rxSel = $('#posRx');
-        if (rxSel && h.rxId) {
-          const row = (state.rxRows || []).find((r) => String(r.id) === String(h.rxId));
-          if (![...rxSel.options].some((o) => String(o.value) === String(h.rxId))) {
-            rxSel.insertAdjacentHTML('beforeend', `<option value="${MF.esc(h.rxId)}">${MF.esc(row ? (row.rx_no || 'Prescription') : 'Rx #' + h.rxId)} (held)</option>`);
-          }
-          setRxAttached(true);
-          rxSel.value = String(h.rxId);
-          if (row) { state.loadedRxId = row.id; paintRxMeta(row); }
-        }
         if (window.POSUI) POSUI.syncPickers();
         state.heldBills = state.heldBills.filter((x) => x.id !== h.id);
         updateHoldBadge(); renderCart();
@@ -2466,20 +2437,9 @@
       state.cartIdx = -1;
       await MF.rehydrate(); // refresh D.batches so stock levels are current
       $('#posCustomer').value = walkInId();
-      // Full counter reset — nothing from this sale bleeds into the next customer:
-      // doctor, attached Rx chip, Rx panel, red flags, loaded-script marker.
-      const docR = $('#posDoctor'); if (docR) docR.value = '';
-      const rxSelR = $('#posRx'); if (rxSelR) rxSelR.value = '';
-      setRxAttached(false);
-      state.loadedRxId = '';
-      state._rxBill = null;
-      rxFlag.cust = false; rxFlag.doc = false;
-      paintRxMeta(null);
-      await loadRxOptions().catch(() => {}); // dropdown reflects the Dispensed script leaving the list
       if (window.POSUI) POSUI.syncPickers();
       renderCart();
       searchMeds($('#posSearch').value); // redraw Quick picks / search cards with the new stock
-      $('#posSearch')?.focus();
 
       /* Smart reminder — the bill is done and stock just moved: if re-orders are still waiting, push to place them */
       if (state.orderPad.length) {
@@ -2527,66 +2487,7 @@
     const patient = row.patient_name || row.patient || 'Patient';
     const date = row.rx_date && MF.fmtDate ? MF.fmtDate(row.rx_date) : (row.rx_date || '—');
     const meds = row.medicines || row.items || [];
-    const ph = row.patient_phone || row.patientPhone || '';
-    box.innerHTML = `<strong>${MF.esc(row.rx_no || 'Prescription')}</strong> · ${MF.esc(rxStatus(row.status))}<br>Patient ${MF.esc(patient)} · Doctor ${MF.esc(doctor)} · ${MF.esc(date)}${meds.length ? ' · ' + meds.length + ' medicine' + (meds.length === 1 ? '' : 's') : ''}` +
-      (ph
-        ? ` · ☎ ${MF.esc(ph)}`
-        : ` · <button type="button" class="btn btn-mf-soft btn-sm py-0 px-2" data-rxphone style="font-size:.72rem" title="Customer can share their number now — save it on this prescription"><i class="bi bi-telephone-plus me-1"></i>Add phone</button>`);
-    box.querySelector('[data-rxphone]')?.addEventListener('click', () => rxEditPhone(row));
-  }
-  // Inline 10-digit capture on the Rx panel: the register's phone field updates, and
-  // if the linked customer has no number, their card gets it too (best effort).
-  function rxItemsForPut(row) {
-    const meds = (row.medicines || row.items || [])
-      .map((m) => ({
-        medicine_id: m.medicine_id || m.medicineId || 0,
-        medicine_name: m.medicine_name || m.name || '',
-        dosage: m.dosage || '', frequency: m.frequency || '', duration: m.duration || '',
-        qty: m.qty || 1, instructions: m.instructions || '',
-      }))
-      .filter((m) => m.medicine_name);
-    return meds.length ? meds : [{ medicine_name: 'Prescription photo received via Scan & Send', qty: 1 }];
-  }
-  function rxEditPhone(row) {
-    const box = $('#posRxMeta'); if (!box) return;
-    box.innerHTML = `<div class="d-flex gap-2 align-items-center flex-wrap">
-      <input class="form-control form-control-sm" id="rxPhIn" style="max-width:180px" inputmode="numeric" maxlength="10" placeholder="10-digit mobile">
-      <button type="button" class="btn btn-mf btn-sm" id="rxPhSave">Save</button>
-      <button type="button" class="btn btn-light-mf btn-sm" id="rxPhCancel">Cancel</button>
-    </div>`;
-    const inp = $('#rxPhIn'); inp.focus();
-    $('#rxPhCancel').addEventListener('click', () => paintRxMeta(row));
-    const save = async () => {
-      const ph = inp.value.replace(/\D/g, '');
-      if (!/^\d{10}$/.test(ph)) { MF.toast('Enter a valid 10-digit mobile.', 'warn', 'Add phone'); return; }
-      try {
-        await MF.Api.put('prescriptions.php', {
-          id: row.id,
-          patient_name: row.patient_name || row.patient || 'Patient',
-          patient_age: row.patient_age || 0,
-          patient_phone: ph,
-          rx_date: row.rx_date || MF.today(),
-          doctor_id: row.doctor_id || row.doctorId || 0,
-          customer_id: row.customer_id || 0,
-          diagnosis: row.diagnosis || '',
-          items: rxItemsForPut(row),
-        });
-        row.patient_phone = ph; row.patientPhone = ph;
-        const cx = row.customer_id && MF.cust ? MF.cust(row.customer_id) : null;
-        if (cx && !String(cx.phone || '').replace(/\D/g, '')) {
-          await MF.Api.put('customers.php', { id: cx.id, name: cx.name, phone: ph }).catch(() => {});
-          cx.phone = ph;
-        } else if (cx && cx.phone) {
-          MF.toast('Customer card already has a number — kept on the prescription only.', 'info', 'Add phone');
-        }
-        paintRxMeta(row);
-        MF.toast('Mobile saved on ' + (row.rx_no || 'the prescription') + '.', 'success', 'Add phone');
-      } catch (e) {
-        MF.toast(e.message || 'Could not save the number.', 'err', 'Add phone');
-      }
-    };
-    $('#rxPhSave').addEventListener('click', save);
-    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); save(); } if (e.key === 'Escape') { e.preventDefault(); paintRxMeta(row); } });
+    box.innerHTML = `<strong>${MF.esc(row.rx_no || 'Prescription')}</strong> · ${MF.esc(rxStatus(row.status))}<br>Patient ${MF.esc(patient)} · Doctor ${MF.esc(doctor)} · ${MF.esc(date)}${meds.length ? ' · ' + meds.length + ' medicine' + (meds.length === 1 ? '' : 's') : ''}`;
   }
 
   function ensureRxOption(row) {
@@ -3088,7 +2989,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.12 — rx phone + held-rx restore + busy-bill guard + post-sale reset'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.11 — age + no-phone attach + held persistence'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3220,35 +3121,6 @@
     if (!patient) { MF.toast('Patient name is needed on the register entry.', 'warn', 'Scan & Send Rx'); return; }
     const doctorId = $('#sxDoctor').value;
     if (!doctorId) { MF.toast('Pick the prescribing doctor.', 'warn', 'Scan & Send Rx'); return; }
-    // Two customers queued: the screen still holds an UNSETTLED bill. Blindly
-    // auto-selecting this Rx would weld one person's script onto the previous
-    // customer's bill — the silent-merge disaster. Brake first, offer the out.
-    if (state.cart.length || ($('#posRx') && $('#posRx').value)) {
-      const holdFirst = await MF.confirm({
-        title: 'Current bill is not settled',
-        message: `The bill on screen still has ${state.cart.length} item(s)${($('#posRx') && $('#posRx').value) ? ' and a prescription attached' : ''}. Park it into Held Bills (it survives page hops) and start clean with this Rx?`,
-        confirmText: 'Hold current bill first',
-        cancelText: 'Keep it on screen',
-        tone: 'warn',
-      });
-      if (holdFirst) {
-        if (state.cart.length) holdBill(); // persists customer + doctor + Rx + items
-        const rxSel = $('#posRx'); if (rxSel) rxSel.value = '';
-        const docSel = $('#posDoctor'); if (docSel) docSel.value = '';
-        setRxAttached(false);
-        state.loadedRxId = '';
-        if (window.POSUI) POSUI.syncPickers();
-      } else {
-        const attachHere = await MF.confirm({
-          title: 'Attach onto THIS bill?',
-          message: 'The new prescription will join the current uncleared bill — its customer and doctor will overwrite what is on screen. Sure?',
-          confirmText: 'Yes, attach here',
-          cancelText: 'Cancel attach',
-          tone: 'warn',
-        });
-        if (!attachHere) return;
-      }
-    }
     const btn = $('#sxAttach');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Attaching…';
