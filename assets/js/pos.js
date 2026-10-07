@@ -2956,7 +2956,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.7 — scan-rx modal picker flyout active'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.8 — scan-rx doctors from live API'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3011,12 +3011,24 @@
   }
   // Central doctor-option refill for the Scan & Send modal — also called by the
   // inline quick-add flow after a doctor is created mid-attach.
-  MF.refillSxDoctor = function (preferId) {
+  // Mirrors fillDoctors(): bootstrap D.doctors is unreliable on this page, so the
+  // live doctors.php list is the real source (same shape, same specialty suffix).
+  MF.refillSxDoctor = async function (preferId) {
     const sel = $('#sxDoctor'); if (!sel) return;
     const keep = preferId || sel.value;
+    let rows = Array.isArray(D.doctors) ? D.doctors.slice() : [];
+    if (MF.Api && MF.Api.live) {
+      try {
+        const res = await MF.Api.get('doctors.php');
+        const data = res.data;
+        const list = Array.isArray(data) ? data : ((data && data.doctors) || []);
+        if (list.length) rows = list;
+      } catch (e) { /* keep bootstrap doctors */ }
+    }
+    rows = rows.filter((d) => d && d.name && d.status !== 'Inactive');
+    rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
     sel.innerHTML = '<option value="">— select doctor —</option>' +
-      ((D.doctors || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
+      rows.map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}${d.specialty ? ' — ' + MF.esc(d.specialty) : ''}</option>`).join('');
     if (keep) sel.value = keep;
     sel.dispatchEvent(new Event('change', { bubbles: true })); // repaints the picker input
     const st = pickerState['#sxDoctor'];
