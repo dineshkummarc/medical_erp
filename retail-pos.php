@@ -532,8 +532,8 @@ if ($cashier === '') $cashier = 'Cashier';
                 <input class="form-control" id="sxDate" type="date">
               </div>
               <div class="col-md-3">
-                <label class="form-label">Age</label>
-                <input class="form-control" id="sxAge" type="number" min="0" max="120" inputmode="numeric" placeholder="Yrs">
+                <label class="form-label">Age <span class="req">*</span></label>
+                <input class="form-control" id="sxAge" type="number" min="1" max="120" inputmode="numeric" placeholder="Yrs" required>
               </div>
               <div class="col-12 d-flex gap-2 mt-2">
                 <button class="btn btn-mf btn-sm" id="sxAttach" type="button"><i class="bi bi-paperclip me-1"></i>Attach to current bill</button>
@@ -649,7 +649,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.14"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.15"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

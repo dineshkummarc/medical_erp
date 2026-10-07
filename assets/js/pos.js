@@ -3100,9 +3100,10 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.14 — inbox $esc fix + number text kept'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.15 — poll-freeze editor + live bill-as + age mandatory'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
+  let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
   function sxSeenId() { try { return parseInt(localStorage.getItem(SX_SEEN_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
   function sxMarkSeen(n) { try { localStorage.setItem(SX_SEEN_KEY, String(n)); } catch (e) { /* storage locked */ } }
@@ -3130,7 +3131,8 @@
       }
       if (latest > sxSeenId()) sxMarkSeen(latest);
       paintScanRxPill();
-      if ($('#posScanRxModal')?.classList.contains('show')) paintScanRxList();
+      // Polls must never yank the DOM out from under an in-progress phone edit.
+      if ($('#posScanRxModal')?.classList.contains('show') && !sxPhoneEditingId) paintScanRxList();
     } catch (e) { /* network blip — next poll */ }
   }
   function paintScanRxList() {
@@ -3162,6 +3164,7 @@
     const id = +btn.dataset.sxph;
     const row = state.rxInbox.find((r) => +r.id === id);
     const cell = btn.parentNode;
+    sxPhoneEditingId = id; // freeze poll repaints while typing
     cell.innerHTML = `<div class="d-flex gap-1 align-items-center flex-wrap">
       <input class="form-control form-control-sm" style="max-width:150px" inputmode="numeric" maxlength="10" placeholder="10-digit mobile">
       <button type="button" class="btn btn-mf btn-sm" data-save>Save</button>
@@ -3169,23 +3172,30 @@
     </div>`;
     const inp = cell.querySelector('input');
     inp.focus();
+    const done = () => { sxPhoneEditingId = 0; };
     const save = async () => {
       const ph = inp.value.replace(/\D/g, '');
       if (!/^\d{10}$/.test(ph)) { MF.toast('Enter a valid 10-digit mobile.', 'warn', 'Add phone'); return; }
       try {
         await MF.Api.post('rx-inbox.php', { action: 'phone', id, phone: ph });
         if (row) row.sender_phone = ph;
+        done();
         await refreshScanRx(false).catch(() => {});
+        // Bill-as must feel LIVE: if the attach form is open for THIS photo, its
+        // choices re-derive right now (match / new-with-phone), typed fields kept.
+        if (sxActive && +sxActive.id === id && !$('#sxFormWrap').hidden) {
+          sxFillCustChoices('live');
+        }
         MF.toast('Number saved — attach will now match this customer.', 'success', 'Scan & Send Rx');
       } catch (e) {
         MF.toast(e.message || 'Could not save the number.', 'err', 'Add phone');
       }
     };
     cell.querySelector('[data-save]').addEventListener('click', save);
-    cell.querySelector('[data-cancel]').addEventListener('click', paintScanRxList);
+    cell.querySelector('[data-cancel]').addEventListener('click', () => { done(); paintScanRxList(); });
     inp.addEventListener('keydown', (e) => {
       if (e.key === 'Enter') { e.preventDefault(); save(); }
-      if (e.key === 'Escape') { e.preventDefault(); paintScanRxList(); }
+      if (e.key === 'Escape') { e.preventDefault(); done(); paintScanRxList(); }
     });
   }
   // Central doctor-option refill for the Scan & Send modal — also called by the
@@ -3213,6 +3223,35 @@
     const st = pickerState['#sxDoctor'];
     if (st && st.open) pickerPaintMenu(st); // list up-to-date if the menu is open
   };
+  // Bill-as-customer choices for the active inbox photo (patient ≠ account):
+  //   ''        → keep the bill's current customer        (explicit default)
+  //   '__new__' → create a customer from patient name      (default for unknown senders;
+  //               name-only is fine when no phone — attach dedupes by exact name)
+  //   <id>      → existing customer; a unique phone match lands here pre-selected.
+  // mode 'open': also prefills the patient field from a matched account.
+  // mode 'live': called mid-form after a number gets saved on the inbox row —
+  //              re-derives choices without touching anything the cashier typed.
+  function sxFillCustChoices(mode) {
+    const selC = $('#sxCustomer'); if (!selC) return;
+    const sxPhone10 = String((sxActive && sxActive.sender_phone) || '').replace(/\D/g, '').slice(-10);
+    const sxHasPhone = sxPhone10.length === 10;
+    const hits = sxHasPhone
+      ? (D.customers || []).filter((c) => String(c.phone || '').replace(/\D/g, '').slice(-10) === sxPhone10 && c.phone)
+      : [];
+    let opts = '<option value="">— keep current bill customer —</option>';
+    if (hits.length !== 1) {
+      opts += `<option value="__new__">➕ New customer — ${sxHasPhone ? 'uses patient name + ☎ ' + MF.esc(sxActive.sender_phone) : 'uses patient name (no phone given)'}</option>`;
+    }
+    opts += (D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join('');
+    selC.innerHTML = opts;
+    if (hits.length === 1) {
+      if (mode === 'open') $('#sxPatient').value = hits[0].name;
+      selC.value = hits[0].id;
+    } else {
+      selC.value = '__new__';
+    }
+  }
+
   function sxOpenForm(id) {
     sxActive = state.rxInbox.find((r) => String(r.id) === String(id)) || null;
     if (!sxActive) return;
@@ -3221,35 +3260,9 @@
     $('#sxPatient').value = '';
     $('#sxDoctor').value = '';
     MF.refillSxDoctor();
-    // Bill-as-customer choices (patient ≠ account — father billing for the family):
-    //   ''        → keep whoever is already on the bill (explicit default)
-    //   '__new__' → create a real customer from patient name + sender phone
-    //   <id>      → existing customer; a unique phone match lands here pre-selected
-    const sxPhone10 = String(sxActive.sender_phone || '').replace(/\D/g, '').slice(-10);
-    const sxHasPhone = sxPhone10.length === 10;
-    let hits = [];
-    if (sxHasPhone) {
-      hits = (D.customers || []).filter((c) => String(c.phone || '').replace(/\D/g, '').slice(-10) === sxPhone10 && c.phone);
-    }
-    let custOpts = '<option value="">— keep current bill customer —</option>';
-    if (hits.length !== 1) {
-      // Offer a real account even with NO phone — name-only customers are perfectly
-      // valid; the attach step dedupes against an exact-name match instead of
-      // spawning clones.
-      custOpts += `<option value="__new__">➕ New customer — ${sxHasPhone ? 'uses patient name + ☎ ' + MF.esc(sxActive.sender_phone) : 'uses patient name (no phone given)'}</option>`;
-    }
-    custOpts += (D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join('');
-    $('#sxCustomer').innerHTML = custOpts;
+    sxFillCustChoices('open');
     $('#sxDate').value = MF.today();
     $('#sxAge').value = '';
-    if (hits.length === 1) {
-      // Known sender: pre-fill both halves with the matched account.
-      $('#sxPatient').value = hits[0].name;
-      $('#sxCustomer').value = hits[0].id;
-    } else {
-      // Unknown sender (phone or not): default the accountable move, visibly.
-      $('#sxCustomer').value = '__new__';
-    }
     // Live label: as the patient name is typed, the new-customer option echoes it.
     if (!$('#sxPatient').dataset.sxLiveBound) {
       $('#sxPatient').dataset.sxLiveBound = '1';
@@ -3270,6 +3283,13 @@
     if (!patient) { MF.toast('Patient name is needed on the register entry.', 'warn', 'Scan & Send Rx'); return; }
     const doctorId = $('#sxDoctor').value;
     if (!doctorId) { MF.toast('Pick the prescribing doctor.', 'warn', 'Scan & Send Rx'); return; }
+    // Age is a hard register requirement (dispensing record + child-adult dosing).
+    const sxAgeVal = parseInt($('#sxAge').value, 10);
+    if (!sxAgeVal || sxAgeVal < 1 || sxAgeVal > 120) {
+      MF.toast('Patient age is required (1–120 years).', 'warn', 'Scan & Send Rx');
+      $('#sxAge').focus();
+      return;
+    }
     // Two customers queued: the screen still holds an UNSETTLED bill. Blindly
     // auto-selecting this Rx would weld one person's script onto the previous
     // customer's bill — the silent-merge disaster. Brake first, offer the out.
@@ -3332,7 +3352,7 @@
       if (!customerId) customerId = $('#posCustomer') ? $('#posCustomer').value : '';
       const res = await MF.Api.post('prescriptions.php', {
         customer_id: customerId || 0, patient_name: patient,
-        patient_age: parseInt($('#sxAge').value, 10) || 0,
+        patient_age: sxAgeVal,
         doctor_id: doctorId, rx_date: $('#sxDate').value || MF.today(),
         diagnosis: 'Scan & Send — see attached photo', status: 'Ready',
         image_path: sxActive.image_path,
