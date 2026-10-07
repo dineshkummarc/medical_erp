@@ -2946,7 +2946,14 @@
   function paintScanRxPill() {
     const pill = $('#posScanRx'); if (!pill) return;
     $('#posScanRxTxt').textContent = state.rxInbox.length;
-    pill.classList.toggle('show', state.rxInbox.length > 0);
+    // Show whenever the API is live, even at 0 — the modal holds the
+    // "In-store QR" poster button, so it must be reachable on day one,
+    // before any customer has sent a photo yet.
+    pill.classList.toggle('show', !!(MF.Api && MF.Api.live));
+    pill.style.opacity = state.rxInbox.length ? '1' : '.55';
+    pill.title = state.rxInbox.length
+      ? 'Prescription photos waiting — click to review'
+      : 'Scan & Send Rx — open the inbox or print the in-store QR poster';
   }
   async function refreshScanRx(announce) {
     if (!(MF.Api && MF.Api.live)) return;

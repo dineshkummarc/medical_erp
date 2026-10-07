@@ -3066,7 +3066,12 @@
     host.style.display = 'none';
     document.body.appendChild(host);
     new QRCode(host, { text: url, width: 210, height: 210, correctLevel: QRCode.CorrectLevel.M });
-    const qr = host.innerHTML;
+    // Canvas pixels are NOT innerHTML — a painted <canvas> serializes empty.
+    // Bake it into a PNG data-URL <img> so the print document really carries the QR.
+    const cv = host.querySelector('canvas');
+    const qr = cv
+      ? `<img src="${cv.toDataURL('image/png')}" width="210" height="210" alt="Scan to send Rx">`
+      : host.innerHTML;
     host.remove();
     MF.printHtml(`
       <div style="max-width:380px;margin:0 auto;text-align:center;border:2px solid #176B5B;border-radius:18px;padding:26px 20px">
