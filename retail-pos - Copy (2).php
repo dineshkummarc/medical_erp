@@ -203,7 +203,6 @@ if ($cashier === '') $cashier = 'Cashier';
                 <button type="button" id="posReprintA4"><i class="bi bi-file-earmark-ruled"></i>Reprint · A4</button>
               </div>
             </span>
-            <button type="button" class="pos-lastbill" id="posRxPend" style="border-color:#f2ddc2;color:#92600a" title="Prescription-controlled sales still waiting for their Rx to be captured"><i class="bi bi-file-medical"></i><span id="posRxPendTxt">0</span></button>
           </div>
         </div>
 
@@ -282,9 +281,6 @@ if ($cashier === '') $cashier = 'Cashier';
                 <select class="form-select" id="posRx">
                   <option value="">— select prescription —</option>
                 </select>
-                <div class="pos-rx-empty" id="posRxEmpty" hidden style="margin-top:8px;padding:8px 10px;border-radius:8px;background:#fff8ed;border:1px solid #f2ddc2;color:#92600a;font-size:.78rem;line-height:1.45">
-                  <i class="bi bi-info-circle me-1"></i>No recorded prescription for this customer — the sale still goes through: pick the doctor above and bill normally (paper Rx). It will be queued for later capture.
-                </div>
                 <div class="pos-rx-meta" id="posRxMeta">Turn the switch on to attach the recorded prescription for this bill.</div>
               </div>
 
@@ -420,53 +416,6 @@ if ($cashier === '') $cashier = 'Cashier';
     </div>
   </div>
 
-  <!-- Rx capture-later queue — details only today (matches the prescriptions register). -->
-  <div class="modal fade" id="posRxPendModal" tabindex="-1" data-bs-focus="false">
-    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-width:640px">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><i class="bi bi-file-medical me-2" style="color:#92600a"></i>Rx capture — pending</h5>
-          <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
-        </div>
-        <div class="modal-body">
-          <div class="text-2 small mb-3"><i class="bi bi-camera me-1"></i>Idle-time work, not checkout work: for each sale, snap the paper Rx on your phone later from the Prescriptions page, or record its details here. Register-required schedules are flagged red — clear them before closing day-end.</div>
-          <div id="rpList"></div>
-
-          <div class="border rounded-3 p-3 mt-3" id="rpFormWrap" hidden>
-            <div class="fw-bold mb-2" id="rpFormTitle">Capture — </div>
-            <div class="row g-2">
-              <div class="col-md-6">
-                <label class="form-label">Patient name <span class="req">*</span></label>
-                <input class="form-control" id="rpPatient" placeholder="Name on the paper Rx">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label">Age</label>
-                <input class="form-control" id="rpAge" inputmode="numeric" placeholder="—">
-              </div>
-              <div class="col-6 col-md-3">
-                <label class="form-label">Phone</label>
-                <input class="form-control" id="rpPhone" inputmode="numeric" placeholder="—">
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Doctor <span class="req">*</span></label>
-                <select class="form-select" id="rpDoctor"><option value="">— select doctor —</option></select>
-              </div>
-              <div class="col-md-6">
-                <label class="form-label">Rx date</label>
-                <input class="form-control" id="rpDate" type="date">
-              </div>
-              <div class="col-12 d-flex gap-2 mt-2">
-                <button class="btn btn-mf btn-sm" id="rpSave" type="button"><i class="bi bi-check2 me-1"></i>Attach & mark captured</button>
-                <button class="btn btn-light-mf text-danger btn-sm ms-auto" id="rpManual" type="button" title="Already handled elsewhere — clear it from the queue with an audit note">Mark captured manually</button>
-                <button class="btn btn-light-mf btn-sm" id="rpCancel" type="button">Back to list</button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Quick add — one modal serves both Customer and Doctor -->
   <div class="modal fade" id="quickAddModal" tabindex="-1">
     <div class="modal-dialog">
@@ -569,7 +518,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.3"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.2"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

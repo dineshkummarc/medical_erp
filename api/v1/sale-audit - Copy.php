@@ -34,31 +34,6 @@ try {
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
 } catch (Throwable $e) { /* table creation is best-effort */ }
 
-if ($_SERVER['REQUEST_METHOD'] === 'GET') {
-    /* Read side. `?event=PENDING_RX` answers the capture-later queue: every
-       RX_CAPTURE_PENDING sale with no later RX_CAPTURED event for the same
-       invoice. Plain GET returns the last events of any kind. */
-    try {
-        $kind = strtoupper(trim((string) ($_GET['event'] ?? '')));
-        if ($kind === 'PENDING_RX') {
-            $rows = qr("SELECT a.invoice_no, a.detail, a.created_at
-                          FROM sale_audit a
-                         WHERE a.event = 'RX_CAPTURE_PENDING'
-                           AND NOT EXISTS (
-                               SELECT 1 FROM sale_audit b
-                                WHERE b.event = 'RX_CAPTURED' AND b.invoice_no = a.invoice_no
-                           )
-                         ORDER BY a.created_at DESC
-                         LIMIT 100");
-            Json::ok(['data' => ['pending' => $rows]]);
-        }
-        $rows = qr('SELECT invoice_no, event, detail, created_at FROM sale_audit ORDER BY id DESC LIMIT 50');
-        Json::ok(['data' => ['events' => $rows]]);
-    } catch (Throwable $e) {
-        Json::error('Audit read failed.', 500);
-    }
-}
-
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     Json::error('Method not allowed.', 405);
 }

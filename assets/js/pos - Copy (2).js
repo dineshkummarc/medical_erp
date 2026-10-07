@@ -2316,20 +2316,6 @@
       state.lossApproved = loss.map((x) => x.name);
     } else state.lossApproved = null;
     if (!await creditGate(t)) { MF.toast('Sale paused — adjust the payment mode or collect dues first.', 'info', 'Credit gate'); return; }
-    /* Capture-later: a prescription-controlled bill with nothing attached gets ONE
-       soft confirm (0.5 s), then the sale flows and the gap is queued after posting. */
-    let rxPendingTag = false;
-    if (state.cart.some(needsRx) && !($('#posRx') && $('#posRx').value)) {
-      const okRx = await MF.confirm({
-        title: 'No prescription attached',
-        message: 'This bill has a prescription-controlled item and no recorded prescription is attached. Bill now against the paper Rx and queue it for later capture (photo/details at idle time)?',
-        confirmText: 'Bill now, capture later',
-        cancelText: 'Go back',
-        tone: 'warning',
-      });
-      if (!okRx) return;
-      rxPendingTag = true;
-    }
     const tender = await openTender(t);
     if (!tender) return;
     state.tender = tender;
@@ -2359,17 +2345,6 @@
       }
       state.lossApproved = null;
       noteCompletedInvoice(res.invoiceNo);
-      if (rxPendingTag) {
-        const rxLines = state.cart.filter(needsRx);
-        const codes = [...new Set(rxLines.map((l) => (MF.med(l.medId) || {}).schedule).filter(Boolean))];
-        const itemsTxt = rxLines.map((l) => `${(MF.med(l.medId) || {}).name || 'Medicine'} x${l.qty}`).join('; ');
-        MF.Api.post('sale-audit.php', {
-          event: 'RX_CAPTURE_PENDING',
-          invoiceNo: res.invoiceNo,
-          detail: `${res.grandTotal ? MF.fmt(res.grandTotal) : ''} · schedules: ${codes.join(', ') || 'Rx item'} · items: ${itemsTxt} · sold by ${$('#posCustomer').selectedOptions[0]?.text || 'Walk-in'} · queued for capture`,
-        }).catch(() => { /* best effort — the sale itself is saved */ });
-        refreshRxPending();
-      }
       if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} added to customer dues`, 'info', 'Credit sale');
       state.cart = [];
       state.tender = null;
@@ -2464,14 +2439,8 @@
     });
     state.rxRows = rows;
     const current = sel.value;
-    sel.innerHTML = `<option value="">— select prescription —</option>` + rows.map((r) => {
-      const mine = customerId && String(r.customer_id || '') === String(customerId);
-      return `<option value="${MF.esc(r.id)}">${MF.esc(rxLabel(r))}${mine ? ' · this customer' : ''}</option>`;
-    }).join('');
+    sel.innerHTML = `<option value="">— select prescription —</option>` + rows.map((r) => `<option value="${MF.esc(r.id)}">${MF.esc(rxLabel(r))}</option>`).join('');
     if (current && [...sel.options].some((o) => o.value === current)) sel.value = current;
-    // Dead-end face fix: tell the cashier the blank dropdown is NOT a wall.
-    const emptyBox = $('#posRxEmpty');
-    if (emptyBox) emptyBox.hidden = rows.length > 0;
     if (state._rxBill) {
       ensureRxOption(state._rxBill);
       if (state._rxBill.rxId && [...sel.options].some((o) => String(o.value) === String(state._rxBill.rxId))) {
@@ -2765,124 +2734,6 @@
     document.addEventListener('click', (e) => { if (!wrap.contains(e.target)) pickerClose(st); });
   }
 
-  /* ===== Rx capture-later queue (Round B) =====
-   Ledger-driven: pending = RX_CAPTURE_PENDING audit rows with no later
-   RX_CAPTURED for the same invoice. Details-only capture today — it writes a
-   real row into the prescriptions register; photo storage needs a migration
-   of its own (deferred on purpose). */
-  state.rxPending = [];
-  async function refreshRxPending() {
-    if (!(MF.Api && MF.Api.live)) return;
-    try {
-      const res = await MF.Api.get('sale-audit.php?event=PENDING_RX');
-      state.rxPending = (res.data && res.data.pending) || [];
-    } catch (e) { state.rxPending = []; }
-    const pill = $('#posRxPend');
-    if (pill) {
-      $('#posRxPendTxt').textContent = state.rxPending.length;
-      pill.classList.toggle('show', state.rxPending.length > 0);
-    }
-    const modalOpen = $('#posRxPendModal')?.classList.contains('show');
-    if (modalOpen) paintRxPendingList();
-  }
-  function rpRegisterFlag(detail) {
-    const m = String(detail || '').match(/schedules:\s*([^·]+)/i);
-    const codes = m ? m[1].split(',').map((s) => s.trim()).filter(Boolean) : [];
-    return codes.filter((c) => /^(H1|X|NDPS)$/i.test(c));
-  }
-  function paintRxPendingList() {
-    const box = $('#rpList'); if (!box) return;
-    if (!state.rxPending.length) {
-      box.innerHTML = `<div class="empty-state py-4"><i class="bi bi-shield-check"></i>Queue clear — every prescription-controlled sale is captured.</div>`;
-      return;
-    }
-    box.innerHTML = state.rxPending.map((r, i) => {
-      const flag = rpRegisterFlag(r.detail);
-      const when = String(r.created_at || '').replace('T', ' ').slice(0, 16);
-      return `<div class="d-flex align-items-center gap-2 p-2 ${i ? 'border-top' : ''}">
-        <div class="flex-grow-1">
-          <div class="fw-semibold" style="font-size:.86rem">${MF.esc(r.invoice_no)} <span class="text-2" style="font-size:.72rem">${MF.esc(when)}</span></div>
-          <div class="text-2" style="font-size:.74rem">${MF.esc(String(r.detail || '').replace(/ · queued for capture$/, ''))}</div>
-        </div>
-        ${flag.length ? `<span class="badge" style="background:#FDE2E2;color:#B42318;font-size:.66rem" title="Register-required schedule — clear before day-end">Register · ${MF.esc(flag.join(', '))}</span>` : ''}
-        <button type="button" class="btn btn-mf-soft btn-sm" data-rp="${i}"><i class="bi bi-pencil-square me-1"></i>Capture</button>
-      </div>`;
-    }).join('');
-    box.querySelectorAll('[data-rp]').forEach((b) => b.addEventListener('click', () => rpOpenForm(+b.dataset.rp)));
-  }
-  let rpActive = null;
-  function rpOpenForm(i) {
-    rpActive = state.rxPending[i] || null;
-    if (!rpActive) return;
-    $('#rpFormTitle').textContent = 'Capture — ' + rpActive.invoice_no;
-    const docSel = $('#rpDoctor');
-    docSel.innerHTML = '<option value="">— select doctor —</option>' +
-      ((D.doctors || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
-    $('#rpDate').value = MF.today();
-    $('#rpFormWrap').hidden = false;
-    setTimeout(() => $('#rpPatient').focus(), 150);
-  }
-  async function rpSave() {
-    if (!rpActive) return;
-    const patient = $('#rpPatient').value.trim();
-    if (!patient) { MF.toast('Patient name is needed on the register entry.', 'warn', 'Rx capture'); return; }
-    const doctorId = $('#rpDoctor').value;
-    if (!doctorId) { MF.toast('Pick the prescribing doctor.', 'warn', 'Rx capture'); return; }
-    const btn = $('#rpSave');
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Saving…';
-    try {
-      // The register demands ≥1 medicine line — rebuild them from the sale's
-      // own queued detail ("items: A x2; B x1"); the generic fallback keeps
-      // capture unblockable even if an old-shaped row is met.
-      let items = [];
-      const m = String(rpActive.detail || '').match(/items:\s*(.+?)\s*·\s*sold by/i);
-      if (m) {
-        items = m[1].split(';').map((seg) => {
-          const mm = seg.trim().match(/^(.*)\sx(\d{1,4})$/);
-          return mm ? { name: mm[1].trim(), qty: parseInt(mm[2], 10) } : null;
-        }).filter(Boolean);
-      }
-      if (!items.length) items = [{ name: 'Prescription-controlled medicines per paper Rx (see ' + rpActive.invoice_no + ')', qty: 1 }];
-      const res = await MF.Api.post('prescriptions.php', {
-        customer_id: 0, patient_name: patient,
-        patient_age: $('#rpAge').value.trim(), patient_phone: $('#rpPhone').value.trim(),
-        doctor_id: doctorId, rx_date: $('#rpDate').value || MF.today(),
-        diagnosis: 'Counter capture for ' + rpActive.invoice_no, status: 'Ready', items,
-      });
-      await MF.Api.post('sale-audit.php', {
-        event: 'RX_CAPTURED', invoiceNo: rpActive.invoice_no,
-        detail: `Prescription registered (id ${res.id ?? '—'}) against ${rpActive.invoice_no} at capture-later queue.`,
-      });
-      MF.toast(rpActive.invoice_no + ' — prescription attached, queue cleared.', 'success', 'Rx capture');
-      $('#rpFormWrap').hidden = true; rpActive = null;
-      ['rpPatient', 'rpAge', 'rpPhone'].forEach((id) => { $('#' + id).value = ''; });
-      await refreshRxPending();
-    } catch (e) {
-      MF.toast(e.message || 'Could not save the prescription entry.', 'err', 'Rx capture');
-    } finally {
-      btn.disabled = false;
-      btn.innerHTML = '<i class="bi bi-check2 me-1"></i>Attach & mark captured';
-    }
-  }
-  async function rpMarkManual() {
-    if (!rpActive) return;
-    const ok = await MF.confirm({
-      title: 'Mark captured manually?',
-      message: rpActive.invoice_no + ' will leave the queue with an audit note saying it was handled off-screen. Use only when the prescription record was fixed elsewhere.',
-      confirmText: 'Mark captured', cancelText: 'Keep it', tone: 'warning',
-    });
-    if (!ok) return;
-    try {
-      await MF.Api.post('sale-audit.php', { event: 'RX_CAPTURED', invoiceNo: rpActive.invoice_no, detail: 'Marked captured manually from the capture-later queue (record fixed off-screen).' });
-      $('#rpFormWrap').hidden = true; rpActive = null;
-      await refreshRxPending();
-    } catch (e) {
-      MF.toast(e.message || 'Could not clear this entry.', 'err', 'Rx capture');
-    }
-  }
-
   document.addEventListener('DOMContentLoaded', async () => {
     if (!document.getElementById('posSearch')) return;
     await MF.boot();
@@ -2890,16 +2741,6 @@
     initPicker('#posCustomer', '#posAddCustomer', 'customer');
     initPicker('#posDoctor', '#posAddDoctor', 'doctor');
     initLastBillChip();
-
-    // Rx capture-later queue wiring
-    refreshRxPending();
-    $('#posRxPend')?.addEventListener('click', () => {
-      paintRxPendingList();
-      bootstrap.Modal.getOrCreateInstance($('#posRxPendModal')).show();
-    });
-    $('#rpSave')?.addEventListener('click', rpSave);
-    $('#rpManual')?.addEventListener('click', rpMarkManual);
-    $('#rpCancel')?.addEventListener('click', () => { $('#rpFormWrap').hidden = true; rpActive = null; });
 
     /* Keyboard cart editing (scope: everything 1–5). Only when focus is NOT inside
        a field or a modal — typing in the search box keeps driving search arrows. */
