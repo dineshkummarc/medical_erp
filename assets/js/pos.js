@@ -2956,7 +2956,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.8 — scan-rx doctors from live API'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.9 — scan-rx new-customer attach'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
@@ -3039,13 +3039,40 @@
     if (!sxActive) return;
     $('#sxFormTitle').textContent = 'Attach — photo #' + sxActive.id;
     MF.refillSxDoctor();
-    $('#sxCustomer').innerHTML = '<option value="">— keep current —</option>' +
-      ((D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join(''));
+    // Bill-as-customer choices (patient ≠ account — father billing for the family):
+    //   ''        → keep whoever is already on the bill (explicit default)
+    //   '__new__' → create a real customer from patient name + sender phone
+    //   <id>      → existing customer; a unique phone match lands here pre-selected
+    const sxPhone10 = String(sxActive.sender_phone || '').replace(/\D/g, '').slice(-10);
+    const sxHasPhone = sxPhone10.length === 10;
+    let hits = [];
+    if (sxHasPhone) {
+      hits = (D.customers || []).filter((c) => String(c.phone || '').replace(/\D/g, '').slice(-10) === sxPhone10 && c.phone);
+    }
+    let custOpts = '<option value="">— keep current bill customer —</option>';
+    if (sxHasPhone && hits.length !== 1) {
+      custOpts += `<option value="__new__">➕ New customer — uses patient name + ☎ ${MF.esc(sxActive.sender_phone)}</option>`;
+    }
+    custOpts += (D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join('');
+    $('#sxCustomer').innerHTML = custOpts;
     $('#sxDate').value = MF.today();
-    // Phone-number magic: a sender match pre-fills patient + customer.
-    if (sxActive.sender_phone) {
-      const hits = (D.customers || []).filter((c) => String(c.phone || '').replace(/\D/g, '').slice(-10) === String(sxActive.sender_phone).slice(-10) && c.phone);
-      if (hits.length === 1) { $('#sxPatient').value = hits[0].name; $('#sxCustomer').value = hits[0].id; }
+    if (hits.length === 1) {
+      // Known sender: pre-fill both halves with the matched account.
+      $('#sxPatient').value = hits[0].name;
+      $('#sxCustomer').value = hits[0].id;
+    } else if (sxHasPhone) {
+      // New face with a usable number → default the right move, visibly.
+      $('#sxCustomer').value = '__new__';
+    }
+    // Live label: as the patient name is typed, the new-customer option echoes it.
+    if (!$('#sxPatient').dataset.sxLiveBound) {
+      $('#sxPatient').dataset.sxLiveBound = '1';
+      $('#sxPatient').addEventListener('input', () => {
+        const o = [...$('#sxCustomer').options].find((x) => x.value === '__new__');
+        if (!o) return;
+        const nm = $('#sxPatient').value.trim();
+        o.textContent = `➕ New customer — ${nm ? '"' + nm + '" · ' : 'uses patient name + '}☎ ${(sxActive && sxActive.sender_phone) || ''}`;
+      });
     }
     $('#sxFormWrap').hidden = false;
     setTimeout(() => $('#sxPatient').focus(), 150);
@@ -3060,7 +3087,26 @@
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Attaching…';
     try {
-      const customerId = $('#sxCustomer').value || ($('#posCustomer') ? $('#posCustomer').value : '');
+      let customerId = $('#sxCustomer').value;
+      if (customerId === '__new__') {
+        // Triple-use click: one typed patient name becomes the customer record,
+        // the Rx's patient, and the bill's customer (via onRxPick just below).
+        try {
+          const cres = await MF.Api.post('customers.php', {
+            name: patient,
+            phone: String(sxActive.sender_phone || '').replace(/\D/g, ''),
+            address: '',
+          });
+          customerId = cres.id || '';
+          if (!customerId) {
+            customerId = 'C' + Date.now(); // demo fallback
+            (D.customers = D.customers || []).push({ id: customerId, name: patient, phone: sxActive.sender_phone || '' });
+          }
+        } catch (ce) {
+          throw new Error('Could not create the customer account — ' + (ce.message || 'pick an existing customer or keep current.'));
+        }
+      }
+      if (!customerId) customerId = $('#posCustomer') ? $('#posCustomer').value : '';
       const res = await MF.Api.post('prescriptions.php', {
         customer_id: customerId || 0, patient_name: patient,
         doctor_id: doctorId, rx_date: $('#sxDate').value || MF.today(),
@@ -3081,6 +3127,7 @@
       if (sel && [...sel.options].some((o) => String(o.value) === String(res.id))) {
         sel.value = String(res.id);
         await onRxPick().catch(() => {});
+        if (window.POSUI && POSUI.syncPickers) POSUI.syncPickers(); // repaint customer/doctor lookup boxes
       }
     } catch (e) {
       MF.toast(e.message || 'Could not attach this photo.', 'err', 'Scan & Send Rx');

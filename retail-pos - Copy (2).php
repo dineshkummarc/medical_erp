@@ -230,6 +230,7 @@ if ($cashier === '') $cashier = 'Cashier';
               </div>
             </span>
             <button type="button" class="pos-lastbill" id="posRxPend" style="border-color:#f2ddc2;color:#92600a" title="Prescription-controlled sales still waiting for their Rx to be captured"><i class="bi bi-file-medical"></i><span id="posRxPendTxt">0</span></button>
+            <button type="button" class="pos-lastbill" id="posScanRx" style="border-color:#c9d8f5;color:#23408e" title="Prescription photos customers sent by phone (Scan & Send Rx inbox)"><i class="bi bi-qr-code"></i><span id="posScanRxTxt">0</span></button>
           </div>
         </div>
 
@@ -493,6 +494,55 @@ if ($cashier === '') $cashier = 'Cashier';
     </div>
   </div>
 
+  <!-- Scan & Send Rx inbox — photos customers uploaded from the in-store QR -->
+  <div class="modal fade" id="posScanRxModal" tabindex="-1" data-bs-focus="false">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable" style="max-width:660px">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-qr-code me-2" style="color:#23408e"></i>Scan &amp; Send Rx — inbox</h5>
+          <button class="btn-close" data-bs-dismiss="modal" type="button"></button>
+        </div>
+        <div class="modal-body">
+          <div class="d-flex align-items-center gap-2 mb-2">
+            <div class="text-2 small flex-grow-1">Photos customers sent from their phones in-store. Attach one to the CURRENT bill — it becomes a real register entry and auto-selects in the prescription dropdown.</div>
+            <button type="button" class="btn btn-light-mf btn-sm" id="sxQrBtn" title="Print the in-store QR poster customers scan"><i class="bi bi-printer me-1"></i>In-store QR</button>
+          </div>
+          <div id="sxList"></div>
+
+          <div class="border rounded-3 p-3 mt-3" id="sxFormWrap" hidden>
+            <div class="fw-bold mb-2" id="sxFormTitle">Attach — </div>
+            <div class="row g-2">
+              <div class="col-md-6">
+                <label class="form-label">Patient name <span class="req">*</span></label>
+                <input class="form-control" id="sxPatient" placeholder="Name on the Rx">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Bill as customer</label>
+                <select class="form-select" id="sxCustomer"><option value="">— keep current —</option></select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Doctor <span class="req">*</span></label>
+                <div class="d-flex gap-1">
+                  <select class="form-select" id="sxDoctor"><option value="">— select doctor —</option></select>
+                  <button class="btn btn-light-mf" type="button" id="sxAddDoctor" title="Add new doctor"><i class="bi bi-plus-lg"></i></button>
+                </div>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Rx date</label>
+                <input class="form-control" id="sxDate" type="date">
+              </div>
+              <div class="col-12 d-flex gap-2 mt-2">
+                <button class="btn btn-mf btn-sm" id="sxAttach" type="button"><i class="bi bi-paperclip me-1"></i>Attach to current bill</button>
+                <button class="btn btn-light-mf btn-sm" id="sxBack" type="button">Back to inbox</button>
+                <button class="btn btn-light-mf text-danger btn-sm ms-auto" id="sxDismiss" type="button" title="Wrong / junk photo — remove it from the inbox">Dismiss photo</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Quick add — one modal serves both Customer and Doctor -->
   <div class="modal fade" id="quickAddModal" tabindex="-1">
     <div class="modal-dialog">
@@ -595,7 +645,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.5"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.8"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
@@ -654,7 +704,15 @@ if ($cashier === '') $cashier = 'Cashier';
             (D.doctors = D.doctors || []).push({ id, name, specialty: payload.specialty, phone: payload.phone, reg_no: reg, status: 'Active' });
             await MF.rehydrate().catch(() => {});
             if (MF.refillPosDoctors) await MF.refillPosDoctors();
-            $('#posDoctor').value = id;
+            // Scan modal open ⇒ the "+" that launched this came from its attach form:
+            // land the new doctor there unconditionally; otherwise normal main-picker flow.
+            if ($('#posScanRxModal') && $('#posScanRxModal').classList.contains('show')) {
+              window.__sxPickAfterAdd = false;
+              if (MF.refillSxDoctor) MF.refillSxDoctor(id);
+            } else {
+              window.__sxPickAfterAdd = false;
+              $('#posDoctor').value = id;
+            }
             qaModal.hide();
             MF.toast('Doctor added.', 'success');
             return;
