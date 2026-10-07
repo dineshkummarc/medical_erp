@@ -320,15 +320,6 @@ if ($method === 'POST') {
         if (!$id) {
             Json::error('Could not save the prescription.', 500);
         }
-        // Rx photo support (Scan & Send): column self-heals, the write is best-effort —
-        // a legacy table that refuses it still keeps the photo in the inbox store.
-        $imagePath = substr(trim((string) ($input['image_path'] ?? '')), 0, 190);
-        if ($imagePath !== '' && preg_match('#^rx-inbox-store/[A-Za-z0-9._-]+$#', $imagePath)) {
-            try { queryRows("ALTER TABLE prescriptions ADD COLUMN image_path VARCHAR(255) NULL"); }
-            catch (Throwable $e) { /* already there */ }
-            try { queryRows('UPDATE prescriptions SET image_path = ' . sqlStr($imagePath) . ' WHERE id = ' . $id); }
-            catch (Throwable $e) { /* refused — non-blocking */ }
-        }
         foreach ($lines as $line) {
             queryRows('INSERT INTO prescription_items (prescription_id, medicine_id, medicine_name, dosage, frequency, duration, qty, instructions)
                 VALUES (' . $id . ', '
