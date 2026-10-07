@@ -190,6 +190,18 @@ if ($cashier === '') $cashier = 'Cashier';
       background:#7c3aed; color:#fff; font-size:.6rem; font-weight:800; letter-spacing:.05em;
       padding:1px 7px 2px; border-radius:999px; box-shadow:0 2px 6px rgba(76,29,149,.3);
     }
+    /* Red = sale paused here. Distinct from the purple add-time guidance. */
+    @keyframes posRxFlagPulse {
+      0%, 100% { box-shadow:0 0 0 0 rgba(180,35,24,0); }
+      50% { box-shadow:0 0 0 7px rgba(180,35,24,.2); }
+    }
+    .pos-lookup.is-rx-flag .pos-lookup-input { border-color:#B42318; background:#fff6f5; animation:posRxFlagPulse 1.4s ease-in-out 3; }
+    .pos-lookup.is-rx-flag .pos-lookup-caret { color:#B42318; }
+    .pos-lookup.is-rx-flag::before {
+      content:"Rx !"; position:absolute; right:-6px; top:-9px; z-index:6;
+      background:#B42318; color:#fff; font-size:.6rem; font-weight:800; letter-spacing:.05em;
+      padding:1px 7px 2px; border-radius:999px; box-shadow:0 2px 6px rgba(180,35,24,.35);
+    }
   </style>
 </head>
 <body data-page="retail-pos">
@@ -583,7 +595,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.4"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.5"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

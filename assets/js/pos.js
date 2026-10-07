@@ -1357,20 +1357,25 @@
     return '';
   }
 
-  /* Rx nudge: while the cart holds a prescription-controlled item, the two pickers
-     that settle the compliance (doctor + patient) glow until BOTH are resolved.
-     Guidance without a modal — nothing stands in the checkout lane. */
+  /* Rx nudge, two tiers:
+     purple (.is-rx)      = add-time guidance, clears as fields get resolved;
+     red    (.is-rx-flag) = the complete-sale gate STOPPED on this field.
+     Nothing here blocks by itself — the gate in completeSale decides. */
+  const rxFlag = { cust: false, doc: false };
   function rxNudgeSync() {
     const custWrap = pickerState['#posCustomer'] && pickerState['#posCustomer'].wrap;
     const docWrap = pickerState['#posDoctor'] && pickerState['#posDoctor'].wrap;
     if (!custWrap || !docWrap) return;
-    if (!state.cart.some(needsRx)) {
-      custWrap.classList.remove('is-rx');
-      docWrap.classList.remove('is-rx');
-      return;
-    }
-    docWrap.classList.toggle('is-rx', !$('#posDoctor').value);
-    custWrap.classList.toggle('is-rx', String($('#posCustomer').value) === String(walkInId()));
+    const hasRx = state.cart.some(needsRx);
+    const isWalkin = String($('#posCustomer').value) === String(walkInId());
+    const docMissing = !$('#posDoctor').value;
+    if (!hasRx) { rxFlag.cust = false; rxFlag.doc = false; }
+    if (!isWalkin) rxFlag.cust = false;
+    if (!docMissing) rxFlag.doc = false;
+    custWrap.classList.toggle('is-rx-flag', hasRx && isWalkin && rxFlag.cust);
+    docWrap.classList.toggle('is-rx-flag', hasRx && docMissing && rxFlag.doc);
+    custWrap.classList.toggle('is-rx', hasRx && isWalkin && !(rxFlag.cust && isWalkin));
+    docWrap.classList.toggle('is-rx', hasRx && docMissing && !(rxFlag.doc && docMissing));
   }
 
   /* Turn the Rx switch on ourselves — scheduled drugs force it, OTC stays manual. */
@@ -2317,14 +2322,19 @@
     if (sch) {
       const doc = $('#posDoctor');
       if (!doc || !String(doc.value || '').trim()) {
-        MF.toast('Pick the prescribing doctor — mandatory for Schedule ' + sch + ' items.', 'warn', 'Rx required');
-        if (doc) doc.focus();
+        rxFlag.doc = true;
+        rxNudgeSync();
+        MF.toast('Pick the prescribing doctor — mandatory for Schedule ' + sch + ' items. It is flagged in red above.', 'warn', 'Rx required');
+        // .focus() on the ghost select = invisible; land the cursor in the live picker.
+        (pickerState['#posDoctor'] ? pickerState['#posDoctor'].input : doc).focus();
         return;
       }
       const cust = $('#posCustomer');
       if (cust && String(cust.value) === String(walkInId())) {
-        MF.toast('Patient details are mandatory for Schedule ' + sch + ' — select or add the customer above.', 'warn', 'Rx required');
-        cust.focus();
+        rxFlag.cust = true;
+        rxNudgeSync();
+        MF.toast('Patient details are mandatory for Schedule ' + sch + ' — select or add the customer in the red field above.', 'warn', 'Rx required');
+        (pickerState['#posCustomer'] ? pickerState['#posCustomer'].input : cust).focus();
         return;
       }
     }
