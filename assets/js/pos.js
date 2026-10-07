@@ -2745,6 +2745,16 @@
   }
   function pickerOpen(st) {
     if (st.open) return;
+    if (st.inModal) {
+      // Inside a Bootstrap modal the menu must escape the modal body's overflow
+      // clip: fly it to <body>, anchor fixed to the input, sit above z 1055.
+      if (st.menu.parentNode !== document.body) document.body.appendChild(st.menu);
+      const r = st.input.getBoundingClientRect();
+      Object.assign(st.menu.style, {
+        position: 'fixed', top: (r.bottom + 4) + 'px', left: r.left + 'px',
+        width: r.width + 'px', right: 'auto', zIndex: 2000,
+      });
+    }
     Object.values(pickerState).forEach((o) => { if (o !== st) o.menu.hidden = true, o.open = false; });
     st.open = true;
     pickerPaintMenu(st);
@@ -2778,6 +2788,12 @@
       `<input class="pos-lookup-input" type="text" autocomplete="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true" placeholder="Type to search ${kind}…" role="combobox" aria-expanded="false" aria-haspopup="listbox" aria-label="Search ${kind}"><i class="bi bi-chevron-down pos-lookup-caret"></i><div class="pos-lookup-menu" role="listbox" hidden></div>`);
     const st = pickerState[selId] = { selId, sel, wrap, kind, addBtnId, list: [], hot: -1, open: false,
       input: wrap.querySelector('input'), menu: wrap.querySelector('.pos-lookup-menu') };
+    st.inModal = !!wrap.closest('.modal'); // fixed-position flyout mode inside modals
+    if (st.inModal) {
+      // A flown-out menu must not orphan itself when anything scrolls around it.
+      document.addEventListener('scroll', (e) => { if (st.open && !st.menu.contains(e.target)) pickerClose(st); }, true);
+      window.addEventListener('resize', () => { if (st.open) pickerClose(st); });
+    }
     pickerSyncLabel(selId);
     st.input.addEventListener('focus', () => { st.input.select(); pickerOpen(st); });
     st.input.addEventListener('click', () => { if (!st.open) pickerOpen(st); });
@@ -3002,6 +3018,8 @@
         .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
     if (keep) sel.value = keep;
     sel.dispatchEvent(new Event('change', { bubbles: true })); // repaints the picker input
+    const st = pickerState['#sxDoctor'];
+    if (st && st.open) pickerPaintMenu(st); // list up-to-date if the menu is open
   };
   function sxOpenForm(id) {
     sxActive = state.rxInbox.find((r) => String(r.id) === String(id)) || null;

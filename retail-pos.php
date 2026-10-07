@@ -704,8 +704,9 @@ if ($cashier === '') $cashier = 'Cashier';
             (D.doctors = D.doctors || []).push({ id, name, specialty: payload.specialty, phone: payload.phone, reg_no: reg, status: 'Active' });
             await MF.rehydrate().catch(() => {});
             if (MF.refillPosDoctors) await MF.refillPosDoctors();
-            // Scan & Send attach asked for this doctor (its "+" button) — land it there.
-            if (window.__sxPickAfterAdd && $('#posScanRxModal')?.classList.contains('show')) {
+            // Scan modal open ⇒ the "+" that launched this came from its attach form:
+            // land the new doctor there unconditionally; otherwise normal main-picker flow.
+            if ($('#posScanRxModal') && $('#posScanRxModal').classList.contains('show')) {
               window.__sxPickAfterAdd = false;
               if (MF.refillSxDoctor) MF.refillSxDoctor(id);
             } else {
