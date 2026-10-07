@@ -2763,9 +2763,7 @@
     pickerClose(st, false);
     pickerSyncLabel(st.selId);
     rxNudgeSync(); // a field just got settled — the glow may clear
-    // Inside the Scan & Send modal, stay put — yanking focus to the bill search
-    // would kick the user out of the attach form mid-flow.
-    if (!$('#posScanRxModal')?.classList.contains('show')) $('#posSearch').focus();
+    $('#posSearch').focus();
   }
   function initPicker(selId, addBtnId, kind) {
     const sel = $(selId); if (!sel || pickerState[selId]) return;
@@ -2798,7 +2796,7 @@
         else pickerClose(st);
         return;
       }
-      if (e.key === 'Escape') { e.stopPropagation(); pickerClose(st); if (!$('#posScanRxModal')?.classList.contains('show')) $('#posSearch').focus(); }
+      if (e.key === 'Escape') { e.stopPropagation(); pickerClose(st); $('#posSearch').focus(); }
     });
     st.menu.addEventListener('mousedown', (e) => e.preventDefault()); // keep input focus while clicking
     st.menu.addEventListener('click', (e) => {
@@ -2992,22 +2990,13 @@
     box.querySelectorAll('[data-sx]').forEach((b) => b.addEventListener('click', () => sxOpenForm(b.dataset.sx)));
     box.querySelectorAll('[data-sximg]').forEach((img) => img.addEventListener('click', () => window.open(img.dataset.sximg, '_blank')));
   }
-  // Central doctor-option refill for the Scan & Send modal — also called by the
-  // inline quick-add flow after a doctor is created mid-attach.
-  MF.refillSxDoctor = function (preferId) {
-    const sel = $('#sxDoctor'); if (!sel) return;
-    const keep = preferId || sel.value;
-    sel.innerHTML = '<option value="">— select doctor —</option>' +
-      ((D.doctors || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
-    if (keep) sel.value = keep;
-    sel.dispatchEvent(new Event('change', { bubbles: true })); // repaints the picker input
-  };
   function sxOpenForm(id) {
     sxActive = state.rxInbox.find((r) => String(r.id) === String(id)) || null;
     if (!sxActive) return;
     $('#sxFormTitle').textContent = 'Attach — photo #' + sxActive.id;
-    MF.refillSxDoctor();
+    $('#sxDoctor').innerHTML = '<option value="">— select doctor —</option>' +
+      ((D.doctors || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
+        .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
     $('#sxCustomer').innerHTML = '<option value="">— keep current —</option>' +
       ((D.customers || []).map((c) => `<option value="${MF.esc(c.id)}">${MF.esc(c.name)}</option>`).join(''));
     $('#sxDate').value = MF.today();
@@ -3100,7 +3089,6 @@
 
     initPicker('#posCustomer', '#posAddCustomer', 'customer');
     initPicker('#posDoctor', '#posAddDoctor', 'doctor');
-    initPicker('#sxDoctor', '#sxAddDoctor', 'doctor'); // same searchable picker inside the Scan & Send modal
     initLastBillChip();
 
     // Rx capture-later queue wiring
@@ -3121,12 +3109,6 @@
       bootstrap.Modal.getOrCreateInstance($('#posScanRxModal')).show();
     });
     $('#sxQrBtn')?.addEventListener('click', printScanRxPoster);
-    // "+" in the scan modal reuses the stock quick-add modal; the flag tells the
-    // inline save handler to land the new doctor here instead of the main picker.
-    $('#sxAddDoctor')?.addEventListener('click', () => {
-      window.__sxPickAfterAdd = true;
-      $('#posAddDoctor')?.click();
-    });
     $('#sxAttach')?.addEventListener('click', sxAttach);
     $('#sxBack')?.addEventListener('click', () => { $('#sxFormWrap').hidden = true; sxActive = null; });
     $('#sxDismiss')?.addEventListener('click', sxDismiss);

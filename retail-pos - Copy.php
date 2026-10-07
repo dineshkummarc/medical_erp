@@ -522,10 +522,7 @@ if ($cashier === '') $cashier = 'Cashier';
               </div>
               <div class="col-md-6">
                 <label class="form-label">Doctor <span class="req">*</span></label>
-                <div class="d-flex gap-1">
-                  <select class="form-select" id="sxDoctor"><option value="">— select doctor —</option></select>
-                  <button class="btn btn-light-mf" type="button" id="sxAddDoctor" title="Add new doctor"><i class="bi bi-plus-lg"></i></button>
-                </div>
+                <select class="form-select" id="sxDoctor"><option value="">— select doctor —</option></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Rx date</label>
@@ -704,14 +701,7 @@ if ($cashier === '') $cashier = 'Cashier';
             (D.doctors = D.doctors || []).push({ id, name, specialty: payload.specialty, phone: payload.phone, reg_no: reg, status: 'Active' });
             await MF.rehydrate().catch(() => {});
             if (MF.refillPosDoctors) await MF.refillPosDoctors();
-            // Scan & Send attach asked for this doctor (its "+" button) — land it there.
-            if (window.__sxPickAfterAdd && $('#posScanRxModal')?.classList.contains('show')) {
-              window.__sxPickAfterAdd = false;
-              if (MF.refillSxDoctor) MF.refillSxDoctor(id);
-            } else {
-              window.__sxPickAfterAdd = false;
-              $('#posDoctor').value = id;
-            }
+            $('#posDoctor').value = id;
             qaModal.hide();
             MF.toast('Doctor added.', 'success');
             return;
