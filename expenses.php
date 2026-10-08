@@ -8,6 +8,8 @@ require __DIR__ . '/middleware/auth.php';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- FIX: IIFE must be async (top-level await broke the whole script, button was dead) -->
+  <!-- build 2026-10-08.23 - resilient load + inline new category -->
   <title>Expenses · OPTMS-RX</title>
   <link rel="icon" href="assets/images/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -64,13 +66,16 @@ require __DIR__ . '/middleware/auth.php';
     </div>
   </div>
 
-  <div class="modal fade" id="exModal" tabindex="-1">
+  <div class="modal fade" id="exModal" tabindex="-1" data-bs-focus="false">
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header"><h5 class="modal-title">Add Expense</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
         <div class="modal-body">
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">Category <span class="req">*</span></label><select class="form-select" id="exCategory"></select></div>
+          </div>
+          <div class="row g-2 mb-2" id="exNewCatRow" hidden>
+            <div class="col-12"><label class="form-label">New category name <span class="req">*</span></label><input class="form-control" id="exNewCatName" placeholder="e.g. Internet bill" maxlength="60"></div>
             <div class="col-6"><label class="form-label">Amount (₹) <span class="req">*</span></label><input type="number" class="form-control" id="exAmount" min="1"></div>
           </div>
           <div class="row g-2 mb-2">
@@ -95,7 +100,7 @@ require __DIR__ . '/middleware/auth.php';
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
-    (function () {
+    (async function () {
       const MF = window.MF;
       const $ = (s) => document.querySelector(s);
       let rows = [], categories = [];
@@ -104,10 +109,21 @@ require __DIR__ . '/middleware/auth.php';
       $('#exTo').value = MF.today();
       $('#exDate').value = MF.today();
 
+      const NEW_CAT = '__new';
+      function paintCategories() {
+        $('#exCategory').innerHTML =
+          categories.map((c) => `<option value="${c.id}">${MF.esc(c.name)}</option>`).join('') +
+          `<option value="${NEW_CAT}">＋ New category…</option>`;
+      }
       async function load() {
-        const res = await MF.Api.get(`expenses.php?from=${$('#exFrom').value}&to=${$('#exTo').value}`);
-        rows = res.data; categories = res.categories;
-        $('#exCategory').innerHTML = categories.map((c) => `<option value="${c.id}">${MF.esc(c.name)}</option>`).join('');
+        try {
+          const res = await MF.Api.get(`expenses.php?from=${$('#exFrom').value}&to=${$('#exTo').value}`);
+          rows = res.data || []; categories = res.categories || [];
+        } catch (err) {
+          rows = [];
+          MF.toast(err.message || 'Could not load expenses.', 'danger', 'Expenses');
+        }
+        paintCategories();
         render();
       }
 
@@ -158,21 +174,37 @@ require __DIR__ . '/middleware/auth.php';
 
       $('#exAddBtn').addEventListener('click', () => {
         $('#exAmount').value = ''; $('#exNote').value = ''; $('#exDate').value = MF.today();
+        $('#exCategory').value = categories.length ? String(categories[0].id) : NEW_CAT;
+        $('#exNewCatRow').hidden = $('#exCategory').value !== NEW_CAT;
         new bootstrap.Modal($('#exModal')).show();
+      });
+      $('#exCategory').addEventListener('change', () => {
+        $('#exNewCatRow').hidden = $('#exCategory').value !== NEW_CAT;
       });
       $('#exSave').addEventListener('click', async () => {
         const amount = parseFloat($('#exAmount').value) || 0;
         if (amount <= 0) { MF.toast('Enter a valid amount.', 'warn'); return; }
+        const catVal = $('#exCategory').value;
+        const payload = { amount, date: $('#exDate').value, mode: $('#exMode').value, note: $('#exNote').value.trim() };
+        if (catVal === NEW_CAT) {
+          const nm = $('#exNewCatName').value.trim();
+          if (nm.length < 2) { MF.toast('Name the new category.', 'warn'); return; }
+          payload.categoryName = nm;
+        } else {
+          payload.categoryId = parseInt(catVal, 10) || 0;
+        }
+        $('#exSave').disabled = true;
         try {
-          await MF.Api.post('expenses.php', {
-            categoryId: $('#exCategory').value, amount, date: $('#exDate').value,
-            mode: $('#exMode').value, note: $('#exNote').value.trim(),
-          });
+          const res = await MF.Api.post('expenses.php', payload);
+          if (res && res.categories) categories = res.categories;
           bootstrap.Modal.getInstance($('#exModal')).hide();
           MF.toast('Expense recorded.', 'success');
+          paintCategories();
           load();
         } catch (err) {
           MF.toast(err.message || 'Could not save expense.', 'danger');
+        } finally {
+          $('#exSave').disabled = false;
         }
       });
 

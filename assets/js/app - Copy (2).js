@@ -401,9 +401,9 @@ window.MF = window.MF || {};
     },
     {
       label: 'Accounts', icon: 'wallet2', items: [
-        { label: 'Payments', icon: 'credit-card-2-front', page: 'payments', href: 'payments.php' },
+        { label: 'Payments', icon: 'credit-card-2-front', stub: true },
         { label: 'Expenses', icon: 'cash-coin', page: 'expenses', href: 'expenses.php' },
-        { label: 'Cash Book', icon: 'journal-text', page: 'cash-book', href: 'cash-book.php' },
+        { label: 'Cash Book', icon: 'journal-text', stub: true },
         { label: 'GST', icon: 'percent', href: 'reports.php?tab=gst&view=summary' }
       ]
     },
