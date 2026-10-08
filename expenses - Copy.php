@@ -56,8 +56,7 @@ require __DIR__ . '/middleware/auth.php';
           </div>
           <div class="col-lg-4">
             <div class="card-mf">
-              <div class="card-head"><h2 class="card-title"><i class="bi bi-pie-chart"></i>By Category</h2>
-                <div class="card-tools"><button class="btn btn-sm btn-light-mf" id="exCatManage" type="button"><i class="bi bi-gear me-1"></i>Manage</button></div></div>
+              <div class="card-head"><h2 class="card-title"><i class="bi bi-pie-chart"></i>By Category</h2></div>
               <div class="p-3" id="exByCategory"></div>
             </div>
           </div>
@@ -90,19 +89,6 @@ require __DIR__ . '/middleware/auth.php';
           <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
           <button class="btn btn-mf" id="exSave">Save Expense</button>
         </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="modal fade" id="exCatModal" tabindex="-1" data-bs-focus="false">
-    <div class="modal-dialog modal-dialog-scrollable">
-      <div class="modal-content">
-        <div class="modal-header"><h5 class="modal-title">Manage Expense Categories</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
-        <div class="modal-body">
-          <div class="text-2 mb-2" style="font-size:.72rem"><i class="bi bi-info-circle me-1"></i>Renames are safe — expenses follow the category, not its name. Merge moves every expense into the target and retires the empty one. Only unused categories can be deleted.</div>
-          <div id="exCatList"></div>
-        </div>
-        <div class="modal-footer"><button class="btn btn-light-mf" data-bs-dismiss="modal">Close</button></div>
       </div>
     </div>
   </div>
@@ -219,72 +205,6 @@ require __DIR__ . '/middleware/auth.php';
           MF.toast(err.message || 'Could not save expense.', 'danger');
         } finally {
           $('#exSave').disabled = false;
-        }
-      });
-
-      /* ===== Category manager — rename / merge / delete-if-unused ===== */
-      async function paintCatList() {
-        const box = $('#exCatList');
-        box.innerHTML = '<div class="text-2 small py-3 text-center">Reading categories…</div>';
-        let list = [];
-        try {
-          const res = await MF.Api.get('expenses.php?categories=1');
-          list = res.data || [];
-        } catch (err) {
-          box.innerHTML = `<div class="empty-state py-3"><i class="bi bi-tags"></i>${MF.esc(err.message || 'Could not read categories.')}</div>`;
-          return;
-        }
-        box.innerHTML = list.length ? list.map((c) => `
-          <div class="d-flex align-items-center gap-2 py-2" style="border-bottom:1px dashed #EFF2F6" data-cid="${c.id}">
-            <div style="flex:1;min-width:0">
-              <input class="form-control form-control-sm" data-cname value="${MF.esc(c.name).replace(/"/g, '&quot;')}" maxlength="60">
-              <div class="text-2" style="font-size:.68rem;margin-top:2px">${c.used} expense${c.used === 1 ? '' : 's'} · ₹${MF.fmt(c.total)} recorded</div>
-            </div>
-            <button class="btn btn-sm btn-light-mf" data-act="rename" title="Save new name"><i class="bi bi-check2"></i></button>
-            <select class="form-select form-select-sm" style="width:132px" data-target title="Merge target">
-              ${list.filter((x) => x.id !== c.id).map((x) => `<option value="${x.id}">${MF.esc(x.name)}</option>`).join('') || '<option value="">—</option>'}
-            </select>
-            <button class="btn btn-sm btn-light-mf" data-act="merge" title="Merge into the selected category" ${c.used && list.length > 1 ? '' : 'disabled'}><i class="bi bi-arrow-right-circle"></i></button>
-            <button class="btn btn-sm btn-light-mf text-danger" data-act="delete" title="${c.used ? 'Used by expenses — merge instead' : 'Delete category'}" ${c.used ? 'disabled' : ''}><i class="bi bi-trash3"></i></button>
-          </div>`).join('') : '<div class="empty-state py-3"><i class="bi bi-tags"></i>No categories yet.</div>';
-      }
-      $('#exCatManage').addEventListener('click', () => {
-        new bootstrap.Modal($('#exCatModal')).show();
-        paintCatList();
-      });
-      $('#exCatList').addEventListener('click', async (e) => {
-        const btn = e.target.closest('[data-act]');
-        if (!btn || btn.disabled) return;
-        const row = btn.closest('[data-cid]');
-        const cid = +row.dataset.cid;
-        const act = btn.dataset.act;
-        btn.disabled = true;
-        try {
-          if (act === 'rename') {
-            const name = row.querySelector('[data-cname]').value.trim();
-            if (name.length < 2) { MF.toast('Name the category.', 'warn'); return; }
-            await MF.Api.put('expenses.php', { categoryId: cid, name });
-            MF.toast('Category renamed.', 'success');
-          } else if (act === 'merge') {
-            const toId = +row.querySelector('[data-target]').value;
-            if (!toId) { MF.toast('Pick a target category.', 'warn'); return; }
-            const ok = await MF.confirm({ title: 'Merge this category?', message: 'Its expenses move into the target and the empty category retires. This cannot be undone.', confirmText: 'Merge', tone: 'warn' });
-            if (!ok) return;
-            await MF.Api.post('expenses.php', { action: 'merge', fromId: cid, toId });
-            MF.toast('Categories merged.', 'success');
-          } else if (act === 'delete') {
-            const ok = await MF.confirm({ title: 'Delete this unused category?', confirmText: 'Delete', tone: 'danger' });
-            if (!ok) return;
-            await MF.Api.del('expenses.php?categoryId=' + cid);
-            MF.toast('Category deleted.', 'success');
-          }
-          await paintCatList();
-          load();
-        } catch (err) {
-          MF.toast(err.message || 'Action failed.', 'danger');
-          await paintCatList();
-        } finally {
-          btn.disabled = false;
         }
       });
 

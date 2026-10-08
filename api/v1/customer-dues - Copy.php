@@ -14,12 +14,12 @@ if ($_SERVER['REQUEST_METHOD'] !== 'GET') {
 }
 
 /**
- * Supplier dues. Not the due report.
- * Reads v_supplier_dues from database/migrations/2026_09_26_supplier_dues.sql.
+ * Customer dues. Not the due report.
+ * Reads v_customer_dues from database/migrations/2026_09_26_customer_dues.sql.
  * Falls back to the same joins if the views have not been created yet.
  *
- * Due is the stored purchase balance. A payment already saved on the bill
- * (amount_paid) is not subtracted again. Only supplier payments above that
+ * Due is the stored sale balance. A payment already saved on the bill
+ * (amount_paid) is not subtracted again. Only customer payments above that
  * reduce the outstanding amount.
  */
 function queryRows(string $sql): array
@@ -28,52 +28,52 @@ function queryRows(string $sql): array
     return is_array($rows) ? $rows : [];
 }
 
-function supplierRows(): array
+function customerRows(): array
 {
-    $sql = 'SELECT supplier_id, supplier_name, phone, gstin, dl_no, address,
+    $sql = 'SELECT customer_id, customer_name, customer_type, phone, gstin, dl_no, address,
                    bill_count, open_bills, billed, amount_paid, balance_due,
-                   return_credit, payments, oldest_open
-            FROM v_supplier_dues';
+                   refund_amount, payments, oldest_open
+            FROM v_customer_dues';
     try {
         return queryRows($sql);
     } catch (Throwable $e) {
-        $fallback = 'SELECT s.id AS supplier_id, s.name AS supplier_name,
-                COALESCE(s.phone, \'\') AS phone,
-                COALESCE(s.gstin, \'\') AS gstin,
-                COALESCE(s.dl_no, \'\') AS dl_no,
-                COALESCE(s.address, \'\') AS address,
+        $fallback = 'SELECT c.id AS customer_id, c.name AS customer_name, c.type AS customer_type,
+                COALESCE(c.phone, \'\') AS phone,
+                COALESCE(c.gstin, \'\') AS gstin,
+                COALESCE(c.dl_no, \'\') AS dl_no,
+                COALESCE(c.address, \'\') AS address,
                 COALESCE(b.bill_count, 0) AS bill_count,
                 COALESCE(b.open_bills, 0) AS open_bills,
                 COALESCE(b.billed, 0) AS billed,
                 COALESCE(b.amount_paid, 0) AS amount_paid,
                 COALESCE(b.balance_due, 0) AS balance_due,
-                COALESCE(b.return_credit, 0) AS return_credit,
+                COALESCE(b.refund_amount, 0) AS refund_amount,
                 COALESCE(pay.payments, 0) AS payments,
                 b.oldest_open AS oldest_open
-             FROM suppliers s
+             FROM customers c
              LEFT JOIN (
-               SELECT p.supplier_id AS supplier_id,
+               SELECT s.customer_id AS customer_id,
                       COUNT(*) AS bill_count,
-                      SUM(CASE WHEN p.balance_due > 0 THEN 1 ELSE 0 END) AS open_bills,
-                      COALESCE(SUM(p.grand_total), 0) AS billed,
-                      COALESCE(SUM(p.amount_paid), 0) AS amount_paid,
-                      COALESCE(SUM(p.balance_due), 0) AS balance_due,
-                      COALESCE(SUM(r.credit_amount), 0) AS return_credit,
-                      MIN(CASE WHEN p.balance_due > 0 THEN p.invoice_date END) AS oldest_open
-               FROM purchases p
+                      SUM(CASE WHEN s.balance_due > 0 THEN 1 ELSE 0 END) AS open_bills,
+                      COALESCE(SUM(s.grand_total), 0) AS billed,
+                      COALESCE(SUM(s.amount_paid), 0) AS amount_paid,
+                      COALESCE(SUM(s.balance_due), 0) AS balance_due,
+                      COALESCE(SUM(r.refund_amount), 0) AS refund_amount,
+                      MIN(CASE WHEN s.balance_due > 0 THEN s.sale_date END) AS oldest_open
+               FROM sales s
                LEFT JOIN (
-                 SELECT purchase_id, COALESCE(SUM(credit_amount), 0) AS credit_amount
-                 FROM purchase_returns
-                 GROUP BY purchase_id
-               ) r ON r.purchase_id = p.id
-               GROUP BY p.supplier_id
-             ) b ON b.supplier_id = s.id
+                 SELECT sale_id, COALESCE(SUM(refund_amount), 0) AS refund_amount
+                 FROM sales_returns
+                 GROUP BY sale_id
+               ) r ON r.sale_id = s.id
+               GROUP BY s.customer_id
+             ) b ON b.customer_id = c.id
              LEFT JOIN (
                SELECT party_id, COALESCE(SUM(amount), 0) AS payments
                FROM payments
-               WHERE party_type = \'supplier\'
+               WHERE party_type = \'customer\'
                GROUP BY party_id
-             ) pay ON pay.party_id = s.id
+             ) pay ON pay.party_id = c.id
              WHERE b.bill_count > 0 OR pay.payments > 0';
         return queryRows($fallback);
     }
@@ -81,25 +81,25 @@ function supplierRows(): array
 
 function billRows(): array
 {
-    $sql = 'SELECT id, supplier_id, supplier_name, phone, gstin, invoice_no, invoice_date,
-                   payment_mode, grand_total, amount_paid, balance_due, return_credit
-            FROM v_supplier_due_bills';
+    $sql = 'SELECT id, customer_id, customer_name, customer_type, phone, invoice_no, sale_date,
+                   channel, payment_mode, grand_total, amount_paid, balance_due, refund_amount
+            FROM v_customer_due_bills';
     try {
         return queryRows($sql);
     } catch (Throwable $e) {
-        $fallback = 'SELECT p.id AS id, p.supplier_id AS supplier_id, s.name AS supplier_name,
-                COALESCE(s.phone, \'\') AS phone, COALESCE(s.gstin, \'\') AS gstin,
-                p.invoice_no AS invoice_no, p.invoice_date AS invoice_date,
-                p.payment_mode AS payment_mode, p.grand_total AS grand_total,
-                p.amount_paid AS amount_paid, p.balance_due AS balance_due,
-                COALESCE(r.credit_amount, 0) AS return_credit
-             FROM purchases p
-             JOIN suppliers s ON s.id = p.supplier_id
+        $fallback = 'SELECT s.id AS id, s.customer_id AS customer_id, c.name AS customer_name,
+                c.type AS customer_type, COALESCE(c.phone, \'\') AS phone,
+                s.invoice_no AS invoice_no, s.sale_date AS sale_date, s.channel AS channel,
+                s.payment_mode AS payment_mode, s.grand_total AS grand_total,
+                s.amount_paid AS amount_paid, s.balance_due AS balance_due,
+                COALESCE(r.refund_amount, 0) AS refund_amount
+             FROM sales s
+             JOIN customers c ON c.id = s.customer_id
              LEFT JOIN (
-               SELECT purchase_id, COALESCE(SUM(credit_amount), 0) AS credit_amount
-               FROM purchase_returns
-               GROUP BY purchase_id
-             ) r ON r.purchase_id = p.id';
+               SELECT sale_id, COALESCE(SUM(refund_amount), 0) AS refund_amount
+               FROM sales_returns
+               GROUP BY sale_id
+             ) r ON r.sale_id = s.id';
         return queryRows($fallback);
     }
 }
@@ -108,7 +108,7 @@ function paymentRows(): array
 {
     return queryRows('SELECT id, party_id, amount, mode, payment_date, note
         FROM payments
-        WHERE party_type = \'supplier\'');
+        WHERE party_type = \'customer\'');
 }
 
 function money(array $row, string $key): float
@@ -155,12 +155,14 @@ function positionOf(array $row): string
     return 'Due';
 }
 
-function shapeSupplier(array $row): array
+function shapeCustomer(array $row): array
 {
     $oldest = dateOnly($row['oldest_open'] ?? '');
+    $type = strtolower((string) ($row['customer_type'] ?? 'retail')) === 'wholesale' ? 'wholesale' : 'retail';
     $shaped = [
-        'supplier_id' => (int) ($row['supplier_id'] ?? 0),
-        'supplier_name' => (string) ($row['supplier_name'] ?? ''),
+        'customer_id' => (int) ($row['customer_id'] ?? 0),
+        'customer_name' => (string) ($row['customer_name'] ?? ''),
+        'customer_type' => $type,
         'phone' => (string) ($row['phone'] ?? ''),
         'gstin' => (string) ($row['gstin'] ?? ''),
         'dl_no' => (string) ($row['dl_no'] ?? ''),
@@ -170,36 +172,33 @@ function shapeSupplier(array $row): array
         'billed' => money($row, 'billed'),
         'amount_paid' => money($row, 'amount_paid'),
         'balance_due' => money($row, 'balance_due'),
-        'return_credit' => money($row, 'return_credit'),
+        'refund_amount' => money($row, 'refund_amount'),
         'payments' => money($row, 'payments'),
         'oldest_open' => $oldest,
         'age_days' => ageDays($oldest),
     ];
     $shaped['outstanding'] = outstanding($shaped);
-    $extraPaid = max(0, money($shaped, 'payments') - money($shaped, 'amount_paid'));
-    $shaped['advance'] = round(max(0, $extraPaid - money($shaped, 'balance_due')), 2);
     $shaped['position'] = positionOf($shaped);
-    if ($shaped['advance'] > 0.009 && $shaped['outstanding'] <= 0.009) {
-        $shaped['position'] = 'Advance';
-    }
     return $shaped;
 }
 
 function shapeBill(array $row): array
 {
-    $date = dateOnly($row['invoice_date'] ?? '');
+    $date = dateOnly($row['sale_date'] ?? '');
+    $channel = strtolower((string) ($row['channel'] ?? 'retail')) === 'wholesale' ? 'wholesale' : 'retail';
     return [
         'id' => (int) ($row['id'] ?? 0),
-        'supplier_id' => (int) ($row['supplier_id'] ?? 0),
-        'supplier_name' => (string) ($row['supplier_name'] ?? ''),
+        'customer_id' => (int) ($row['customer_id'] ?? 0),
+        'customer_name' => (string) ($row['customer_name'] ?? ''),
         'invoice_no' => (string) ($row['invoice_no'] ?? ''),
-        'invoice_date' => $date,
+        'sale_date' => $date,
         'age_days' => ageDays($date),
+        'channel' => $channel,
         'payment_mode' => (string) ($row['payment_mode'] ?? ''),
         'grand_total' => money($row, 'grand_total'),
         'amount_paid' => money($row, 'amount_paid'),
         'balance_due' => money($row, 'balance_due'),
-        'return_credit' => money($row, 'return_credit'),
+        'refund_amount' => money($row, 'refund_amount'),
     ];
 }
 
@@ -207,7 +206,7 @@ function shapePayment(array $row): array
 {
     return [
         'id' => (int) ($row['id'] ?? 0),
-        'supplier_id' => (int) ($row['party_id'] ?? 0),
+        'customer_id' => (int) ($row['party_id'] ?? 0),
         'amount' => money($row, 'amount'),
         'mode' => (string) ($row['mode'] ?? ''),
         'payment_date' => dateOnly($row['payment_date'] ?? ''),
@@ -215,18 +214,18 @@ function shapePayment(array $row): array
     ];
 }
 
-$suppliers = array_map('shapeSupplier', supplierRows());
-usort($suppliers, function (array $a, array $b): int {
+$customers = array_map('shapeCustomer', customerRows());
+usort($customers, function (array $a, array $b): int {
     $due = $b['outstanding'] <=> $a['outstanding'];
     if ($due !== 0) {
         return $due;
     }
-    return strcasecmp($a['supplier_name'], $b['supplier_name']);
+    return strcasecmp($a['customer_name'], $b['customer_name']);
 });
 
 $bills = array_map('shapeBill', billRows());
 usort($bills, function (array $a, array $b): int {
-    return strcmp($a['invoice_date'], $b['invoice_date']);
+    return strcmp($a['sale_date'], $b['sale_date']);
 });
 
 $payments = [];
@@ -241,43 +240,39 @@ usort($payments, function (array $a, array $b): int {
 
 $id = (int) ($_GET['id'] ?? 0);
 if ($id > 0) {
-    $supplier = null;
-    foreach ($suppliers as $row) {
-        if ((int) $row['supplier_id'] === $id) {
-            $supplier = $row;
+    $customer = null;
+    foreach ($customers as $row) {
+        if ((int) $row['customer_id'] === $id) {
+            $customer = $row;
             break;
         }
     }
-    if (!$supplier) {
-        Json::error('Supplier not found.', 404);
+    if (!$customer) {
+        Json::error('Customer not found.', 404);
     }
-    $supplierBills = array_values(array_filter($bills, fn ($row) => (int) $row['supplier_id'] === $id));
-    $supplierPayments = array_values(array_filter($payments, fn ($row) => (int) $row['supplier_id'] === $id));
     Json::ok(['data' => [
-        'supplier' => $supplier,
-        'bills' => $supplierBills,
-        'payments' => $supplierPayments,
+        'customer' => $customer,
+        'bills' => array_values(array_filter($bills, fn ($row) => (int) $row['customer_id'] === $id)),
+        'payments' => array_values(array_filter($payments, fn ($row) => (int) $row['customer_id'] === $id)),
     ]]);
 }
 
 $summary = [
-    'suppliers' => count($suppliers),
+    'customers' => count($customers),
     'with_due' => 0,
     'overdue' => 0,
     'settled' => 0,
     'outstanding' => 0.0,
-    'advance' => 0.0,
     'open_bills' => 0,
     'billed' => 0.0,
     'payments' => 0.0,
 ];
-foreach ($suppliers as $row) {
+foreach ($customers as $row) {
     $summary['outstanding'] += $row['outstanding'];
-    $summary['advance'] += (float) ($row['advance'] ?? 0);
     $summary['open_bills'] += $row['open_bills'];
     $summary['billed'] += $row['billed'];
     $summary['payments'] += $row['payments'];
-    if ($row['position'] === 'Settled' || $row['position'] === 'Advance') {
+    if ($row['position'] === 'Settled') {
         $summary['settled']++;
     } else {
         $summary['with_due']++;
@@ -289,7 +284,7 @@ foreach ($suppliers as $row) {
 
 Json::ok(['data' => [
     'summary' => $summary,
-    'suppliers' => $suppliers,
+    'customers' => $customers,
     'bills' => $bills,
     'payments' => $payments,
 ]]);

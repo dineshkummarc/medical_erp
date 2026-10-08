@@ -129,7 +129,6 @@ require __DIR__ . '/middleware/auth.php';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
-  <script src="assets/js/qrcode.min.js"></script>
   <script>
     (function () {
       const MF = window.MF, D = window.MF_DATA || {};
@@ -163,17 +162,9 @@ require __DIR__ . '/middleware/auth.php';
         return Math.max(0, Math.round((balance - Math.max(0, payments - paidOnBills)) * 100) / 100);
       }
 
-      /* Advance = money already in the ledger beyond what bills owe.
-         Future bills auto-absorb it (outstanding math already counts it). */
-      function advOf(r) {
-        if (r.advance != null) return Number(r.advance) || 0;
-        const extra = Math.max(0, (Number(r.payments) || 0) - (Number(r.amount_paid) || 0));
-        return Math.max(0, Math.round((extra - (Number(r.balance_due) || 0)) * 100) / 100);
-      }
-
       function positionOf(row) {
         const due = Number(row.outstanding) || 0;
-        if (due <= 0.009) return advOf(row) > 0.009 ? 'Advance' : 'Settled';
+        if (due <= 0.009) return 'Settled';
         const days = row.age_days == null ? ageDays(row.oldest_open) : Number(row.age_days);
         if (days != null && days > 30) return 'Overdue';
         if ((Number(row.amount_paid) || 0) > 0.009) return 'Partial';
@@ -181,7 +172,7 @@ require __DIR__ . '/middleware/auth.php';
       }
 
       function statusBadge(s) {
-        const tone = { Settled: 'success', Advance: 'info', Due: 'danger', Partial: 'warning', Overdue: 'danger' }[s] || 'secondary';
+        const tone = { Settled: 'success', Due: 'danger', Partial: 'warning', Overdue: 'danger' }[s] || 'secondary';
         return MF.badge(s || '—', tone);
       }
 
@@ -212,7 +203,6 @@ require __DIR__ . '/middleware/auth.php';
         row.age_days = oldest ? ageDays(oldest) : null;
         row.outstanding = raw.outstanding != null ? Number(raw.outstanding) : outstanding(row);
         row.position = raw.position || positionOf(row);
-        row.advance = raw.advance != null ? Number(raw.advance) : advOf(row);
         return row;
       }
 
@@ -268,114 +258,12 @@ require __DIR__ . '/middleware/auth.php';
         return { customers, bills, payments: payments.map((p) => ({ customer_id: p.party_id || p.customer_id || p.customerId, amount: Number(p.amount || 0), mode: p.mode || '', payment_date: String(p.payment_date || p.date || '').slice(0, 10), note: p.note || '' })) };
       }
 
-      /* ===== Statement of Account — print it, hand it over, get paid =====
-         A5 letterhead with open bills, payments received and a REAL
-         amount-encoded UPI QR when the store UPI ID is saved elsewhere.
-         Honesty rule: no tax language here — this is a statement, never an invoice. */
-      function numWords(n) {
-        n = Math.round(Math.abs(+n || 0));
-        if (!n) return 'ZERO';
-        const ONES = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
-        const TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
-        const two = (x) => (x < 20 ? ONES[x] : TENS[Math.floor(x / 10)] + (x % 10 ? ' ' + ONES[x % 10] : ''));
-        const three = (x) => { const h = Math.floor(x / 100), r = x % 100; return (h ? ONES[h] + ' HUNDRED' + (r ? ' ' : '') : '') + (r ? two(r) : ''); };
-        const parts = [];
-        const cr = Math.floor(n / 1e7); n %= 1e7;
-        const lk = Math.floor(n / 1e5); n %= 1e5;
-        const th = Math.floor(n / 1e3); n %= 1e3;
-        if (cr) parts.push(three(cr) + ' CRORE');
-        if (lk) parts.push(two(lk) + ' LAKH');
-        if (th) parts.push(two(th) + ' THOUSAND');
-        if (n) parts.push(three(n));
-        return parts.join(' ');
-      }
-      function qrPng(text) {
-        const host = document.createElement('div');
-        host.style.display = 'none';
-        document.body.appendChild(host);
-        try {
-          new QRCode(host, { text, width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M });
-          const cv = host.querySelector('canvas');
-          return cv ? cv.toDataURL('image/png') : null;
-        } catch (e) { return null; }
-        finally { host.remove(); }
-      }
-      function openStmt(row) {
-        const store = D.store || {};
-        const cid = String(row.customer_id);
-        const openBills = state.bills.filter((b) => String(b.customer_id) === cid && Number(b.balance_due) > 0.004);
-        const pays = state.payments.filter((x) => String(x.customer_id) === cid).slice(-8).reverse();
-        const totalDue = Number(row.outstanding) || 0;
-        let upi = '';
-        try { upi = String(localStorage.getItem('mf-store-upi') || '').trim(); } catch (e) { /* locked */ }
-        const qr = (upi && totalDue > 0 && typeof QRCode !== 'undefined')
-          ? qrPng(`upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(store.name || 'Pharmacy')}&am=${totalDue.toFixed(2)}&cu=INR&tn=${encodeURIComponent('Dues - ' + (row.customer_name || 'customer'))}`)
-          : null;
-        const billedSum = openBills.reduce((s2, b) => s2 + Number(b.grand_total || 0), 0);
-        const paidSum = openBills.reduce((s2, b) => s2 + Number(b.amount_paid || 0), 0);
-        MF.printHtml(`<style>
-          @page { size: A5; margin: 12mm; }
-          .s-sh { font-family:Arial, Helvetica, sans-serif; color:#111827; font-size:10.5px; line-height:1.5; }
-          .s-lh { display:flex; gap:10px; align-items:flex-start; border-bottom:2.5px solid #176B5B; padding-bottom:8px; }
-          .s-logo { width:40px; height:40px; border-radius:10px; background:#176B5B; color:#fff; display:flex; align-items:center; justify-content:center; font-size:17px; font-weight:800; }
-          .s-shop { font-size:16px; font-weight:800; } .s-sub { font-size:8.5px; color:#4b5563; margin-top:2px; }
-          .s-right { margin-left:auto; text-align:right; font-size:9px; color:#4b5563; line-height:1.6; }
-          .s-tag { display:inline-block; border:1.5px solid #176B5B; color:#176B5B; font-size:8.5px; font-weight:800; letter-spacing:.12em; padding:2px 8px; border-radius:4px; text-transform:uppercase; }
-          .s-cust { margin:8px 0; padding:7px 9px; border:1px solid #e5e7eb; border-radius:8px; }
-          .s-nm { font-weight:800; font-size:12px; }
-          table { width:100%; border-collapse:collapse; margin:6px 0; }
-          th, td { border-bottom:1px solid #e5e7eb; padding:3.5px 5px; font-size:9px; text-align:left; }
-          th { border-top:1px solid #111827; font-size:7.5px; text-transform:uppercase; letter-spacing:.06em; color:#4b5563; }
-          .r { text-align:right; } .b { font-weight:700; }
-          .s-total { display:flex; justify-content:space-between; align-items:center; border:1.5px solid #111827; border-radius:8px; padding:8px 10px; margin:8px 0 2px; }
-          .s-amt { font-size:17px; font-weight:800; } .s-words { text-align:right; font-size:8px; color:#4b5563; text-transform:uppercase; }
-          .s-pay { display:flex; gap:10px; align-items:center; margin:8px 0; padding:8px; border:1px dashed #176B5B; border-radius:8px; }
-          .s-pay img { width:88px; height:88px; } .s-pay b { font-size:11px; }
-          .s-note { font-size:8px; color:#6b7280; line-height:1.55; margin-top:6px; }
-          .s-sign { margin-top:22px; display:flex; justify-content:space-between; font-size:8.5px; }
-          .s-sign div { border-top:1px solid #111827; padding-top:3px; min-width:36mm; text-align:center; }
-          .s-ft { text-align:center; margin-top:8px; font-size:8.5px; color:#6b7280; }
-        </style>
-        <div class="s-sh">
-          <div class="s-lh">
-            <div class="s-logo">${MF.esc(String(store.name || 'P').trim().slice(0, 1).toUpperCase())}</div>
-            <div>
-              <div class="s-shop">${MF.esc(store.name || 'Pharmacy')}</div>
-              ${store.address ? `<div class="s-sub">${MF.esc(store.address)}</div>` : ''}
-              ${store.phone ? `<div class="s-sub">Ph: ${MF.esc(store.phone)}</div>` : ''}
-            </div>
-            <div class="s-right"><span class="s-tag">Statement of Account</span><br>As on <b>${MF.fmtDate(MF.today())}</b><br>Not a tax invoice</div>
-          </div>
-          <div class="s-cust">
-            <div class="s-nm">${MF.esc(row.customer_name || 'Customer')}</div>
-            ${row.phone ? `<div>Ph: ${MF.esc(row.phone)}</div>` : ''}
-            ${row.address ? `<div>${MF.esc(row.address)}</div>` : ''}
-          </div>
-          <table>
-            <thead><tr><th>Invoice</th><th>Date</th><th>Mode</th><th class="r">Billed</th><th class="r">Paid</th><th class="r">Due</th></tr></thead>
-            <tbody>
-              ${openBills.map((b) => `<tr><td class="b">${MF.esc(b.invoice_no || '—')}</td><td>${MF.fmtDate(b.sale_date)}</td><td>${payLabel(b.payment_mode)}</td><td class="r">${MF.fmt(b.grand_total)}</td><td class="r">${MF.fmt(b.amount_paid)}</td><td class="r b">${MF.fmt(b.balance_due)}</td></tr>`).join('')}
-              ${pays.length ? `<tr><td colspan="6" style="border-bottom:none;color:#4b5563;font-size:7.5px;text-transform:uppercase;letter-spacing:.05em;padding-top:7px">Payments received</td></tr>` + pays.map((x) => `<tr><td colspan="2" style="color:#4b5563">${MF.fmtDate(x.payment_date)}</td><td colspan="3" style="color:#4b5563">${MF.esc(payLabel(x.mode))}${x.note ? ' · ' + MF.esc(x.note) : ''}</td><td class="r" style="color:#0F4D42">+${MF.fmt(x.amount)}</td></tr>`).join('') : ''}
-            </tbody>
-            <tfoot><tr><th colspan="3">Totals</th><th class="r">${MF.fmt(billedSum)}</th><th class="r">${MF.fmt(paidSum)}</th><th class="r">${MF.fmt(openBills.reduce((s2, b) => s2 + Number(b.balance_due || 0), 0))}</th></tr></tfoot>
-          </table>
-          <div class="s-total">
-            <div><div style="font-size:8px;color:#4b5563;text-transform:uppercase;letter-spacing:.08em">Total payable</div><div class="s-amt">₹ ${MF.fmt(totalDue)}</div></div>
-            <div class="s-words">Rupees ${numWords(totalDue)} only</div>
-          </div>
-          ${qr ? `<div class="s-pay"><img src="${qr}" alt="UPI QR"><div><b>Scan to pay ₹ ${MF.fmt(totalDue)}</b><div style="font-size:8.5px;color:#4b5563">Any UPI app — GPay, PhonePe, Paytm.<br>Amount is pre-filled; please share the reference at the counter.</div></div></div>` : (upi ? `<div style="font-size:9px">Pay via UPI: <b>${MF.esc(upi)}</b></div>` : '')}
-          <div class="s-note">This statement summarises open balances as on the date above; GST invoices for every bill were issued at the time of sale. Please report any discrepancy within 48 hours. Kindly clear the balance within agreed credit terms.</div>
-          <div class="s-sign"><div>Customer acknowledgement</div><div>For ${MF.esc(store.name || 'Pharmacy')}</div></div>
-          <div class="s-ft">Thank you — clearing dues keeps your supply line fast.</div>
-        </div>`);
-      }
-
       function filtered() {
         const q = state.q.toLowerCase();
         return state.customers.filter((r) => {
           if (state.filter === 'due' && !(r.outstanding > 0.009)) return false;
           if (state.filter === 'overdue' && r.position !== 'Overdue') return false;
-          if (state.filter === 'settled' && !['Settled', 'Advance'].includes(r.position)) return false;
+          if (state.filter === 'settled' && r.position !== 'Settled') return false;
           if (state.filter === 'wholesale' && r.customer_type !== 'wholesale') return false;
           if (state.filter === 'retail' && r.customer_type !== 'retail') return false;
           if (!q) return true;
@@ -425,8 +313,7 @@ require __DIR__ . '/middleware/auth.php';
           <div class="col-6 col-md"><div class="cd-stat accent"><span>Customers</span><strong>${MF.num(list.length)}</strong></div></div>
           <div class="col-6 col-md"><div class="cd-stat"><span>Open bills</span><strong>${MF.num(sum('open_bills'))}</strong></div></div>
           <div class="col-6 col-md"><div class="cd-stat"><span>Due</span><strong>${MF.fmt(sum('outstanding'))}</strong></div></div>
-          <div class="col-6 col-md"><div class="cd-stat"><span>Overdue</span><strong>${MF.num(overdue)}</strong></div></div>
-          <div class="col-6 col-md"><div class="cd-stat"><span>Advance parked</span><strong>${MF.fmt(sum('advance'))}</strong></div></div>`;
+          <div class="col-6 col-md"><div class="cd-stat"><span>Overdue</span><strong>${MF.num(overdue)}</strong></div></div>`;
         $('#cdBody').innerHTML = slice.map((r) => {
           const phone = formatPhone(r.phone);
           const dueCls = Number(r.outstanding) > 0.009 ? 'cd-due' : 'num';
@@ -442,13 +329,12 @@ require __DIR__ . '/middleware/auth.php';
             <td class="text-end num">${MF.fmt(r.amount_paid)}</td>
             <td class="text-end ${dueCls}">${MF.fmt(r.outstanding)}</td>
             <td>${oldestCell(r)}</td>
-            <td>${statusBadge(r.position)}${r.position === 'Advance' && advOf(r) > 0 ? `<div class="${cls}-muted num" style="font-size:.68rem">+₹${MF.fmt(advOf(r))}</div>` : ''}</td>
+            <td>${statusBadge(r.position)}</td>
             <td class="text-end">
               <div class="dropdown">
                 <button type="button" class="btn btn-icon btn-light-mf cd-kebab" data-bs-toggle="dropdown" data-bs-popper-config='{"strategy":"fixed"}' aria-label="Actions"><i class="bi bi-three-dots-vertical"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end cd-act-menu">
                   <li><button type="button" class="dropdown-item" data-a="view" data-id="${MF.esc(r.customer_id)}"><i class="bi bi-eye"></i><span>View bills</span></button></li>
-                  <li><button type="button" class="dropdown-item" data-a="stmt" data-id="${MF.esc(r.customer_id)}"><i class="bi bi-qr-code"></i><span>UPI statement</span></button></li>
                   <li><a class="dropdown-item" href="customers.php"><i class="bi bi-people"></i><span>Customers</span></a></li>
                   <li><a class="dropdown-item" href="retail-pos.php"><i class="bi bi-cart-plus"></i><span>New retail sale</span></a></li>
                 </ul>
@@ -463,10 +349,6 @@ require __DIR__ . '/middleware/auth.php';
         $('#cdBody').querySelectorAll('[data-a="view"]').forEach((b) => b.addEventListener('click', () => {
           const row = state.customers.find((r) => String(r.customer_id) === String(b.dataset.id));
           if (row) openView(row);
-        }));
-        $('#cdBody').querySelectorAll('[data-a="stmt"]').forEach((b) => b.addEventListener('click', () => {
-          const row = state.customers.find((r) => String(r.customer_id) === String(b.dataset.id));
-          if (row) openStmt(row);
         }));
         renderFilters();
       }

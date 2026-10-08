@@ -242,12 +242,12 @@ require __DIR__ . '/middleware/auth.php';
         const type = $('#pmPartyType').value;
         if (type === 'customer') {
           return dues.customer.map((c) => ({
-            id: c.customer_id, name: c.customer_name, due: +c.outstanding || 0, adv: +c.advance || 0,
+            id: c.customer_id, name: c.customer_name, due: +c.outstanding || 0,
           })).sort((a, b) => b.due - a.due || a.name.localeCompare(b.name));
         }
         if (type === 'supplier') {
           return dues.supplier.map((s) => ({
-            id: s.supplier_id, name: s.supplier_name || s.name, due: +s.outstanding || 0, adv: +s.advance || 0,
+            id: s.supplier_id, name: s.supplier_name || s.name, due: +s.outstanding || 0,
           })).sort((a, b) => b.due - a.due || a.name.localeCompare(b.name));
         }
         return [];
@@ -266,7 +266,7 @@ require __DIR__ . '/middleware/auth.php';
         }
         const list = partyList();
         $('#pmParty').innerHTML = '<option value="">— Select ' + type + ' —</option>' +
-          list.map((p) => `<option value="${p.id}" data-due="${p.due}" data-adv="${p.adv || 0}">${esc(p.name)}${p.due > 0.009 ? ' — dues ₹' + MF.fmt(p.due) : (p.adv > 0.009 ? ' — advance ₹' + MF.fmt(p.adv) : ' — settled')}</option>`).join('');
+          list.map((p) => `<option value="${p.id}" data-due="${p.due}">${esc(p.name)}${p.due > 0.009 ? ' — dues ₹' + MF.fmt(p.due) : ' — settled'}</option>`).join('');
         $('#pmPartyHint').innerHTML = list.length
           ? `Direction is locked: <b>${type === 'customer' ? 'customers always pay you (receipt)' : 'you always pay suppliers (payout)'}</b>.`
           : `No ${type}s with dues history yet — add bills first.`;
@@ -278,14 +278,9 @@ require __DIR__ . '/middleware/auth.php';
       function dueOfSelected() {
         const opt = $('#pmParty').selectedOptions[0];
         const due = opt ? +opt.dataset.due || 0 : 0;
-        const adv = opt ? +opt.dataset.adv || 0 : 0;
         if (due > 0.009) {
           $('#pmDueHint').innerHTML = `Outstanding: <b>₹${MF.fmt(due)}</b> — collecting above it parks the excess as advance.`;
           $('#pmFillDue').hidden = false;
-        } else if (adv > 0.009) {
-          const type = $('#pmPartyType').value;
-          $('#pmDueHint').innerHTML = `Advance <b>₹${MF.fmt(adv)}</b> already parked — ${type === 'supplier' ? 'the next purchase bill consumes it first' : 'future credit bills absorb it automatically'}. Paying more just grows it.`;
-          $('#pmFillDue').hidden = true;
         } else {
           $('#pmDueHint').innerHTML = $('#pmParty').value ? 'No outstanding — this will record as an advance.' : '';
           $('#pmFillDue').hidden = true;

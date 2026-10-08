@@ -118,17 +118,6 @@ function categoryRows(PDO $pdo): array
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    if (isset($_GET['categories'])) {
-        try {
-            $rows = $pdo->query("SELECT c.id, c.name,
-                    (SELECT COUNT(*) FROM expenses e WHERE e.category_id = c.id) AS used,
-                    (SELECT COALESCE(SUM(e.amount), 0) FROM expenses e WHERE e.category_id = c.id) AS total
-                FROM expense_categories c ORDER BY c.name ASC, c.id ASC")->fetchAll(PDO::FETCH_ASSOC);
-        } catch (Throwable $e) {
-            Json::error('Category read failed: ' . $e->getMessage(), 500);
-        }
-        Json::ok(['data' => array_map(fn ($r) => ['id' => (int) $r['id'], 'name' => $r['name'], 'used' => (int) $r['used'], 'total' => (float) $r['total']], $rows ?: [])]);
-    }
     $to = dayOk($_GET['to'] ?? '') ?: date('Y-m-d');
     $from = dayOk($_GET['from'] ?? '') ?: substr($to, 0, 8) . '01';
     try {
@@ -154,47 +143,8 @@ if ($method === 'GET') {
     Json::ok(['data' => $data, 'categories' => categoryRows($pdo), 'range' => ['from' => $from, 'to' => $to]]);
 }
 
-if ($method === 'PUT') {
-    $input = json_decode(file_get_contents('php://input'), true) ?? [];
-    $id = (int) ($input['categoryId'] ?? 0);
-    $name = clip((string) ($input['name'] ?? ''), 60);
-    if ($id <= 0) Json::error('Missing category id.', 422);
-    if (strlen($name) < 2) Json::error('Name the category.', 422);
-    try {
-        $sel = $pdo->prepare('SELECT id FROM expense_categories WHERE id = ? LIMIT 1');
-        $sel->execute([$id]);
-        if (!$sel->fetchColumn()) Json::error('Category not found.', 404);
-        $dup = $pdo->prepare('SELECT id FROM expense_categories WHERE name = ? AND id <> ? LIMIT 1');
-        $dup->execute([$name, $id]);
-        if ($dup->fetchColumn()) Json::error('A category named "' . $name . '" already exists.', 409);
-        $pdo->prepare('UPDATE expense_categories SET name = ? WHERE id = ?')->execute([$name, $id]);
-    } catch (Throwable $e) {
-        Json::error('Could not rename: ' . $e->getMessage(), 500);
-    }
-    Json::ok(['data' => ['id' => $id, 'name' => $name], 'categories' => categoryRows($pdo)]);
-}
-
 if ($method === 'POST') {
     $input = json_decode(file_get_contents('php://input'), true) ?? [];
-
-    /* Merge: move every expense from one category into another, then retire the source. */
-    if (($input['action'] ?? '') === 'merge') {
-        $from = (int) ($input['fromId'] ?? 0);
-        $into = (int) ($input['toId'] ?? 0);
-        if ($from <= 0 || $into <= 0) Json::error('Pick both categories to merge.', 422);
-        if ($from === $into) Json::error('Pick two different categories.', 422);
-        try {
-            $sel = $pdo->prepare('SELECT id, name FROM expense_categories WHERE id IN (?, ?)');
-            $sel->execute([$from, $into]);
-            if (count($sel->fetchAll(PDO::FETCH_ASSOC)) !== 2) Json::error('Category not found.', 404);
-            $pdo->prepare('UPDATE expenses SET category_id = ? WHERE category_id = ?')->execute([$into, $from]);
-            $pdo->prepare('DELETE FROM expense_categories WHERE id = ?')->execute([$from]);
-        } catch (Throwable $e) {
-            Json::error('Could not merge: ' . $e->getMessage(), 500);
-        }
-        Json::ok(['data' => ['merged' => $from, 'into' => $into], 'categories' => categoryRows($pdo)]);
-    }
-
     $amount = round((float) ($input['amount'] ?? 0), 2);
     $date = dayOk($input['date'] ?? '') ?: date('Y-m-d');
     $mode = ucfirst(strtolower(clip((string) ($input['mode'] ?? 'Cash'), 10)));
@@ -244,22 +194,6 @@ if ($method === 'POST') {
 }
 
 if ($method === 'DELETE') {
-    if (isset($_GET['categoryId'])) {
-        $cid = (int) $_GET['categoryId'];
-        if ($cid <= 0) Json::error('Missing category id.', 422);
-        try {
-            $refs = $pdo->prepare('SELECT COUNT(*) FROM expenses WHERE category_id = ?');
-            $refs->execute([$cid]);
-            $used = (int) $refs->fetchColumn();
-            if ($used > 0) Json::error("Used by {$used} expense(s) — merge it into another category instead.", 409);
-            $stmt = $pdo->prepare('DELETE FROM expense_categories WHERE id = ?');
-            $stmt->execute([$cid]);
-        } catch (Throwable $e) {
-            Json::error('Could not delete: ' . $e->getMessage(), 500);
-        }
-        if ($stmt->rowCount() === 0) Json::error('Category not found.', 404);
-        Json::ok(['data' => ['id' => $cid], 'categories' => categoryRows($pdo)]);
-    }
     $id = (int) ($_GET['id'] ?? 0);
     if ($id <= 0) Json::error('Missing expense id.', 422);
     try {
