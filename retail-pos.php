@@ -164,17 +164,28 @@ if ($cashier === '') $cashier = 'Cashier';
       font-size:.72rem; font-weight:750; padding:2px 10px; display:none; align-items:center; gap:6px; }
     .pos-lastbill.show { display:inline-flex; }
     .pos-lastbill:hover { background:var(--mf-primary-soft); }
-    /* Notification chips: always-on when live; .is-idle = nothing waiting (dimmed),
-       .is-notify = a count just went UP — tinted ring pulses thrice, then rests. */
-    .pos-lastbill.is-idle { opacity:.55; }
-    .pos-lastbill.is-notify { animation:posNotifyPulse .8s ease-in-out 3; border-color:var(--glowc, #176B5B); }
+    /* Notify chips — exact mf-icon-btn geometry (38×38) so they sit flush beside the
+       top-bar actions; count lives in a corner badge; hover tint matches each border;
+       .is-idle dims at zero (badge hides); .is-notify = count went up → tinted ring. */
+    .pos-notif-chip { width:38px; height:38px; display:none; align-items:center; justify-content:center; position:relative;
+      border-radius:var(--mf-radius-sm, 10px); font-size:1.05rem; background:#fff; cursor:pointer;
+      transition:background .15s, border-color .15s, opacity .15s; }
+    .pos-notif-chip.show { display:inline-flex; }
+    .pos-notif-chip.scan { border:1px solid #c9d8f5; color:#23408e; --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
+    .pos-notif-chip.scan:hover { background:#eaeffb; border-color:#b9cdf3; }
+    .pos-notif-chip.pend { border:1px solid #f2ddc2; color:#92600a; --glowc:#B45309; --glowc-soft:rgba(180,83,9,.5); --glowc-fade:rgba(180,83,9,0); }
+    .pos-notif-chip.pend:hover { background:#fdf3e6; border-color:#eccfa6; }
+    .pos-notif-chip.is-idle { opacity:.5; }
+    .pos-notif-chip.is-notify { animation:posNotifyPulse .8s ease-in-out 3; border-color:var(--glowc); }
+    .chip-badge { position:absolute; top:-6px; right:-6px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+      background:var(--glowc); color:#fff; font-size:.62rem; font-weight:800; line-height:1; font-variant-numeric:tabular-nums;
+      display:inline-flex; align-items:center; justify-content:center; border:2px solid #fff; }
+    .pos-notif-chip.is-idle .chip-badge { display:none; }
     @keyframes posNotifyPulse {
       0%   { box-shadow:0 0 0 0 var(--glowc-soft, rgba(23,107,91,.55)); transform:scale(1); }
       45%  { box-shadow:0 0 0 7px var(--glowc-fade, rgba(23,107,91,0)); transform:scale(1.06); }
       100% { box-shadow:0 0 0 0 var(--glowc-fade, rgba(23,107,91,0)); transform:scale(1); }
     }
-    #posScanRx { --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
-    #posRxPend { --glowc:#B42318; --glowc-soft:rgba(180,35,24,.5); --glowc-fade:rgba(180,35,24,0); }
     .pos-reprint-menu { position:absolute; top:100%; right:0; margin-top:8px; z-index:1085; min-width:190px;
       background:#fff; border:1px solid #e3ebf4; border-radius:10px; box-shadow:0 14px 36px rgba(16,32,64,.16); padding:6px; }
     .pos-reprint-menu button { display:flex; align-items:center; gap:9px; width:100%; border:0; background:#fff;
@@ -240,8 +251,8 @@ if ($cashier === '') $cashier = 'Cashier';
                 <button type="button" id="posReprintA4"><i class="bi bi-file-earmark-ruled"></i>Reprint · A4</button>
               </div>
             </span>
-            <button type="button" class="pos-lastbill" id="posRxPend" style="border-color:#f2ddc2;color:#92600a" title="Prescription-controlled sales still waiting for their Rx to be captured"><i class="bi bi-file-medical"></i><span id="posRxPendTxt">0</span></button>
-            <button type="button" class="pos-lastbill" id="posScanRx" style="border-color:#c9d8f5;color:#23408e" title="Prescription photos customers sent by phone (Scan & Send Rx inbox)"><i class="bi bi-qr-code"></i><span id="posScanRxTxt">0</span></button>
+            <button type="button" class="pos-notif-chip pend" id="posRxPend" title="Prescription-controlled sales still waiting for their Rx to be captured"><i class="bi bi-file-medical"></i><span class="chip-badge" id="posRxPendTxt">0</span></button>
+            <button type="button" class="pos-notif-chip scan" id="posScanRx" title="Prescription photos customers sent by phone (Scan & Send Rx inbox)"><i class="bi bi-qr-code"></i><span class="chip-badge" id="posScanRxTxt">0</span></button>
           </div>
         </div>
 
@@ -660,7 +671,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.17"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.18"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();

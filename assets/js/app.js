@@ -785,12 +785,19 @@ window.MF = window.MF || {};
     if (!document.getElementById(styleId)) {
       const st = document.createElement('style'); st.id = styleId;
       st.textContent = `
-        .mf-rxchip { border:1px solid #e3ebf4; background:#fff; border-radius:999px; font-size:.72rem; font-weight:750;
-          padding:2px 10px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
-        .mf-rxchip.is-idle { opacity:.55; }
+        .mf-rxchip { width:38px; height:38px; display:inline-flex; align-items:center; justify-content:center; position:relative;
+          border:1px solid #e3ebf4; background:#fff; border-radius:var(--mf-radius-sm, 10px); font-size:1.05rem; cursor:pointer;
+          transition:background .15s, border-color .15s, opacity .15s; }
+        .mf-rxchip.is-idle { opacity:.5; }
+        .mf-rxchip.is-idle .chip-badge { display:none; }
         .mf-rxchip.is-notify { animation:mfChipPulse .8s ease-in-out 3; border-color:var(--glowc); }
-        .mf-rxchip.scan { color:#23408e; --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
-        .mf-rxchip.pend { color:#B42318; --glowc:#B42318; --glowc-soft:rgba(180,35,24,.5); --glowc-fade:rgba(180,35,24,0); }
+        .mf-rxchip.scan { border-color:#c9d8f5; color:#23408e; --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
+        .mf-rxchip.scan:hover { background:#eaeffb; border-color:#b9cdf3; }
+        .mf-rxchip.pend { border-color:#f2ddc2; color:#92600a; --glowc:#B45309; --glowc-soft:rgba(180,83,9,.5); --glowc-fade:rgba(180,83,9,0); }
+        .mf-rxchip.pend:hover { background:#fdf3e6; border-color:#eccfa6; }
+        .chip-badge { position:absolute; top:-6px; right:-6px; min-width:16px; height:16px; padding:0 4px; border-radius:999px;
+          background:var(--glowc); color:#fff; font-size:.62rem; font-weight:800; line-height:1; font-variant-numeric:tabular-nums;
+          display:inline-flex; align-items:center; justify-content:center; border:2px solid #fff; }
         @keyframes mfChipPulse {
           0% { box-shadow:0 0 0 0 var(--glowc-soft); transform:scale(1); }
           45% { box-shadow:0 0 0 7px var(--glowc-fade); transform:scale(1.06); }
@@ -799,8 +806,8 @@ window.MF = window.MF || {};
       document.head.appendChild(st);
     }
     slot.innerHTML = `
-      <button type="button" class="mf-rxchip scan is-idle" id="glbScanRx" title="Scan & Send Rx — photos customers sent from the in-store QR"><i class="bi bi-qr-code"></i><span id="glbScanRxTxt">0</span></button>
-      <button type="button" class="mf-rxchip pend is-idle" id="glbRxPend" title="Rx capture queue — prescription details still to record"><i class="bi bi-journal-medical"></i><span id="glbRxPendTxt">0</span></button>`;
+      <button type="button" class="mf-rxchip scan is-idle" id="glbScanRx" title="Scan & Send Rx — photos customers sent from the in-store QR"><i class="bi bi-qr-code"></i><span class="chip-badge" id="glbScanRxTxt">0</span></button>
+      <button type="button" class="mf-rxchip pend is-idle" id="glbRxPend" title="Rx capture queue — prescription details still to record"><i class="bi bi-file-medical"></i><span class="chip-badge" id="glbRxPendTxt">0</span></button>`;
     document.getElementById('glbScanRx').addEventListener('click', () => { location.href = 'retail-pos.php#scanrx'; });
     document.getElementById('glbRxPend').addEventListener('click', () => { location.href = 'retail-pos.php#rxpend'; });
 
