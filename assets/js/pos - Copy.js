@@ -2990,17 +2990,8 @@
     } catch (e) { state.rxPending = []; }
     const pill = $('#posRxPend');
     if (pill) {
-      const n = state.rxPending.length;
-      $('#posRxPendTxt').textContent = n;
-      // Always-on notification chip while the API is live (dimmed at zero);
-      // a new queued capture rings the red glow.
-      pill.classList.toggle('show', !!(MF.Api && MF.Api.live));
-      pill.classList.toggle('is-idle', n === 0);
-      pill.title = n
-        ? 'Prescription details still to capture — register compliance'
-        : 'Rx capture queue — nothing pending';
-      if (state._rpCountPrev === undefined) { state._rpCountPrev = n; }
-      else { if (n > state._rpCountPrev) pillNotifyGlow(pill); state._rpCountPrev = n; }
+      $('#posRxPendTxt').textContent = state.rxPending.length;
+      pill.classList.toggle('show', state.rxPending.length > 0);
     }
     const modalOpen = $('#posRxPendModal')?.classList.contains('show');
     if (modalOpen) paintRxPendingList();
@@ -3109,38 +3100,24 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.16 — always-on notify pills + glow'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.15 — poll-freeze editor + live bill-as + age mandatory'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)
   const SX_SEEN_KEY = 'mf-pos-rxinbox-seen';
   function sxSeenId() { try { return parseInt(localStorage.getItem(SX_SEEN_KEY) || '0', 10) || 0; } catch (e) { return 0; } }
   function sxMarkSeen(n) { try { localStorage.setItem(SX_SEEN_KEY, String(n)); } catch (e) { /* storage locked */ } }
-  /* Notification chips share one contract: visible whenever the API is live,
-     .is-idle at zero, and a count INCREASE fires a tinted glow pulse (3 × 0.8 s).
-     Boot paints set the baseline silently — nobody needs a glow for old backlog. */
-  function pillNotifyGlow(pill) {
-    if (!pill) return;
-    pill.classList.remove('is-notify');
-    void pill.offsetWidth; // restart the animation when two alerts land back-to-back
-    pill.classList.add('is-notify');
-    setTimeout(() => pill.classList.remove('is-notify'), 2600);
-  }
   function paintScanRxPill() {
     const pill = $('#posScanRx'); if (!pill) return;
-    const n = state.rxInbox.length;
-    $('#posScanRxTxt').textContent = n;
+    $('#posScanRxTxt').textContent = state.rxInbox.length;
     // Show whenever the API is live, even at 0 — the modal holds the
     // "In-store QR" poster button, so it must be reachable on day one,
     // before any customer has sent a photo yet.
     pill.classList.toggle('show', !!(MF.Api && MF.Api.live));
-    pill.classList.toggle('is-idle', n === 0);
-    pill.title = n
+    pill.style.opacity = state.rxInbox.length ? '1' : '.55';
+    pill.title = state.rxInbox.length
       ? 'Prescription photos waiting — click to review'
       : 'Scan & Send Rx — open the inbox or print the in-store QR poster';
-    if (state._sxCountPrev === undefined) { state._sxCountPrev = n; return; }
-    if (n > state._sxCountPrev) pillNotifyGlow(pill);
-    state._sxCountPrev = n;
   }
   async function refreshScanRx(announce) {
     if (!(MF.Api && MF.Api.live)) return;

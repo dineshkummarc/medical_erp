@@ -164,17 +164,6 @@ if ($cashier === '') $cashier = 'Cashier';
       font-size:.72rem; font-weight:750; padding:2px 10px; display:none; align-items:center; gap:6px; }
     .pos-lastbill.show { display:inline-flex; }
     .pos-lastbill:hover { background:var(--mf-primary-soft); }
-    /* Notification chips: always-on when live; .is-idle = nothing waiting (dimmed),
-       .is-notify = a count just went UP — tinted ring pulses thrice, then rests. */
-    .pos-lastbill.is-idle { opacity:.55; }
-    .pos-lastbill.is-notify { animation:posNotifyPulse .8s ease-in-out 3; border-color:var(--glowc, #176B5B); }
-    @keyframes posNotifyPulse {
-      0%   { box-shadow:0 0 0 0 var(--glowc-soft, rgba(23,107,91,.55)); transform:scale(1); }
-      45%  { box-shadow:0 0 0 7px var(--glowc-fade, rgba(23,107,91,0)); transform:scale(1.06); }
-      100% { box-shadow:0 0 0 0 var(--glowc-fade, rgba(23,107,91,0)); transform:scale(1); }
-    }
-    #posScanRx { --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
-    #posRxPend { --glowc:#B42318; --glowc-soft:rgba(180,35,24,.5); --glowc-fade:rgba(180,35,24,0); }
     .pos-reprint-menu { position:absolute; top:100%; right:0; margin-top:8px; z-index:1085; min-width:190px;
       background:#fff; border:1px solid #e3ebf4; border-radius:10px; box-shadow:0 14px 36px rgba(16,32,64,.16); padding:6px; }
     .pos-reprint-menu button { display:flex; align-items:center; gap:9px; width:100%; border:0; background:#fff;
@@ -660,7 +649,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.16"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.15"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
