@@ -73,10 +73,10 @@ require __DIR__ . '/middleware/auth.php';
         <div class="modal-body">
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">Category <span class="req">*</span></label><select class="form-select" id="exCategory"></select></div>
+            <div class="col-6"><label class="form-label">Amount (₹) <span class="req">*</span></label><input type="number" class="form-control" id="exAmount" min="1" step="0.01"></div>
           </div>
           <div class="row g-2 mb-2" id="exNewCatRow" hidden>
             <div class="col-12"><label class="form-label">New category name <span class="req">*</span></label><input class="form-control" id="exNewCatName" placeholder="e.g. Internet bill" maxlength="60"></div>
-            <div class="col-6"><label class="form-label">Amount (₹) <span class="req">*</span></label><input type="number" class="form-control" id="exAmount" min="1"></div>
           </div>
           <div class="row g-2 mb-2">
             <div class="col-6"><label class="form-label">Date</label><input type="date" class="form-control" id="exDate"></div>
