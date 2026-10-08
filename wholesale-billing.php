@@ -209,6 +209,7 @@ require __DIR__ . '/middleware/auth.php';
   <script src="assets/js/data.js"></script>
   <script src="assets/js/config.js"></script>
   <script src="assets/js/app.js"></script>
+  <script src="assets/js/qrcode.min.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
@@ -481,28 +482,57 @@ require __DIR__ . '/middleware/auth.php';
         }
       });
 
-      /* ===== GSTR-ready tax invoice print ==================================== */
+      /* ===== A4 tax invoice — wholesale, letterhead-grade =====================
+         Same design family as the retail A4 engine, advanced for B2B: Ship-to,
+         GST slab table for ITC/GSTR, transparent two-stage bill discounts,
+         credit terms + due date, and a REAL amount-encoded UPI pay QR when the
+         store has a UPI ID saved. Nothing prints that the data can't prove. */
+      function numWords(n) {
+        n = Math.round(Math.abs(+n || 0));
+        if (!n) return 'ZERO';
+        const ONES = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
+        const TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
+        const two = (x) => (x < 20 ? ONES[x] : TENS[Math.floor(x / 10)] + (x % 10 ? ' ' + ONES[x % 10] : ''));
+        const three = (x) => { const h = Math.floor(x / 100), r = x % 100; return (h ? ONES[h] + ' HUNDRED' + (r ? ' ' : '') : '') + (r ? two(r) : ''); };
+        const parts = [];
+        const cr = Math.floor(n / 1e7); n %= 1e7;
+        const lk = Math.floor(n / 1e5); n %= 1e5;
+        const th = Math.floor(n / 1e3); n %= 1e3;
+        if (cr) parts.push(three(cr) + ' CRORE');
+        if (lk) parts.push(two(lk) + ' LAKH');
+        if (th) parts.push(two(th) + ' THOUSAND');
+        if (n) parts.push(three(n));
+        return parts.join(' ');
+      }
+      function wsPayQrDataUrl(grand) {
+        let upi = '';
+        try { upi = String(localStorage.getItem('mf-store-upi') || '').trim(); } catch (e) { /* locked */ }
+        if (!upi || typeof QRCode === 'undefined') return null;
+        const host = document.createElement('div');
+        host.style.display = 'none';
+        document.body.appendChild(host);
+        try {
+          new QRCode(host, {
+            text: `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent((D.store && D.store.name) || 'Pharmacy')}&am=${(+grand || 0).toFixed(2)}&cu=INR`,
+            width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M,
+          });
+          const cv = host.querySelector('canvas');
+          return cv ? cv.toDataURL('image/png') : null;
+        } catch (e) {
+          return null;
+        } finally {
+          host.remove();
+        }
+      }
       function invoiceHtml(meta, t, res) {
         const store = D.store || {};
         const lines = res.lines || [];
-        // Group nearby split allocations under one medicine, showing each batch.
-        const itemRows = lines.map((l) => `
-          <tr>
-            <td>${MF.esc(l.name)}${l.hsn ? `<br><span style="color:#6B7280;font-size:10px">HSN ${MF.esc(l.hsn)}</span>` : ''}</td>
-            <td>${MF.esc(l.batchNo)}${l.expiry ? `<br><span style="color:#6B7280;font-size:10px">${MF.fmtMonthYear ? MF.fmtMonthYear(l.expiry) : MF.esc(l.expiry.slice(0, 7))}</span>` : ''}</td>
-            <td style="text-align:right">${l.qty}</td><td style="text-align:center">${l.freeQty || '—'}</td>
-            <td style="text-align:right">${MF.fmt(l.rate, 2)}</td><td style="text-align:right">${l.discPct || 0}</td>
-            <td style="text-align:center">${l.gstPct}</td><td style="text-align:right;font-weight:600">${MF.fmt(l.amount, 2)}</td>
-          </tr>`).join('');
-        const grouped = lines.reduce((m, l) => {
-          const k = l.medId;
-          if (!m[k]) m[k] = { qty: 0, free: 0, amount: 0, mrp: 0 };
-          m[k].qty += l.qty; m[k].free += l.freeQty; m[k].amount += l.amount;
-          return m;
-        }, {});
-        const splits = Object.keys(grouped).filter((k) => lines.filter((l) => l.medId == k).length > 1);
-        // Slab-wise GST table, needed by the buyer's accountant for GSTR/ITC.
-        // Tax per slab = slab taxable × rate × the same bill-discount share the server spread.
+        const gstin = store.gstin || store.gstNo || '';
+        const dls = [store.dl20b, store.dl21b].filter(Boolean);
+        const payQr = wsPayQrDataUrl(res.grandTotal);
+        let storeUpi = '';
+        try { storeUpi = String(localStorage.getItem('mf-store-upi') || '').trim(); } catch (e) { /* locked */ }
+        // Slab-wise GST — the buyer's CA lives inside this table (GSTR/ITC).
         const afterLine = lines.reduce((s, l) => s + l.amount, 0);
         const share = afterLine > 0 ? (t.taxable / afterLine) : 0;
         const slabs = {};
@@ -512,71 +542,221 @@ require __DIR__ . '/middleware/auth.php';
           slabs[p].taxable += l.amount;
         });
         Object.keys(slabs).forEach((p) => { slabs[p].tax = slabs[p].taxable * (Number(p) / 100) * share; slabs[p].taxable *= share; });
-        const slabRows = Object.keys(slabs).map((p) => `
-          <tr><td style="text-align:center">${p}%</td><td style="text-align:right">${MF.fmt(slabs[p].taxable, 2)}</td>
-          <td style="text-align:right">${MF.fmt(slabs[p].tax, 2)}</td></tr>`).join('');
-
-        return `
-          <div style="font-family:Inter,Arial,sans-serif;font-size:12px;color:#111827">
-            <div style="text-align:center;margin-bottom:10px">
-              <div style="font-size:16.5px;font-weight:800;letter-spacing:.02em">${MF.esc(store.name || 'MediFlow ERP')}</div>
-              ${store.address ? `<div style="font-size:10.5px;color:#6B7280">${MF.esc(store.address)}${store.gstin ? ' · GSTIN ' + MF.esc(store.gstin) : ''}</div>` : ''}
-              ${store.dl20b || store.dl21b ? `<div style="font-size:10.5px;color:#6B7280">DL: ${MF.esc(store.dl20b || '')}${store.dl21b ? ' / ' + MF.esc(store.dl21b) : ''}</div>` : ''}
-              <div style="font-size:11px;font-weight:800;letter-spacing:.18em;color:#374151;margin-top:3px">TAX INVOICE · WHOLESALE</div>
+        const slabRows = Object.keys(slabs).map((p) => {
+          const half = slabs[p].tax / 2;
+          return `<tr><td class="wi-c">${p}%</td><td class="wi-r">${MF.fmt(slabs[p].taxable, 2)}</td>` +
+            (meta.interstate
+              ? `<td class="wi-r">${MF.fmt(slabs[p].tax, 2)}</td>`
+              : `<td class="wi-r">${MF.fmt(half, 2)}</td><td class="wi-r">${MF.fmt(half, 2)}</td>`) + `</tr>`;
+        }).join('');
+        const schemePct = +meta.schemeDiscPct || 0, overallPct = +meta.overallDiscPct || 0;
+        const schemeAmt = t.subtotal * (schemePct / 100);
+        const overallAmt = (t.subtotal - schemeAmt) * (overallPct / 100);
+        const discRows =
+          (schemePct > 0 ? `<div class="wi-sr"><span class="wi-k">Scheme discount (trade ${schemePct}%)</span><span>− ${MF.fmt(schemeAmt, 2)}</span></div>` : '') +
+          (overallPct > 0 ? `<div class="wi-sr"><span class="wi-k">Overall discount (${overallPct}%)</span><span>− ${MF.fmt(overallAmt, 2)}</span></div>` : '') ||
+          `<div class="wi-sr"><span class="wi-k">Discounts</span><span>− ${MF.fmt(t.discount, 2)}</span></div>`;
+        const grouped = lines.reduce((m, l) => {
+          const k = l.medId;
+          if (!m[k]) m[k] = 0;
+          m[k].qty = (m[k].qty || 0) + l.qty;
+          m[k].free = (m[k].free || 0) + (l.freeQty || 0);
+          return m;
+        }, {});
+        const totalPacks = Object.values(grouped).reduce((s, g) => s + (g.qty || 0), 0);
+        const totalFree = Object.values(grouped).reduce((s, g) => s + (g.free || 0), 0);
+        const splits = [...new Set(lines.map((l) => l.medId))].filter((k) => lines.filter((l) => l.medId == k).length > 1).length;
+        const itemRows = lines.map((l, i) => `
+          <tr>
+            <td class="wi-sno">${i + 1}</td>
+            <td class="wi-desc"><b>${MF.esc(l.name)}</b>
+              <div class="wi-sub">Batch: <b>${MF.esc(l.batchNo)}</b>${l.expiry ? ` &nbsp;·&nbsp; Exp: <b>${MF.esc(MF.fmtMonthYear ? MF.fmtMonthYear(l.expiry) : l.expiry.slice(0, 7))}</b>` : ''}${l.hsn ? ` &nbsp;·&nbsp; HSN ${MF.esc(l.hsn)}` : ''}${(Number(l.discPct) || 0) > 0 ? ` &nbsp;·&nbsp; Line disc −${Number(l.discPct)}%` : ''}</div></td>
+            <td class="wi-c">${l.qty}</td>
+            <td class="wi-c">${l.freeQty || '—'}</td>
+            <td class="wi-r">${MF.fmt(l.rate, 2)}</td>
+            <td class="wi-r">${l.discPct || 0}</td>
+            <td class="wi-c">${l.gstPct}%</td>
+            <td class="wi-r"><b>${MF.fmt(l.amount, 2)}</b></td>
+          </tr>`).join('');
+        const taxCol = meta.interstate
+          ? `<div class="wi-sr"><span class="wi-k">IGST (interstate)</span><span>${MF.fmt(t.igst, 2)}</span></div>`
+          : (t.cgst > 0 || t.sgst > 0
+            ? `<div class="wi-sr"><span class="wi-k">CGST (share)</span><span>${MF.fmt(t.cgst, 2)}</span></div>
+               <div class="wi-sr"><span class="wi-k">SGST (share)</span><span>${MF.fmt(t.sgst, 2)}</span></div>`
+            : '');
+        const duePanel = (res.balanceDue > 0 || String(meta.pay).toLowerCase() === 'credit')
+          ? `<div class="wi-sr" style="color:#B42318"><span class="wi-k" style="color:#B42318">Balance due${res.dueBy ? ' · by ' + MF.fmtDate(res.dueBy) : ''}</span><span class="num">₹ ${MF.fmt(res.balanceDue || 0, 2)}</span></div>`
+          : '';
+        return `<style>
+          @page { size: A4; margin: 12mm 12mm 10mm; }
+          .wi-rc { width:180mm; margin:0 auto; background:#fff; color:#111827; font-family:Arial, Helvetica, "Segoe UI", sans-serif; font-size:11px; line-height:1.45; }
+          .wi-rc .num { font-variant-numeric:tabular-nums; }
+          .wi-lh { display:flex; gap:12px; align-items:flex-start; padding-bottom:9px; border-bottom:2.5px solid #176B5B; }
+          .wi-logo { width:48px; height:48px; border-radius:11px; background:#176B5B; color:#fff; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:800; flex-shrink:0; }
+          .wi-shop { font-size:19px; font-weight:800; letter-spacing:.02em; }
+          .wi-tag { font-size:9px; color:#4b5563; letter-spacing:.16em; text-transform:uppercase; margin-top:1px; }
+          .wi-addr { font-size:10px; color:#4b5563; margin-top:4px; line-height:1.5; }
+          .wi-lhr { text-align:right; font-size:9.5px; color:#4b5563; line-height:1.6; min-width:58mm; margin-left:auto; }
+          .wi-copytag { display:inline-block; border:1px solid #176B5B; color:#176B5B; font-size:8.5px; font-weight:800; letter-spacing:.12em; padding:2.5px 8px; border-radius:4px; text-transform:uppercase; margin-bottom:5px; }
+          .wi-title { display:flex; justify-content:space-between; align-items:center; margin:10px 0 8px; }
+          .wi-title h2 { font-size:14.5px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin:0; }
+          .wi-title .wi-meta { font-size:10px; color:#4b5563; text-align:right; line-height:1.55; }
+          .wi-grid { display:grid; grid-template-columns:${meta.shipAddr && meta.shipAddr !== meta.billAddr ? '1fr 1fr 1fr' : '1.4fr 0.9fr'}; border:1px solid #111827; margin-bottom:10px; }
+          .wi-ibox { padding:7px 9px; border-right:1px solid #d1d5db; font-size:10px; }
+          .wi-ibox:last-child { border-right:0; }
+          .wi-ibox h4, .wi-panel h4, .wi-words h4 { font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#4b5563; margin:0 0 4px; }
+          .wi-ibox .wi-kv, .wi-panel .wi-kv { display:flex; justify-content:space-between; gap:8px; }
+          .wi-ibox .wi-kv span:first-child, .wi-panel .wi-kv .k { color:#4b5563; }
+          .wi-nm { font-weight:800; font-size:12px; }
+          .wi-items { width:100%; border-collapse:collapse; margin-bottom:4px; }
+          .wi-items th { background:#f3f4f6; font-size:8.5px; font-weight:800; letter-spacing:.06em; text-transform:uppercase; padding:6px 6px; border:1px solid #111827; text-align:left; }
+          .wi-items td { padding:6px 6px; border:1px solid #d1d5db; font-size:10.5px; vertical-align:top; }
+          .wi-items .wi-r { text-align:right; } .wi-items .wi-c { text-align:center; }
+          .wi-sno { width:8mm; text-align:center; font-weight:700; }
+          .wi-sub { color:#4b5563; font-size:9px; margin-top:2px; line-height:1.5; }
+          .wi-sumrow { display:flex; gap:10px; margin-top:6px; align-items:flex-start; }
+          .wi-words { flex:1; border:1px solid #d1d5db; padding:7px 9px; font-size:10px; }
+          .wi-words b { font-size:11.5px; }
+          .wi-summary { width:72mm; border:1px solid #111827; }
+          .wi-sr { display:flex; justify-content:space-between; padding:5px 9px; font-size:10.5px; border-bottom:1px solid #d1d5db; }
+          .wi-sr:last-child { border-bottom:0; }
+          .wi-sr .wi-k { color:#4b5563; }
+          .wi-sr.wi-net { background:#e6f4ef; font-weight:800; font-size:13px; border-top:1.5px solid #111827; }
+          .wi-sr.wi-net .wi-k { color:#111827; }
+          .wi-gstbox { border:1px solid #d1d5db; border-radius:6px; padding:6px 8px; margin-top:8px; }
+          .wi-gstbox table { width:100%; border-collapse:collapse; font-size:10px; }
+          .wi-gstbox th { color:#4b5563; font-weight:600; }
+          .wi-gstbox td, .wi-gstbox th { padding:2px 3px; }
+          .wi-payflex { display:flex; gap:9px; align-items:center; margin-top:8px; }
+          .wi-upitxt { font-size:9.5px; color:#4b5563; }
+          .wi-lower { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
+          .wi-panel { border:1px solid #d1d5db; padding:8px 10px; font-size:9.5px; line-height:1.6; }
+          .wi-panel ol { margin-left:13px; } .wi-panel li { margin:2px 0; }
+          .wi-signrow { display:flex; justify-content:space-between; gap:18px; margin-top:20px; padding-top:6px; }
+          .wi-sign { width:58mm; text-align:center; font-size:10px; color:#4b5563; }
+          .wi-sign .wi-line { border-top:1px solid #111827; margin:28px 0 4px; }
+          .wi-sign b { color:#111827; }
+          .wi-decl { margin-top:10px; font-size:9px; color:#4b5563; text-align:center; border-top:1px dashed #d1d5db; padding-top:6px; }
+          .wi-foot { margin-top:6px; padding-top:6px; text-align:center; font-size:9px; letter-spacing:.08em; color:#9ca3af; text-transform:uppercase; border-top:1px solid #d1d5db; }
+          @media print { .wi-rc { width:auto; margin:0; } }
+        </style>
+        <div class="wi-rc">
+          <div class="wi-lh">
+            <div class="wi-logo">+</div>
+            <div>
+              <div class="wi-shop">${MF.esc(String(store.name || 'Pharmacy').toUpperCase())}</div>
+              <div class="wi-tag">Wholesale Distribution · Pharmaceuticals</div>
+              <div class="wi-addr">
+                ${store.address ? `${MF.esc(store.address)}<br>` : ''}
+                ${store.phone ? `Ph: ${MF.esc(store.phone)}` : ''}
+              </div>
             </div>
-            <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:8px">
-              <tr>
-                <td style="vertical-align:top">
-                  <div style="font-weight:700">${MF.esc(meta.name)}</div>
-                  <div style="color:#4B5563;font-size:10.5px">${MF.esc(meta.billAddr || '')}</div>
-                  ${meta.shipAddr && meta.shipAddr !== meta.billAddr ? `<div style="color:#4B5563;font-size:10.5px;margin-top:2px"><b>Ship to:</b> ${MF.esc(meta.shipAddr)}</div>` : ''}
-                  <div style="color:#4B5563;font-size:10.5px;margin-top:2px">${meta.gstin ? 'GSTIN ' + MF.esc(meta.gstin) : 'Unregistered'}${meta.dl ? ' · DL ' + MF.esc(meta.dl) : ''}</div>
-                </td>
-                <td style="text-align:right;vertical-align:top">
-                  <div>Invoice <b>${MF.esc(res.invoiceNo)}</b></div>
-                  <div style="color:#4B5563;font-size:10.5px">${MF.fmtDate(MF.today())}${meta.interstate ? ' · IGST (interstate)' : ' · CGST+SGST'}</div>
-                  ${res.dueBy ? `<div style="color:#B42318;font-weight:700;font-size:10.5px">Payment due by ${MF.fmtDate(res.dueBy)}</div>` : ''}
-                </td>
-              </tr>
-            </table>
-            <table style="width:100%;border-collapse:collapse;font-size:10.5px">
-              <thead><tr style="border-bottom:1.5px solid #111827">
-                <th style="text-align:left;padding:3px 2px">Item</th><th style="text-align:left">Batch / Expiry</th>
-                <th style="text-align:right">Qty</th><th>Free</th><th style="text-align:right">Rate</th>
-                <th style="text-align:right">Disc%</th><th>GST%</th><th style="text-align:right">Amount</th>
-              </tr></thead>
-              <tbody>${itemRows}</tbody>
-            </table>
-            ${splits.length ? `<div style="font-size:9.5px;color:#6B7280;margin-top:3px"><i class="bi bi-info-circle"></i> Some medicines shipped from multiple batches (FEFO) — batch-wise rows above.</div>` : ''}
-            <table style="width:100%;border-collapse:collapse;margin-top:8px;font-size:10.5px">
-              <tr>
-                <td style="width:55%;vertical-align:top;padding-right:12px">
-                  <div style="border:1px solid #E5E7EB;border-radius:6px;padding:6px 8px">
-                    <div style="font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#6B7280;margin-bottom:4px">GST summary (for input tax credit)</div>
-                    <table style="width:100%;border-collapse:collapse;font-size:10.5px">
-                      <thead><tr style="color:#6B7280"><th style="text-align:center;font-weight:600">Slab</th><th style="text-align:right;font-weight:600">Taxable</th><th style="text-align:right;font-weight:600">Tax</th></tr></thead>
-                      <tbody>${slabRows || '<tr><td colspan="3" style="text-align:center;color:#9CA3AF">No GST on this bill</td></tr>'}</tbody>
-                    </table>
-                  </div>
-                </td>
-                <td style="vertical-align:top">
-                  <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>${MF.fmt(t.subtotal, 2)}</span></div>
-                  <div style="display:flex;justify-content:space-between"><span>Discounts</span><span>− ${MF.fmt(t.discount, 2)}</span></div>
-                  <div style="display:flex;justify-content:space-between"><span>Taxable</span><span>${MF.fmt(t.taxable, 2)}</span></div>
-                  ${t.igst > 0
-                    ? `<div style="display:flex;justify-content:space-between"><span>IGST</span><span>${MF.fmt(t.igst, 2)}</span></div>`
-                    : `<div style="display:flex;justify-content:space-between"><span>CGST</span><span>${MF.fmt(t.cgst, 2)}</span></div>
-                       <div style="display:flex;justify-content:space-between"><span>SGST</span><span>${MF.fmt(t.sgst, 2)}</span></div>`}
-                  <div style="display:flex;justify-content:space-between"><span>Round off</span><span>${MF.fmt(t.roundOff, 2)}</span></div>
-                  <div style="display:flex;justify-content:space-between;font-weight:800;border-top:1.5px solid #111827;margin-top:4px;padding-top:4px"><span>GRAND TOTAL</span><span>${MF.fmt(res.grandTotal)}</span></div>
-                  <div style="display:flex;justify-content:space-between;color:#4B5563;font-size:10.5px"><span>Payment</span><span>${MF.esc(meta.pay)}${res.balanceDue > 0 ? ' · balance ' + MF.fmt(res.balanceDue, 2) : ''}</span></div>
-                </td>
-              </tr>
-            </table>
-            <div style="display:flex;justify-content:space-between;margin-top:26px;font-size:10.5px;color:#6B7280">
-              <span>Received in good order &amp; condition</span><span>For ${MF.esc(store.name || 'MediFlow ERP')} — Authorised signatory</span>
+            <div class="wi-lhr">
+              <div class="wi-copytag">Original · Buyer Copy</div>
+              ${gstin ? `<div style="font-weight:700;color:#111827">GSTIN: ${MF.esc(gstin)}</div>` : ''}
+              ${dls.length ? `<div>Drug Lic.: ${MF.esc(dls.join(' / '))}</div>` : ''}
             </div>
-          </div>`;
+          </div>
+          <div class="wi-title">
+            <h2>Tax Invoice · Wholesale</h2>
+            <div class="wi-meta num">
+              Invoice No: <b>${MF.esc(res.invoiceNo)}</b><br>
+              Date: <b>${MF.fmtDate(MF.today())}</b> · ${meta.interstate ? 'IGST (interstate)' : 'CGST + SGST'}
+            </div>
+          </div>
+          <div class="wi-grid">
+            <div class="wi-ibox">
+              <h4>Bill To (Buyer)</h4>
+              <div class="wi-nm">${MF.esc(meta.name)}</div>
+              ${meta.billAddr ? `<div>${MF.esc(meta.billAddr)}</div>` : ''}
+              <div>${meta.gstin ? 'GSTIN: ' + MF.esc(meta.gstin) : 'GSTIN: Unregistered'}${meta.dl ? ' · DL: ' + MF.esc(meta.dl) : ''}</div>
+            </div>
+            ${meta.shipAddr && meta.shipAddr !== meta.billAddr ? `<div class="wi-ibox">
+              <h4>Ship To</h4>
+              <div>${MF.esc(meta.shipAddr)}</div>
+            </div>` : ''}
+            <div class="wi-ibox">
+              <h4>Invoice Details</h4>
+              <div class="wi-kv"><span>Invoice No.</span><span class="num">${MF.esc(res.invoiceNo)}</span></div>
+              <div class="wi-kv"><span>Date</span><span class="num">${MF.fmtDate(MF.today())}</span></div>
+              <div class="wi-kv"><span>Payment</span><span>${MF.esc(meta.pay)}</span></div>
+              <div class="wi-kv"><span>Items / Packs</span><span class="num">${lines.length} / ${totalPacks}${totalFree ? ' (+' + totalFree + ' free)' : ''}</span></div>
+            </div>
+          </div>
+          <table class="wi-items num">
+            <thead><tr>
+              <th class="wi-sno">#</th>
+              <th>Description of Goods (Batch · Expiry · HSN)</th>
+              <th style="width:10mm" class="wi-c">Qty</th>
+              <th style="width:9mm" class="wi-c">Free</th>
+              <th style="width:17mm" class="wi-r">Rate</th>
+              <th style="width:10mm" class="wi-r">Disc%</th>
+              <th style="width:10mm" class="wi-c">GST</th>
+              <th style="width:20mm" class="wi-r">Amount</th>
+            </tr></thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          ${splits ? `<div style="font-size:9px;color:#6B7280;margin-top:2px"><i class="bi bi-info-circle"></i> ${splits} medicine(s) shipped from multiple batches (FEFO) — batch-wise rows above.</div>` : ''}
+          <div class="wi-sumrow">
+            <div class="wi-words">
+              <h4>Amount in Words</h4>
+              <b>RUPEES ${numWords(res.grandTotal)} ONLY</b>
+              ${storeUpi ? `<div class="wi-payflex">
+                ${payQr ? `<img src="${payQr}" alt="UPI QR" style="width:58px;height:58px;flex-shrink:0">` : ''}
+                <div class="wi-upitxt"><b>Scan to pay · UPI</b><br>${MF.esc(storeUpi)}<br>Amount: <b>₹ ${MF.fmt(res.grandTotal)}</b></div>
+              </div>` : ''}
+              <div class="wi-gstbox">
+                <h4>GST Summary (for Input Tax Credit)</h4>
+                <table>
+                  <thead><tr><th class="wi-c">Slab</th><th class="wi-r">Taxable</th>${meta.interstate ? '<th class="wi-r">IGST</th>' : '<th class="wi-r">CGST</th><th class="wi-r">SGST</th>'}</tr></thead>
+                  <tbody>${slabRows || `<tr><td colspan="4" style="text-align:center;color:#9CA3AF">No GST on this bill</td></tr>`}</tbody>
+                </table>
+              </div>
+            </div>
+            <div class="wi-summary num">
+              <div class="wi-sr"><span class="wi-k">Subtotal (after line discounts)</span><span>${MF.fmt(t.subtotal, 2)}</span></div>
+              ${discRows}
+              <div class="wi-sr"><span class="wi-k">Taxable Value</span><span>${MF.fmt(t.taxable, 2)}</span></div>
+              ${taxCol}
+              <div class="wi-sr"><span class="wi-k">Round Off</span><span>${MF.fmt(t.roundOff, 2)}</span></div>
+              <div class="wi-sr wi-net"><span class="wi-k">GRAND TOTAL</span><span>₹ ${MF.fmt(res.grandTotal)}</span></div>
+              <div class="wi-sr"><span class="wi-k">Payment</span><span>${MF.esc(meta.pay)}</span></div>
+              ${duePanel}
+            </div>
+          </div>
+          <div class="wi-lower">
+            <div class="wi-panel">
+              <h4>Terms &amp; Conditions</h4>
+              <ol>
+                <li>Goods are sold strictly FEFO; batch numbers and expiries appear above. Verify at receipt — transit-damage claims only within 48 hours with this invoice.</li>
+                <li>Goods once sold will not be taken back except bonafide quality or expiry claims routed through the distributor agreement.</li>
+                <li>Prices are as per prevailing stockist price list on the invoice date; bill-level discounts are shown separately and are not adjustable later.</li>
+                <li>Credit bills are payable within agreed terms; overdue balances may pause further supply.</li>
+                <li>Subject to local jurisdiction. E. &amp; O.E.</li>
+              </ol>
+            </div>
+            <div class="wi-panel">
+              <h4>Declaration</h4>
+              <div>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
+              <h4 style="margin-top:7px">For the Buyer</h4>
+              <div>Use this invoice for GST input tax credit as reflected in the slab table. Please retain it for your records and any audit.</div>
+              <h4 style="margin-top:7px">Help</h4>
+              <div>${store.phone ? `Helpline: ${MF.esc(store.phone)}` : 'Contact the counter store for any discrepancy.'}</div>
+            </div>
+          </div>
+          <div class="wi-signrow">
+            <div class="wi-sign">
+              <div class="wi-line"></div>
+              <b>Received in good order &amp; condition</b><br>(${MF.esc(meta.name)} — Authorised signature)
+            </div>
+            <div class="wi-sign">
+              <div class="wi-line"></div>
+              <b>For ${MF.esc(String(store.name || 'Pharmacy').toUpperCase())}</b><br>Authorised Signatory
+            </div>
+          </div>
+          <div class="wi-decl">This is a computer-generated invoice${meta.interstate ? ' · Integrated GST charged as declared for interstate supply' : ''}</div>
+          <div class="wi-foot">Thank you for your business · Aapka swasthya, hamari zimmedari</div>
+        </div>`;
       }
 
       async function postBill(extra = {}) {
@@ -642,6 +822,8 @@ require __DIR__ . '/middleware/auth.php';
             name: c.name, billAddr: $('#wsBillAddr').value, shipAddr: $('#wsShipAddr').value,
             gstin: $('#wsGstin').value, dl: $('#wsDl').value,
             pay, interstate: $('#wsInterstate').checked,
+            schemeDiscPct: parseFloat($('#wsSchemeDisc').value) || 0,
+            overallDiscPct: parseFloat($('#wsOverallDisc').value) || 0,
           };
           MF.printHtml(invoiceHtml(meta, t, res));
           rows = [];
@@ -661,5 +843,5 @@ require __DIR__ . '/middleware/auth.php';
     })();
     });
   </script>
-</body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a471a1f76af059d5',t:'MTc5MTQyNTY3Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
