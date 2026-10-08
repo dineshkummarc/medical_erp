@@ -1748,7 +1748,7 @@
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
     MF.printHtml(state.printFmt === 'thermal'
       ? thermalReceiptHtml('DRAFT', calcTotals())
-      : a4ReceiptHtml('DRAFT', calcTotals()));
+      : receiptHtml('DRAFT', calcTotals(), 'a4'));
   }
 
   function paintPrintBtn() {
@@ -2134,6 +2134,50 @@
     });
   }
 
+  function receiptHtml(invNo, t, fmt, snap) {
+    // snap = frozen bill context for reprints (cart/payment/tender/customer as-was);
+    // omitted on the live path, where current state is the context.
+    const liveCust = MF.cust($('#posCustomer').value);
+    const cust = snap && snap.cust ? snap.cust : (liveCust || { name: 'Customer' });
+    const cart = snap && snap.cart ? snap.cart : state.cart;
+    const pay = snap && snap.payment ? snap.payment : state.payment;
+    const split = snap && snap.split ? snap.split : state.split;
+    const tender = snap && 'tender' in snap ? snap.tender : state.tender;
+    const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: `Split (Cash ${MF.fmt(split.cash)} + UPI ${MF.fmt(split.upi)})` }[pay] || pay;
+    const tenderRows = pay === 'cash' && tender
+      ? `<div class="sum-row"><span class="text-2">Cash paid</span><span class="num">${MF.fmt(tender.cashReceived)}</span></div>
+         <div class="sum-row"><span class="text-2">Change</span><span class="num">${MF.fmt(tender.changeReturned)}</span></div>`
+      : '';
+    const html = `
+      <div class="text-center mb-3">
+        <img src="assets/images/logo.svg" width="42" alt="">
+        <h6 class="fw-bold mt-2 mb-0">${MF.esc(D.store.name)}</h6>
+        ${D.store.address ? `<div class="text-2 small-xs">${MF.esc(D.store.address)}${D.store.gstin ? ' · GSTIN ' + D.store.gstin : ''}</div>` : ''}
+      </div>
+      <div class="d-flex justify-content-between small mb-2">
+        <span>Invoice: <strong>${invNo}</strong></span><span>${MF.fmtDate(MF.today())}</span>
+      </div>
+      <div class="small mb-2">Customer: <strong>${MF.esc(cust.name || 'Customer')}</strong> · Payment: <strong>${payLabel}</strong></div>
+      <table class="table table-sm table-bordered small">
+        <thead><tr><th>Item</th><th class="text-center">Qty</th><th class="text-end">Rate</th><th class="text-end">Amt</th></tr></thead>
+        <tbody>${cart.map((l) => {
+          const m = MF.med(l.medId), c = calcLine(l);
+          return `<tr><td>${MF.esc(m.name)}</td><td class="text-center">${l.qty}</td><td class="text-end num">${MF.fmt(l.rate, 2)}</td><td class="text-end num">${MF.fmt(c.net, 2)}</td></tr>`;
+        }).join('')}</tbody>
+      </table>
+      <div class="ms-auto" style="max-width:260px">
+        <div class="sum-row"><span class="text-2">Subtotal</span><span class="num">${MF.fmt(t.subtotal, 2)}</span></div>
+        <div class="sum-row"><span class="text-2">Discount</span><span class="num">− ${MF.fmt(t.discount, 2)}</span></div>
+        <div class="sum-row"><span class="text-2">Round off</span><span class="num">${t.roundOff >= 0 ? '+' : '−'} ${MF.fmt(Math.abs(t.roundOff), 2)}</span></div>
+        <div class="sum-row total"><span>Total</span><span class="num">${MF.fmt(t.grand)}</span></div>
+        ${tenderRows}
+      </div>
+      <p class="text-center text-2 small-xs mt-3 mb-0">Medicines once sold will not be taken back without valid reason · Get well soon!</p>`;
+    // Thermal 80mm roll → narrow, compact column; A4 → the normal width.
+    return fmt === 'thermal'
+      ? `<div style="width:72mm; margin:0 auto; font-size:11px; line-height:1.42;">${html}</div>`
+      : html;
+  }
 
   /* ===== Thermal receipt engine (80mm / 58mm) — reference-grade =====
    Mono, columnar, audit-honest: batch+exp on every drug line, schedule chips,
@@ -2344,306 +2388,6 @@
     </div>`;
   }
 
-  /* ===== A4 tax invoice engine — letterhead-grade, data-honest =====
-   Same data contract as the thermal engine. Anything the data doesn't prove
-   is simply left out: no blank boxes, no invented tax rows, no decorative QR.
-   The UPI QR (when the store set a UPI ID) is a REAL scannable request with
-   the exact net amount — generated through the on-page QRCode library. */
-  function payQrDataUrl(grand) {
-    const upi = String((D.store && D.store.upi) || '').trim();
-    if (!upi || typeof QRCode === 'undefined') return null;
-    const host = document.createElement('div');
-    host.style.display = 'none';
-    document.body.appendChild(host);
-    try {
-      new QRCode(host, {
-        text: `upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(D.store.name || 'Pharmacy')}&am=${(+grand || 0).toFixed(2)}&cu=INR`,
-        width: 120, height: 120, correctLevel: QRCode.CorrectLevel.M,
-      });
-      const cv = host.querySelector('canvas');
-      return cv ? cv.toDataURL('image/png') : null;
-    } catch (e) {
-      return null;
-    } finally {
-      host.remove();
-    }
-  }
-  function a4ReceiptHtml(invNo, t, snap) {
-    const liveCust = MF.cust($('#posCustomer').value);
-    const custRaw = (snap && snap.cust) ? snap.cust : (liveCust || { name: 'Customer' });
-    const custCard = (custRaw && custRaw.id && MF.cust) ? (MF.cust(custRaw.id) || custRaw) : custRaw;
-    const cart = (snap && snap.cart) ? snap.cart : state.cart;
-    const pay = (snap && snap.payment) ? snap.payment : state.payment;
-    const split = (snap && snap.split) ? snap.split : state.split;
-    const tender = (snap && 'tender' in snap) ? snap.tender : state.tender;
-    const when = new Date((snap && snap.at) || Date.now());
-    const dmy = when.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const hm = when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }).toUpperCase();
-    let doc = snap && snap.doctor !== undefined ? snap.doctor : null;
-    if (!snap) {
-      const dv = $('#posDoctor')?.value;
-      if (dv) {
-        const dd = (D.doctors || []).find((x) => String(x.id) === String(dv));
-        doc = { id: dv, name: dd ? dd.name : ($('#posDoctor').selectedOptions[0]?.text || 'Doctor'), reg: (dd && (dd.reg_no || dd.regNo)) || '', specialty: dd ? (dd.specialty || dd.speciality || '') : '' };
-      }
-    }
-    const rxSnap = snap && snap.rx !== undefined ? snap.rx : null;
-    const store = D.store || {};
-    const gstin = store.gstin || store.gstNo || '';
-    const dl = store.dl || store.dl_no || store.dlNo || '';
-    const counter = $('#posMetaCounter')?.textContent?.trim() || '1';
-    const cashier = thermalCashier();
-    const payLabel = { cash: 'Cash', upi: 'UPI', card: 'Card', credit: 'Credit', split: 'Split (Cash + UPI)' }[pay] || (pay || '—');
-    const isDraft = String(invNo).toUpperCase() === 'DRAFT';
-    const schCode = (m) => String((m && m.schedule) || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
-    const isLooseLine = (l) => l.unit === 'loose';
-    const uL = (m) => m.unitLabel || 'Strip';
-    const pL = (m) => m.pieceLabel || 'Tab';
-    // ----- item rows + HSN/GST aggregation -----
-    const hsnAgg = {}; // "hsn|rate" → {taxable, tax}
-    const rows = cart.map((l, i) => {
-      const m = MF.med(l.medId) || {};
-      const b = D.batches.find((x) => String(x.id) === String(l.batchId)) || {};
-      const c = calcLine(l);
-      const sch = schCode(m);
-      const packSize = +m.packSize || 1;
-      const qtyTxt = isLooseLine(l)
-        ? `${l.qty} ${pL(m)}`
-        : `${l.qty} ${uL(m)}`;
-      const subBits = [
-        `Batch: <b>${MF.esc(b.batchNo || '—')}</b>`,
-        b.expiry ? `Exp: <b>${MF.esc(MF.fmtMonthYear(b.expiry))}</b>` : null,
-        isLooseLine(l) ? `Unit: ${MF.esc(pL(m))} (loose, from ${MF.esc(uL(m))} of ${packSize})` : (packSize > 1 ? `Unit: ${MF.esc(uL(m))} (${packSize} ${MF.esc(pL(m))}s)` : `Unit: ${MF.esc(uL(m))}`),
-        packSize > 1 && !isLooseLine(l) ? `${MF.fmt(l.rate / packSize, 2)} per ${MF.esc(pL(m))}` : null,
-        (Number(l.discPct) || 0) > 0 ? `Line discount −${Number(l.discPct)}%` : null,
-      ].filter(Boolean).join(' &nbsp;·&nbsp; ');
-      const gstPct = +m.gst || 0;
-      const key = (m.hsn || '—') + '|' + gstPct;
-      (hsnAgg[key] = hsnAgg[key] || { hsn: m.hsn || '—', rate: gstPct, taxable: 0, tax: 0 });
-      hsnAgg[key].taxable += Math.max(0, c.net - (c.gstAmt || 0));
-      hsnAgg[key].tax += c.gstAmt || 0;
-      return `<tr>
-        <td class="a4-sno">${i + 1}</td>
-        <td class="a4-desc"><b>${MF.esc(m.name || 'Medicine')}${sch ? `<span class="a4-sch">SCHEDULE ${MF.esc(sch)}</span>` : ''}</b>
-          <div class="a4-sub">${subBits}</div></td>
-        <td class="a4-c">${MF.esc(m.hsn || '—')}</td>
-        <td class="a4-c">${gstPct ? gstPct + '%' : '—'}</td>
-        <td class="a4-c">${MF.esc(qtyTxt)}</td>
-        <td class="a4-r">${MF.fmt(l.rate, 2)}</td>
-        <td class="a4-r"><b>${MF.fmt(c.net, 2)}</b></td>
-      </tr>`;
-    }).join('');
-    // ----- summary / payments -----
-    const gstRows = t.gst > 0
-      ? `<div class="a4-sr"><span class="a4-k">Taxable Value</span><span class="num">${MF.fmt(Math.max(0, t.grand - t.gst), 2)}</span></div>
-         <div class="a4-sr"><span class="a4-k">CGST (share)</span><span class="num">${MF.fmt(t.gst / 2, 2)}</span></div>
-         <div class="a4-sr"><span class="a4-k">SGST (share)</span><span class="num">${MF.fmt(t.gst / 2, 2)}</span></div>`
-      : '';
-    const tenderRows = pay === 'cash' && tender
-      ? `<div class="a4-sr"><span class="a4-k">Cash Paid</span><span class="num">${MF.fmt(tender.cashReceived, 2)}</span></div>
-         <div class="a4-sr"><span class="a4-k">Change Returned</span><span class="num">${MF.fmt(tender.changeReturned, 2)}</span></div>`
-      : (pay === 'split'
-        ? `<div class="a4-sr"><span class="a4-k">Cash Part</span><span class="num">${MF.fmt(split.cash, 2)}</span></div>
-           <div class="a4-sr"><span class="a4-k">UPI Part</span><span class="num">${MF.fmt(split.upi, 2)}</span></div>`
-        : (pay === 'credit'
-          ? `<div class="a4-sr"><span class="a4-k">Added to Customer Dues</span><span class="num">${MF.fmt(t.grand, 2)}</span></div>`
-          : ''));
-    const payQr = !isDraft ? payQrDataUrl(t.grand) : null;
-    const upiPanel = (D.store && D.store.upi)
-      ? `<div class="a4-payflex" style="margin-top:8px">
-          ${payQr ? `<img src="${payQr}" alt="UPI QR" style="width:58px;height:58px;flex-shrink:0">` : ''}
-          <div class="a4-upitxt"><b>Scan to pay · UPI</b><br>${MF.esc(D.store.upi)}<br>Amount: <b>${MF.fmt(t.grand, 2)}</b></div>
-        </div>`
-      : '';
-    const hsnRowsHtml = Object.values(hsnAgg).filter((g) => g.tax > 0).map((g) =>
-      `<div class="a4-kv"><span class="k">HSN ${MF.esc(g.hsn)} · ${g.rate}%</span><span class="v num">${MF.fmt(g.taxable, 2)} + tax ${MF.fmt(g.tax, 2)}</span></div>`).join('');
-    const h1Lines = cart.filter((l) => /^(H1|X|NDPS)$/.test(schCode(MF.med(l.medId))));
-    const h1Html = h1Lines.length
-      ? `<h4 style="margin-top:8px">Schedule ${schCode(MF.med(h1Lines[0].medId))} Register Entry</h4>` +
-        h1Lines.map((l) => {
-          const m = MF.med(l.medId) || {};
-          const b = D.batches.find((x) => String(x.id) === String(l.batchId)) || {};
-          return `<div class="a4-kv"><span class="k">${MF.esc(m.name || 'Drug')} (${l.qty} ${isLooseLine(l) ? MF.esc(pL(m)) : MF.esc(uL(m))})</span><span class="v num">${MF.esc(b.batchNo || '—')} / ${b.expiry ? MF.esc(MF.fmtMonthYear(b.expiry)) : '—'}</span></div>`;
-        }).join('') +
-        `${doc ? `<div class="a4-kv"><span class="k">Prescriber</span><span class="v">${MF.esc(doc.name || '')}${doc.reg ? ' · Reg. ' + MF.esc(doc.reg) : ''}</span></div>` : ''}
-         ${rxSnap && rxSnap.rx_no ? `<div class="a4-kv"><span class="k">Prescription retained</span><span class="v">Yes (${MF.esc(rxSnap.rx_no)})</span></div>` : ''}
-         <div class="a4-kv"><span class="k">Signature of purchaser</span><span class="v">____________________</span></div>`
-      : '';
-    const docBox = doc
-      ? `<div class="a4-ibox">
-          <h4>Prescriber</h4>
-          <div class="a4-nm">${MF.esc(doc.name || '')}</div>
-          ${doc.specialty ? `<div>${MF.esc(doc.specialty)}</div>` : ''}
-          ${doc.reg ? `<div>Reg. No.: ${MF.esc(doc.reg)}</div>` : ''}
-          ${rxSnap && rxSnap.rx_no ? `<div>Rx: ${MF.esc(rxSnap.rx_no)}${rxSnap.rx_date ? ' · ' + MF.esc(String(rxSnap.rx_date).slice(0, 10)) : ''}</div>` : ''}
-        </div>`
-      : '';
-    return `<style>
-      @page { size: A4; margin: 12mm 12mm 10mm; }
-      .a4-rc { width:180mm; margin:0 auto; background:#fff; color:#111827; font-family:Arial, Helvetica, "Segoe UI", sans-serif;
-        font-size:11.5px; line-height:1.45; }
-      .a4-rc .num { font-variant-numeric:tabular-nums; }
-      .a4-lh { display:flex; gap:12px; align-items:flex-start; padding-bottom:9px; border-bottom:2.5px solid #176B5B; }
-      .a4-logo { width:48px; height:48px; border-radius:11px; background:#176B5B; color:#fff; display:flex; align-items:center; justify-content:center;
-        font-size:20px; font-weight:800; flex-shrink:0; }
-      .a4-shop { font-size:20px; font-weight:800; letter-spacing:.02em; }
-      .a4-tag { font-size:9.5px; color:#4b5563; letter-spacing:.16em; text-transform:uppercase; margin-top:1px; }
-      .a4-addr { font-size:10.5px; color:#4b5563; margin-top:4px; line-height:1.5; }
-      .a4-lhr { text-align:right; font-size:10px; color:#4b5563; line-height:1.6; min-width:60mm; margin-left:auto; }
-      .a4-copytag { display:inline-block; border:1px solid #176B5B; color:#176B5B; font-size:8.5px; font-weight:800;
-        letter-spacing:.12em; padding:2.5px 8px; border-radius:4px; text-transform:uppercase; margin-bottom:5px; }
-      .a4-title { display:flex; justify-content:space-between; align-items:center; margin:10px 0 8px; }
-      .a4-title h2 { font-size:15px; font-weight:800; letter-spacing:.08em; text-transform:uppercase; margin:0; }
-      .a4-title .a4-meta { font-size:10.5px; color:#4b5563; text-align:right; line-height:1.55; }
-      .a4-grid { display:grid; grid-template-columns:1.2fr 1fr 0.9fr; border:1px solid #111827; margin-bottom:10px; }
-      .a4-ibox { padding:7px 9px; border-right:1px solid #d1d5db; font-size:10.5px; }
-      .a4-ibox:last-child { border-right:0; }
-      .a4-ibox h4, .a4-panel h4, .a4-words h4 { font-size:8.5px; font-weight:800; letter-spacing:.1em; text-transform:uppercase; color:#4b5563; margin:0 0 4px; }
-      .a4-nm { font-weight:800; font-size:12px; }
-      .a4-ibox .a4-kv, .a4-panel .a4-kv { display:flex; justify-content:space-between; gap:8px; }
-      .a4-ibox .a4-kv span:first-child, .a4-panel .a4-kv .k { color:#4b5563; }
-      .a4-items { width:100%; border-collapse:collapse; margin-bottom:4px; }
-      .a4-items th { background:#f3f4f6; font-size:8.8px; font-weight:800; letter-spacing:.07em; text-transform:uppercase;
-        padding:6px 7px; border:1px solid #111827; text-align:left; }
-      .a4-items td { padding:6px 7px; border:1px solid #d1d5db; font-size:11px; vertical-align:top; }
-      .a4-items .a4-r { text-align:right; } .a4-items .a4-c { text-align:center; }
-      .a4-sno { width:8mm; text-align:center; font-weight:700; }
-      .a4-sub { color:#4b5563; font-size:9.5px; margin-top:2px; line-height:1.5; }
-      .a4-sch { display:inline-block; border:1px solid #111827; font-size:8.5px; font-weight:800; padding:0 4px; margin-left:5px; vertical-align:1px; }
-      .a4-sumrow { display:flex; gap:10px; margin-top:6px; align-items:flex-start; }
-      .a4-words { flex:1; border:1px solid #d1d5db; padding:7px 9px; font-size:10.5px; }
-      .a4-words b { font-size:11.5px; }
-      .a4-summary { width:70mm; border:1px solid #111827; }
-      .a4-sr { display:flex; justify-content:space-between; padding:5px 9px; font-size:11px; border-bottom:1px solid #d1d5db; }
-      .a4-sr:last-child { border-bottom:0; }
-      .a4-sr .a4-k { color:#4b5563; }
-      .a4-sr.a4-net { background:#e6f4ef; font-weight:800; font-size:13px; border-top:1.5px solid #111827; }
-      .a4-sr.a4-net .a4-k { color:#111827; }
-      .a4-payflex { display:flex; gap:9px; align-items:center; }
-      .a4-upitxt { font-size:9.5px; color:#4b5563; }
-      .a4-lower { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px; }
-      .a4-panel { border:1px solid #d1d5db; padding:8px 10px; font-size:9.5px; line-height:1.6; }
-      .a4-panel ol { margin-left:13px; } .a4-panel li { margin:2px 0; }
-      .a4-panel .a4-kv .v { font-weight:700; }
-      .a4-signrow { display:flex; justify-content:space-between; gap:18px; margin-top:20px; padding-top:6px; }
-      .a4-sign { width:58mm; text-align:center; font-size:10px; color:#4b5563; }
-      .a4-sign .a4-line { border-top:1px solid #111827; margin:30px 0 4px; }
-      .a4-sign b { color:#111827; }
-      .a4-decl { margin-top:10px; font-size:9px; color:#4b5563; text-align:center; border-top:1px dashed #d1d5db; padding-top:6px; }
-      .a4-foot { margin-top:6px; padding-top:6px; text-align:center; font-size:9px; letter-spacing:.08em; color:#9ca3af;
-        text-transform:uppercase; border-top:1px solid #d1d5db; }
-      @media print { .a4-rc { width:auto; margin:0; } }
-    </style>
-    <div class="a4-rc">
-      <div class="a4-lh">
-        <div class="a4-logo">+</div>
-        <div>
-          <div class="a4-shop">${MF.esc(String(store.name || 'Pharmacy').toUpperCase())}</div>
-          <div class="a4-tag">Retail Chemist &amp; Druggist</div>
-          <div class="a4-addr">
-            ${store.address ? `${MF.esc(store.address)}<br>` : ''}
-            ${store.phone ? `Ph: ${MF.esc(store.phone)}` : ''}
-          </div>
-        </div>
-        <div class="a4-lhr">
-          <div class="a4-copytag">${isDraft ? 'Draft · Not an Invoice' : 'Original · Customer Copy'}</div>
-          ${gstin ? `<div style="font-weight:700;color:#111827">GSTIN: ${MF.esc(gstin)}</div>` : ''}
-          ${dl ? `<div>Drug Lic. No.: ${MF.esc(dl)}</div>` : ''}
-        </div>
-      </div>
-      <div class="a4-title">
-        <h2>${isDraft ? 'Draft Bill' : 'Tax Invoice'}</h2>
-        <div class="a4-meta num">
-          Invoice No: <b>${MF.esc(invNo)}</b><br>
-          Date &amp; Time: <b>${dmy} · ${hm}</b>
-        </div>
-      </div>
-      <div class="a4-grid">
-        <div class="a4-ibox">
-          <h4>Patient / Bill To</h4>
-          <div class="a4-nm">${MF.esc(custCard.name || 'Customer')}</div>
-          ${custCard.phone ? `<div>Ph: ${MF.esc(custCard.phone)}</div>` : ''}
-          ${custCard.address ? `<div>${MF.esc(custCard.address)}</div>` : ''}
-        </div>
-        ${docBox || `<div class="a4-ibox">
-          <h4>Prescriber</h4>
-          <div class="a4-nm">—</div>
-          <div>Over-the-counter sale</div>
-        </div>`}
-        <div class="a4-ibox">
-          <h4>Invoice Details</h4>
-          <div class="a4-kv"><span>Invoice No.</span><span class="num">${MF.esc(invNo)}</span></div>
-          <div class="a4-kv"><span>Date</span><span class="num">${dmy}</span></div>
-          <div class="a4-kv"><span>Cashier</span><span>${MF.esc(cashier || '—')}</span></div>
-          <div class="a4-kv"><span>Counter</span><span class="num">${MF.esc(counter)}</span></div>
-          <div class="a4-kv"><span>Payment</span><span>${MF.esc(payLabel)}</span></div>
-        </div>
-      </div>
-      <table class="a4-items num">
-        <thead><tr>
-          <th class="a4-sno">#</th>
-          <th>Description of Goods (Batch · Expiry · Unit)</th>
-          <th style="width:14mm" class="a4-c">HSN</th>
-          <th style="width:11mm" class="a4-c">GST</th>
-          <th style="width:17mm" class="a4-c">Qty</th>
-          <th style="width:19mm" class="a4-r">Rate</th>
-          <th style="width:22mm" class="a4-r">Amount</th>
-        </tr></thead>
-        <tbody>${rows}</tbody>
-      </table>
-      <div class="a4-sumrow">
-        <div class="a4-words">
-          <h4>Amount in Words</h4>
-          <b>RUPEES ${numWords(t.grand)} ONLY</b>
-          <div style="margin-top:5px;color:#4b5563">
-            All prices are MRP inclusive of applicable taxes.${t.gst > 0 ? ' Tax amounts derive from the medicines\' own GST rates (dynamic per item).' : ''}
-          </div>
-          ${upiPanel}
-        </div>
-        <div class="a4-summary num">
-          <div class="a4-sr"><span class="a4-k">Gross Amount</span><span>${MF.fmt(t.subtotal, 2)}</span></div>
-          <div class="a4-sr"><span class="a4-k">Less: Discount</span><span>− ${MF.fmt(t.discount, 2)}</span></div>
-          ${gstRows}
-          <div class="a4-sr"><span class="a4-k">Round Off</span><span>${t.roundOff >= 0 ? '+' : '−'} ${MF.fmt(Math.abs(t.roundOff), 2)}</span></div>
-          <div class="a4-sr a4-net"><span class="a4-k">NET PAYABLE</span><span>₹ ${MF.fmt(t.grand)}</span></div>
-          ${tenderRows}
-        </div>
-      </div>
-      <div class="a4-lower">
-        <div class="a4-panel">
-          <h4>Terms &amp; Conditions</h4>
-          <ol>
-            <li>Goods once sold will not be taken back or exchanged except for quality/manufacturing defect, within 7 days of purchase with this invoice.</li>
-            <li>Medicines to be stored below 30°C, away from direct sunlight &amp; out of reach of children. Finish the full course as directed.</li>
-            <li>Schedule H / H1 drugs are dispensed only against a valid prescription, retained at the store for inspection.</li>
-            <li>Subject to local jurisdiction. E. &amp; O.E.</li>
-          </ol>
-          ${h1Html}
-        </div>
-        <div class="a4-panel">
-          <h4>Declaration</h4>
-          <div>We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.</div>
-          ${hsnRowsHtml ? `<h4 style="margin-top:7px">Tax Summary (HSN-wise)</h4>${hsnRowsHtml}
-          <div class="a4-kv"><span class="k">Total Tax</span><span class="v num">₹ ${MF.fmt(t.gst, 2)}</span></div>` : ''}
-          <h4 style="margin-top:7px">Returns / Help</h4>
-          <div>Keep this invoice for any exchange or insurance claim.${store.phone ? `<br>Helpline: ${MF.esc(store.phone)}` : ''}</div>
-        </div>
-      </div>
-      <div class="a4-signrow">
-        <div class="a4-sign">
-          <div class="a4-line"></div>
-          <b>Customer Signature</b><br>(${MF.esc(custCard.name || 'Customer')})
-        </div>
-        <div class="a4-sign">
-          <div class="a4-line"></div>
-          <b>For ${MF.esc(String(store.name || 'Pharmacy').toUpperCase())}</b><br>Authorised Signatory
-        </div>
-      </div>
-      <div class="a4-decl">This is a computer-generated invoice${isDraft ? ' — DRAFT, not valid for tax purposes' : ''}</div>
-      <div class="a4-foot">Thank you · Get well soon · धन्यवाद</div>
-    </div>`;
-  }
-
   /* ===== Last-bill reprint chip =====
    Paper jams don't wait for the Sales-invoices page. A frozen snapshot of the
    bill we just completed lets the cashier reprint A4/thermal right from the
@@ -2667,12 +2411,6 @@
           const dd = (D.doctors || []).find((x) => String(x.id) === String(dv));
           return { id: dv, name: dd ? dd.name : ($('#posDoctor').selectedOptions[0]?.text || 'Doctor'), reg: (dd && (dd.reg_no || dd.regNo)) || '' };
         })(),
-        rx: (() => {
-          const rid = $('#posRx')?.value;
-          if (!rid) return null;
-          const row = (state.rxRows || []).find((r) => String(r.id) === String(rid));
-          return row ? { id: rid, rx_no: row.rx_no || '', rx_date: row.rx_date || '' } : { id: rid };
-        })(),
       },
       t: { subtotal: t.subtotal, discount: t.discount, roundOff: t.roundOff, grand: t.grand, gst: t.gst || 0 },
     };
@@ -2695,7 +2433,7 @@
   function reprintLastBill(fmt) {
     const b = state.lastBill;
     if (!b) { MF.toast('No completed bill to reprint yet on this counter.', 'warn', 'Reprint'); return; }
-    MF.printHtml(fmt === 'thermal' ? thermalReceiptHtml(b.invNo, b.t, b.snap) : a4ReceiptHtml(b.invNo, b.t, b.snap));
+    MF.printHtml(fmt === 'thermal' ? thermalReceiptHtml(b.invNo, b.t, b.snap) : receiptHtml(b.invNo, b.t, 'a4', b.snap));
   }
   function initLastBillChip() {
     const chip = $('#posLastBill'), menu = $('#posReprintMenu');
@@ -2925,7 +2663,7 @@
       });
       MF.printHtml(state.printFmt === 'thermal'
         ? thermalReceiptHtml(res.invoiceNo, t)
-        : a4ReceiptHtml(res.invoiceNo, t));
+        : receiptHtml(res.invoiceNo, t, 'a4'));
       saveLastBill(res.invoiceNo, t);
       paintLastBill();
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
@@ -3592,7 +3330,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.21 — a4 invoice engine'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.20 — thermal receipt engine'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)
