@@ -3109,7 +3109,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.17 — chips in global top bar + deep links'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.16 — always-on notify pills + glow'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)
@@ -3461,11 +3461,6 @@
     // Held bills survive page hops: restore what was parked before boot.
     loadHeld();
     updateHoldBadge();
-
-    // Deep links from the global top-bar chips (#scanrx / #rxpend): land straight
-    // inside the right modal instead of dumping the user on an empty POS screen.
-    if (location.hash === '#scanrx') setTimeout(() => $('#posScanRx')?.click(), 400);
-    if (location.hash === '#rxpend') setTimeout(() => $('#posRxPend')?.click(), 400);
 
     // Scan & Send Rx inbox: boot silently, then poll every 9 s (paused while tab hidden).
     refreshScanRx(false);

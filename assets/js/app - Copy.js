@@ -533,7 +533,6 @@ window.MF = window.MF || {};
           <kbd>Ctrl K</kbd>
         </div>
         <div class="ms-auto d-flex align-items-center gap-2">
-          <span id="mfRxChips" class="d-flex align-items-center gap-2"></span>
           <div class="dropdown">
             <button class="mf-icon-btn" data-bs-toggle="dropdown" aria-label="Quick actions"><i class="bi bi-lightning-charge"></i></button>
             <div class="dropdown-menu dropdown-menu-end shadow" style="min-width:230px">
@@ -754,87 +753,11 @@ window.MF = window.MF || {};
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); openSearch(); }
   });
 
-  /* ---------------- Rx notification chips (top bar, before Quick actions) ----------------
-   Two always-on chips: Scan & Send photo inbox + Rx-capture queue. On the POS page
-   the REAL pill buttons (with their full engines) are relocated into this slot —
-   one source of truth, zero duplication. Everywhere else a lightweight poller
-   (30 s, paused on hidden tabs) keeps counts honest and glows on increase. */
-  function wireRxChips() {
-    const slot = document.getElementById('mfRxChips');
-    if (!slot) return;
-    const paintBellDot = () => {
-      const dot = document.querySelector('#mf-topbar .mf-dot');
-      if (!dot) return;
-      const read = (id) => { const el = document.getElementById(id); return el ? (+el.textContent || 0) : 0; };
-      const scan = read('posScanRxTxt') || read('glbScanRxTxt');
-      const pend = read('posRxPendTxt') || read('glbRxPendTxt');
-      dot.style.display = (scan + pend) > 0 ? '' : 'none';
-    };
-    document.querySelector('#mf-topbar .mf-dot')?.style.setProperty('display', 'none');
-
-    if (document.getElementById('posScanRx')) {
-      // POS page: adopt the native pills — engines untouched, single source of truth.
-      ['posRxPend', 'posScanRx'].forEach((pid) => { const el = document.getElementById(pid); if (el) slot.appendChild(el); });
-      setInterval(paintBellDot, 3000);
-      paintBellDot();
-      return;
-    }
-
-    // ---- Non-POS pages: standalone lightweight chips ----
-    const styleId = 'mfRxChipCss';
-    if (!document.getElementById(styleId)) {
-      const st = document.createElement('style'); st.id = styleId;
-      st.textContent = `
-        .mf-rxchip { border:1px solid #e3ebf4; background:#fff; border-radius:999px; font-size:.72rem; font-weight:750;
-          padding:2px 10px; display:inline-flex; align-items:center; gap:6px; cursor:pointer; }
-        .mf-rxchip.is-idle { opacity:.55; }
-        .mf-rxchip.is-notify { animation:mfChipPulse .8s ease-in-out 3; border-color:var(--glowc); }
-        .mf-rxchip.scan { color:#23408e; --glowc:#23408e; --glowc-soft:rgba(35,64,142,.5); --glowc-fade:rgba(35,64,142,0); }
-        .mf-rxchip.pend { color:#B42318; --glowc:#B42318; --glowc-soft:rgba(180,35,24,.5); --glowc-fade:rgba(180,35,24,0); }
-        @keyframes mfChipPulse {
-          0% { box-shadow:0 0 0 0 var(--glowc-soft); transform:scale(1); }
-          45% { box-shadow:0 0 0 7px var(--glowc-fade); transform:scale(1.06); }
-          100% { box-shadow:0 0 0 0 var(--glowc-fade); transform:scale(1); }
-        }`;
-      document.head.appendChild(st);
-    }
-    slot.innerHTML = `
-      <button type="button" class="mf-rxchip scan is-idle" id="glbScanRx" title="Scan & Send Rx — photos customers sent from the in-store QR"><i class="bi bi-qr-code"></i><span id="glbScanRxTxt">0</span></button>
-      <button type="button" class="mf-rxchip pend is-idle" id="glbRxPend" title="Rx capture queue — prescription details still to record"><i class="bi bi-journal-medical"></i><span id="glbRxPendTxt">0</span></button>`;
-    document.getElementById('glbScanRx').addEventListener('click', () => { location.href = 'retail-pos.php#scanrx'; });
-    document.getElementById('glbRxPend').addEventListener('click', () => { location.href = 'retail-pos.php#rxpend'; });
-
-    let prevScan, prevPend;
-    const glow = (el) => { if (!el) return; el.classList.remove('is-notify'); void el.offsetWidth; el.classList.add('is-notify'); setTimeout(() => el.classList.remove('is-notify'), 2600); };
-    async function pollChips() {
-      if (!(MF.Api && MF.Api.live)) return;
-      try {
-        const a = await MF.Api.get('rx-inbox.php?action=pending');
-        const n = ((a.data && a.data.inbox) || []).length;
-        const t = document.getElementById('glbScanRxTxt'); if (t) t.textContent = n;
-        const c = document.getElementById('glbScanRx');
-        if (c) { c.classList.toggle('is-idle', n === 0); if (prevScan !== undefined && n > prevScan) glow(c); prevScan = n; }
-      } catch (e) { /* network blip — next poll */ }
-      try {
-        const b = await MF.Api.get('sale-audit.php?event=PENDING_RX');
-        const n2 = ((b.data && b.data.pending) || []).length;
-        const t2 = document.getElementById('glbRxPendTxt'); if (t2) t2.textContent = n2;
-        const c2 = document.getElementById('glbRxPend');
-        if (c2) { c2.classList.toggle('is-idle', n2 === 0); if (prevPend !== undefined && n2 > prevPend) glow(c2); prevPend = n2; }
-      } catch (e) { /* network blip — next poll */ }
-      paintBellDot();
-    }
-    pollChips();
-    setInterval(() => { if (!document.hidden) pollChips(); }, 30000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) pollChips(); });
-  }
-
   /* ---------------- Init ---------------- */
   document.addEventListener('DOMContentLoaded', async () => {
     try { await MF.boot(); } catch (_) { /* 401 → login redirect already issued */ }
     renderSidebar();
     renderTopbar();
-    wireRxChips();
     const layout = document.querySelector('.mf-layout');
     if (layout) {
       const bd = document.createElement('div');
