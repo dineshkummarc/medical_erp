@@ -1746,9 +1746,7 @@
 
   function printInvoice() {
     if (!state.cart.length) { MF.toast('Cart is empty — nothing to print', 'warn'); return; }
-    MF.printHtml(state.printFmt === 'thermal'
-      ? thermalReceiptHtml('DRAFT', calcTotals())
-      : receiptHtml('DRAFT', calcTotals(), 'a4'));
+    MF.printHtml(receiptHtml('DRAFT', calcTotals(), state.printFmt));
   }
 
   function paintPrintBtn() {
@@ -2179,215 +2177,6 @@
       : html;
   }
 
-  /* ===== Thermal receipt engine (80mm / 58mm) — reference-grade =====
-   Mono, columnar, audit-honest: batch+exp on every drug line, schedule chips,
-   GST section ONLY when the data says so, amount in words (Indian), a REAL
-   scannable Code39 of the invoice number, and an H1 pharmacy-copy stub only
-   when controlled items were actually sold. Width (80/58) is a saved pref. */
-  const thermalMm = () => (localStorage.getItem('mf-pos-thermal-mm') === '58' ? '58' : '80');
-  function paintThermalMmLabels() {
-    const mm = thermalMm();
-    document.querySelectorAll('[data-thermal-mm]').forEach((el) => { el.textContent = mm + 'mm'; });
-    document.querySelectorAll('[data-thermal-other]').forEach((el) => { el.textContent = (mm === '80' ? '58' : '80') + 'mm'; });
-  }
-  function setThermalMm(mm) {
-    localStorage.setItem('mf-pos-thermal-mm', mm === '58' ? '58' : '80');
-    paintThermalMmLabels();
-  }
-  function thermalCashier() {
-    const item = [...document.querySelectorAll('#posMetaBar .pos-meta-item')].find((el) => /Cashier/i.test(el.textContent || ''));
-    return item ? (item.querySelector('strong')?.textContent || '').trim().toUpperCase() : '';
-  }
-  function numWords(n) {
-    n = Math.round(Math.abs(+n || 0));
-    if (!n) return 'ZERO';
-    const ONES = ['', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN', 'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'];
-    const TENS = ['', '', 'TWENTY', 'THIRTY', 'FORTY', 'FIFTY', 'SIXTY', 'SEVENTY', 'EIGHTY', 'NINETY'];
-    const two = (x) => (x < 20 ? ONES[x] : TENS[Math.floor(x / 10)] + (x % 10 ? ' ' + ONES[x % 10] : ''));
-    const three = (x) => {
-      const h = Math.floor(x / 100), r = x % 100;
-      return (h ? ONES[h] + ' HUNDRED' + (r ? ' ' : '') : '') + (r ? two(r) : '');
-    };
-    const parts = [];
-    const cr = Math.floor(n / 1e7); n %= 1e7;
-    const lk = Math.floor(n / 1e5); n %= 1e5;
-    const th = Math.floor(n / 1e3); n %= 1e3;
-    if (cr) parts.push(three(cr) + ' CRORE');
-    if (lk) parts.push(two(lk) + ' LAKH');
-    if (th) parts.push(two(th) + ' THOUSAND');
-    if (n) parts.push(three(n));
-    return parts.join(' ');
-  }
-  // Real Code39 encoder (digits, A-Z, dash) — scans on any laser/CCD scanner.
-  function code39Svg(text, height) {
-    const T = {
-      '0': 'nnnwwnwnn', '1': 'wnnwnnnnw', '2': 'nnwwnnnnw', '3': 'wnwwnnnnn', '4': 'nnnwwnnnw',
-      '5': 'wnnwwnnnn', '6': 'nnwwwnnnn', '7': 'nnnwnnwnw', '8': 'wnnwnnwnn', '9': 'nnwwnnwnn',
-      A: 'wnnnnnwnw', B: 'nnwnnnwnw', C: 'wnwnnnwnn', D: 'nnnnwnwnw', E: 'wnnnwnwnn', F: 'nnwnwnwnn',
-      G: 'nnnnnnwwn', H: 'wnnnnnwnn', I: 'nnwnnnwnn', J: 'wnwnnnwnn', K: 'wnnnnnnww', L: 'nnwnnnnww',
-      M: 'wnwnnnnwn', N: 'nnnnwnnww', O: 'wnnnwnnwn', P: 'nnwnwnnwn', Q: 'nnnnnnwww', R: 'wnnnnnwwn',
-      S: 'nnwnnnwwn', T: 'wnwnnnwwn', '-': 'nwnnnnwnw', '*': 'nwnnwnwnw',
-    };
-    const clean = ('*' + String(text).toUpperCase().replace(/[^0-9A-Z-]+/g, '-') + '*').split('') .filter((c) => T[c]);
-    const N = 1, W = 2.6, GAP = 1;
-    let x = 0, bars = '';
-    clean.forEach((ch, ci) => {
-      const pat = T[ch];
-      for (let i = 0; i < 9; i++) {
-        const wk = pat[i] === 'w' ? W : N;
-        if (i % 2 === 0) bars += `<rect x="${x.toFixed(1)}" y="0" width="${wk}" height="${height}" fill="#111"/>`;
-        x += wk;
-      }
-      if (ci < clean.length - 1) x += GAP;
-    });
-    return `<svg viewBox="0 0 ${Math.ceil(x)} ${height}" preserveAspectRatio="none" style="width:100%;height:${height}px;display:block">${bars}</svg>`;
-  }
-  function thermalReceiptHtml(invNo, t, snap) {
-    const mm = thermalMm();
-    const liveCust = MF.cust($('#posCustomer').value);
-    const cust = (snap && snap.cust) ? snap.cust : (liveCust || { name: 'Customer' });
-    const cart = (snap && snap.cart) ? snap.cart : state.cart;
-    const pay = (snap && snap.payment) ? snap.payment : state.payment;
-    const split = (snap && snap.split) ? snap.split : state.split;
-    const tender = (snap && 'tender' in snap) ? snap.tender : state.tender;
-    const when = new Date((snap && snap.at) || Date.now());
-    const dmy = when.toLocaleDateString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
-    const hm = when.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }).toUpperCase();
-    // Doctor: live → current picker; reprint → frozen on the snapshot.
-    let doc = snap && snap.doctor !== undefined ? snap.doctor : null;
-    if (!snap) {
-      const dv = $('#posDoctor')?.value;
-      if (dv) {
-        const dd = (D.doctors || []).find((x) => String(x.id) === String(dv));
-        doc = { id: dv, name: dd ? dd.name : ($('#posDoctor').selectedOptions[0]?.text || 'Doctor'), reg: (dd && (dd.reg_no || dd.regNo)) || '' };
-      }
-    }
-    const payLabel = { cash: 'CASH', upi: 'UPI', card: 'CARD', credit: 'CREDIT', split: `SPLIT (CASH + UPI)` }[pay] || String(pay || '').toUpperCase();
-    const counter = $('#posMetaCounter')?.textContent?.trim() || '1';
-    const cashier = thermalCashier();
-    const store = D.store || {};
-    const gstin = store.gstin || store.gstNo || '';
-    const dl = store.dl || store.dl_no || store.dlNo || '';
-    const isLooseLine = (l) => l.unit === 'loose';
-    const lineUnit = (l, m) => (isLooseLine(l) ? (m.pieceLabel || 'TAB') : (m.unitLabel || 'STRIP')).toUpperCase();
-    const schCode = (m) => String((m && m.schedule) || '').trim().toUpperCase().replace(/^SCHEDULE\s+/, '');
-    const itemsHtml = cart.map((l) => {
-      const m = MF.med(l.medId) || {};
-      const b = D.batches.find((x) => String(x.id) === String(l.batchId)) || {};
-      const c = calcLine(l);
-      const sch = schCode(m);
-      const expTxt = b.expiry ? MF.fmtMonthYear(b.expiry).replace(/[\s-]+/g, '/') : '';
-      const discNote = (Number(l.discPct) || 0) > 0 ? ` (-${Number(l.discPct)}%)` : '';
-      return `<div class="th-it">
-        <div class="th-nm">${MF.esc(String(m.name || 'Medicine').toUpperCase())}${sch ? `<span class="th-sch">SCH-${MF.esc(sch)}</span>` : ''}</div>
-        <div class="th-meta"><span>${MF.esc(b.batchNo || '—')}${expTxt ? '&nbsp;&nbsp;EXP:' + MF.esc(expTxt) : ''}</span><span>${MF.esc(lineUnit(l, m))}</span></div>
-        <div class="th-amt"><span>${l.qty} X ${MF.fmt(l.rate, 2)}${discNote}</span><span class="th-b">${MF.fmt(c.net, 2)}</span></div>
-      </div>`;
-    }).join('');
-    const packCount = cart.reduce((s, l) => s + (isLooseLine(l) ? 0 : l.qty), 0);
-    const looseCount = cart.reduce((s, l) => s + (isLooseLine(l) ? l.qty : 0), 0);
-    const gstRows = t.gst > 0
-      ? `<div class="th-dash"></div>
-         <div class="th-r th-sm"><span>TAXABLE VALUE</span><span>${MF.fmt(Math.max(0, t.grand - t.gst), 2)}</span></div>
-         <div class="th-r th-sm"><span>CGST (INCLUDED IN MRP)</span><span>${MF.fmt(t.gst / 2, 2)}</span></div>
-         <div class="th-r th-sm"><span>SGST (INCLUDED IN MRP)</span><span>${MF.fmt(t.gst / 2, 2)}</span></div>`
-      : '';
-    const tenderRows = pay === 'cash' && tender
-      ? `<div class="th-dash"></div>
-         <div class="th-r"><span class="th-k">CASH</span><span class="th-fill"></span><span>${MF.fmt(tender.cashReceived, 2)}</span></div>
-         <div class="th-r"><span class="th-k">RETURN</span><span class="th-fill"></span><span>${MF.fmt(tender.changeReturned, 2)}</span></div>`
-      : (pay === 'split'
-        ? `<div class="th-dash"></div>
-           <div class="th-r"><span class="th-k">CASH PART</span><span class="th-fill"></span><span>${MF.fmt(split.cash, 2)}</span></div>
-           <div class="th-r"><span class="th-k">UPI PART</span><span class="th-fill"></span><span>${MF.fmt(split.upi, 2)}</span></div>`
-        : (pay === 'credit'
-          ? `<div class="th-dash"></div><div class="th-r"><span class="th-k">ADDED TO DUES</span><span class="th-fill"></span><span>${MF.fmt(t.grand, 2)}</span></div>`
-          : ''));
-    const h1Lines = cart.filter((l) => /^(H1|X|NDPS)$/.test(schCode(MF.med(l.medId))));
-    const stubHtml = h1Lines.length ? h1Lines.map((l) => {
-      const m = MF.med(l.medId) || {};
-      const b = D.batches.find((x) => String(x.id) === String(l.batchId)) || {};
-      return `<div class="th-stub">
-        <div class="c th-b th-sm">SCHEDULE ${schCode(m)} REGISTER · PHARMACY COPY</div>
-        <div class="th-kv th-sm"><span class="th-kk">DRUG</span><span class="th-b">${MF.esc(String(m.name || '').toUpperCase())}</span></div>
-        <div class="th-kv th-sm"><span class="th-kk">BATCH / EXP</span><span>${MF.esc(b.batchNo || '—')} / ${b.expiry ? MF.esc(MF.fmtMonthYear(b.expiry)) : '—'}</span></div>
-        <div class="th-kv th-sm"><span class="th-kk">QTY DISPENSED</span><span>${l.qty} ${MF.esc(lineUnit(l, m))}</span></div>
-        <div class="th-kv th-sm"><span class="th-kk">DATE &amp; TIME</span><span>${dmy} ${hm}</span></div>
-        <div class="th-kv th-sm"><span class="th-kk">PURCHASER</span><span>${MF.esc(String(cust.name || 'CASH CUSTOMER').toUpperCase())}</span></div>
-        ${doc ? `<div class="th-kv th-sm"><span class="th-kk">PRESCRIBER</span><span>${MF.esc(String(doc.name || '').toUpperCase())}</span></div>` : ''}
-        ${doc && doc.reg ? `<div class="th-kv th-sm"><span class="th-kk">REG. NO.</span><span>${MF.esc(doc.reg)}</span></div>` : ''}
-        <div class="th-kv th-sm"><span class="th-kk">SIGN OF BUYER</span><span>_______________</span></div>
-        <div class="c th-tiny" style="margin-top:5px">RETAIN AS PER DRUGS &amp; COSMETICS ACT</div>
-      </div>`;
-    }).join('') : '';
-    const controlled = cart.some((l) => schCode(MF.med(l.medId)));
-    const wCss = mm === '58' ? '52mm' : '72mm';
-    const fs = mm === '58' ? '10px' : '11px';
-    return `<style>
-      @page { size: ${mm}mm auto; margin: 1.5mm 1mm; }
-      .th-rc { width:${wCss}; margin:0 auto; font-family:"Courier New", Courier, ui-monospace, Menlo, Consolas, monospace;
-        font-size:${fs}; line-height:1.38; letter-spacing:.01em; color:#111; background:#fff; padding:2mm 1mm; }
-      .th-rc .c { text-align:center; } .th-rc .th-b { font-weight:700; }
-      .th-dbl { font-size:calc(${fs} * 1.3); font-weight:700; letter-spacing:.02em; }
-      .th-sm { font-size:calc(${fs} - 1.2px); } .th-tiny { font-size:calc(${fs} - 2px); }
-      .th-dash { border-top:1px dashed #333; margin:4px 0; } .th-dash.th-solid { border-top-style:solid; border-color:#111; }
-      .th-r { display:flex; justify-content:space-between; gap:8px; margin:2px 0; }
-      .th-k { white-space:nowrap; } .th-fill { flex:1; border-bottom:1px dotted #bbb; margin:0 2px; transform:translateY(-3px); }
-      .th-net { font-size:calc(${fs} + 1px); font-weight:700; }
-      .th-it { margin:4px 0; } .th-nm { font-weight:700; text-transform:uppercase; }
-      .th-meta, .th-amt { display:flex; justify-content:space-between; font-size:calc(${fs} - 1px); }
-      .th-sch { border:1px solid #111; padding:0 3px; font-size:calc(${fs} - 1.5px); font-weight:700; margin-left:4px; }
-      .th-kv { display:flex; gap:6px; } .th-kk { width:44%; flex-shrink:0; }
-      .th-stub { border:1px dashed #333; padding:5px; margin-top:3px; }
-    </style>
-    <div class="th-rc">
-      <div class="c th-dbl">${MF.esc(String(store.name || 'PHARMACY').toUpperCase())}</div>
-      ${store.address ? `<div class="c th-sm">${MF.esc(String(store.address).toUpperCase())}</div>` : ''}
-      ${store.phone ? `<div class="c th-sm">PH: ${MF.esc(store.phone)}</div>` : ''}
-      ${gstin ? `<div class="c th-sm">GSTIN: ${MF.esc(gstin)}</div>` : ''}
-      ${dl ? `<div class="c th-sm">DL: ${MF.esc(dl)}</div>` : ''}
-      <div class="th-dash"></div>
-      <div class="c th-b">TAX INVOICE (${MF.esc(payLabel)})</div>
-      <div class="th-dash"></div>
-      <div class="th-r th-sm"><span>INV: ${MF.esc(invNo)}</span><span>${dmy}</span></div>
-      <div class="th-r th-sm"><span>TIME: ${hm}</span><span>CASHIER: ${MF.esc(cashier || '—')}</span></div>
-      <div class="th-r th-sm"><span>COUNTER: ${MF.esc(counter)}</span><span>MODE: ${MF.esc(payLabel)}</span></div>
-      <div class="th-sm">PT: ${MF.esc(String(cust.name || 'CASH CUSTOMER').toUpperCase())}${doc ? '&nbsp;&nbsp;DR: ' + MF.esc(String(doc.name || '').toUpperCase()) : ''}</div>
-      <div class="th-dash th-solid"></div>
-      <div class="th-r th-b th-sm"><span>ITEM / BATCH-EXP</span><span>AMOUNT</span></div>
-      <div class="th-dash"></div>
-      ${itemsHtml}
-      <div class="th-dash th-solid"></div>
-      <div class="th-r th-sm"><span class="th-k">ITEMS: ${cart.length}&nbsp;&nbsp;(${packCount || 0} PACK${packCount === 1 ? '' : 'S'}${looseCount ? ' + ' + looseCount + ' LOOSE' : ''})</span></div>
-      <div class="th-r"><span class="th-k">GROSS</span><span class="th-fill"></span><span>${MF.fmt(t.subtotal, 2)}</span></div>
-      <div class="th-r"><span class="th-k">DISCOUNT</span><span class="th-fill"></span><span>-${MF.fmt(t.discount, 2)}</span></div>
-      <div class="th-r th-sm"><span class="th-k">ROUND ${t.roundOff >= 0 ? 'ADDED' : 'LESS'}</span><span class="th-fill"></span><span>${t.roundOff >= 0 ? '+' : '-'}${MF.fmt(Math.abs(t.roundOff), 2)}</span></div>
-      <div class="th-dash"></div>
-      <div class="th-r th-net"><span class="th-k">NET PAYABLE</span><span class="th-fill"></span><span>${MF.fmt(t.grand, 2)}</span></div>
-      ${gstRows}
-      ${tenderRows}
-      <div class="th-dash"></div>
-      <div class="c th-sm th-b">RUPEES ${numWords(t.grand)} ONLY</div>
-      <div class="th-dash"></div>
-      <div class="c">${code39Svg(invNo, mm === '58' ? 30 : 34)}</div>
-      <div class="c th-sm th-b" style="letter-spacing:.14em">${MF.esc(invNo)}</div>
-      <div class="th-dash"></div>
-      ${controlled ? `<div class="th-sm">* PRESCRIPTION DRUG(S) SOLD AS PER</div>
-      <div class="th-sm">&nbsp;&nbsp;RECORDED PRESCRIPTION / REGISTER</div>` : ''}
-      <div class="th-sm">* MEDICINES NOT RETURNABLE ONCE SOLD</div>
-      <div class="th-sm">&nbsp;&nbsp;(EXCEPT QUALITY DEFECT, 7 DAYS,</div>
-      <div class="th-sm">&nbsp;&nbsp;WITH THIS RECEIPT)</div>
-      <div class="th-sm">* STORE BELOW 30 C. KEEP AWAY FROM</div>
-      <div class="th-sm">&nbsp;&nbsp;CHILDREN. FINISH FULL COURSE.</div>
-      <div class="c th-b" style="margin-top:6px">GET WELL SOON! / धन्यवाद</div>
-      <div class="c th-tiny" style="margin-top:4px">THIS IS A COMPUTER-GENERATED INVOICE</div>
-      ${stubHtml ? `<div class="th-dash" style="margin-top:8px"></div>
-      <div class="c th-tiny th-b" style="margin:4px 0">- - - CUT HERE · PHARMACY COPY - - -</div>
-      ${stubHtml}` : ''}
-      <div class="c th-tiny" style="margin-top:8px">**** THANK YOU ****</div>
-    </div>`;
-  }
-
   /* ===== Last-bill reprint chip =====
    Paper jams don't wait for the Sales-invoices page. A frozen snapshot of the
    bill we just completed lets the cashier reprint A4/thermal right from the
@@ -2404,15 +2193,8 @@
         split: { cash: state.split.cash, upi: state.split.upi },
         tender: state.tender ? { cashReceived: state.tender.cashReceived, changeReturned: state.tender.changeReturned } : null,
         cust: cust ? { id: cust.id, name: cust.name, phone: cust.phone || '' } : null,
-        at: Date.now(), // the receipt shows the SALE's moment, not the reprint's
-        doctor: (() => {
-          const dv = $('#posDoctor')?.value;
-          if (!dv) return null;
-          const dd = (D.doctors || []).find((x) => String(x.id) === String(dv));
-          return { id: dv, name: dd ? dd.name : ($('#posDoctor').selectedOptions[0]?.text || 'Doctor'), reg: (dd && (dd.reg_no || dd.regNo)) || '' };
-        })(),
       },
-      t: { subtotal: t.subtotal, discount: t.discount, roundOff: t.roundOff, grand: t.grand, gst: t.gst || 0 },
+      t: { subtotal: t.subtotal, discount: t.discount, roundOff: t.roundOff, grand: t.grand },
     };
     try {
       localStorage.setItem('mf-pos-lastbill', JSON.stringify({ v: 1, bill: state.lastBill }));
@@ -2433,7 +2215,7 @@
   function reprintLastBill(fmt) {
     const b = state.lastBill;
     if (!b) { MF.toast('No completed bill to reprint yet on this counter.', 'warn', 'Reprint'); return; }
-    MF.printHtml(fmt === 'thermal' ? thermalReceiptHtml(b.invNo, b.t, b.snap) : receiptHtml(b.invNo, b.t, 'a4', b.snap));
+    MF.printHtml(receiptHtml(b.invNo, b.t, fmt, b.snap));
   }
   function initLastBillChip() {
     const chip = $('#posLastBill'), menu = $('#posReprintMenu');
@@ -2443,8 +2225,6 @@
     document.addEventListener('click', (e) => { if (!e.target.closest('#posReprintMenu')) menu.hidden = true; });
     $('#posReprintThermal')?.addEventListener('click', () => { menu.hidden = true; reprintLastBill('thermal'); });
     $('#posReprintA4')?.addEventListener('click', () => { menu.hidden = true; reprintLastBill('a4'); });
-    $('#posReprintMm')?.addEventListener('click', () => { setThermalMm(thermalMm() === '80' ? '58' : '80'); menu.hidden = true; MF.toast('Thermal width set to ' + thermalMm() + 'mm.', 'info', 'Receipt'); });
-    paintThermalMmLabels();
   }
 
   /* ===== Business credit gate =====
@@ -2661,9 +2441,7 @@
         changeReturned: tender.changeReturned,
         items: state.cart.map((l) => ({ medId: l.medId, batchId: l.batchId, qty: l.qty, rate: l.rate, discPct: l.discPct, unit: l.unit || 'pack' })),
       });
-      MF.printHtml(state.printFmt === 'thermal'
-        ? thermalReceiptHtml(res.invoiceNo, t)
-        : receiptHtml(res.invoiceNo, t, 'a4'));
+      MF.printHtml(receiptHtml(res.invoiceNo, t, state.printFmt));
       saveLastBill(res.invoiceNo, t);
       paintLastBill();
       MF.toast(`${res.invoiceNo} · ${MF.fmt(res.grandTotal)} · ${state.payment.toUpperCase()}`, 'success', 'Sale completed');
@@ -3330,7 +3108,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.20 — thermal receipt engine'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.19 — capture modal gets QR-grade doctor picker'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)

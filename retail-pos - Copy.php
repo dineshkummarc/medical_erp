@@ -247,9 +247,8 @@ if ($cashier === '') $cashier = 'Cashier';
             <span style="position:relative">
               <button type="button" class="pos-lastbill" id="posLastBill" title="Reprint the bill just completed — for paper jams"><i class="bi bi-printer"></i><span id="posLastBillTxt"></span></button>
               <div class="pos-reprint-menu" id="posReprintMenu" hidden>
-                <button type="button" id="posReprintThermal"><i class="bi bi-receipt"></i>Reprint · Thermal <span data-thermal-mm>80mm</span></button>
+                <button type="button" id="posReprintThermal"><i class="bi bi-receipt"></i>Reprint · Thermal 80mm</button>
                 <button type="button" id="posReprintA4"><i class="bi bi-file-earmark-ruled"></i>Reprint · A4</button>
-                <button type="button" id="posReprintMm" title="Switch thermal paper width"><i class="bi bi-arrow-left-right"></i>Switch thermal to <span data-thermal-other>58mm</span></button>
               </div>
             </span>
             <button type="button" class="pos-notif-chip pend" id="posRxPend" title="Prescription-controlled sales still waiting for their Rx to be captured"><i class="bi bi-file-medical"></i><span class="chip-badge" id="posRxPendTxt">0</span></button>
@@ -675,7 +674,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.20"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.19"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
