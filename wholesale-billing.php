@@ -8,7 +8,8 @@ require __DIR__ . '/middleware/auth.php';
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wholesale Billing · MediFlow ERP</title>
+  <!-- build 2026-10-08.22 - park/resume + duplicate-last-order + dealer phone -->
+<title>Wholesale Billing · MediFlow ERP</title>
   <link rel="icon" href="assets/images/logo.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -24,6 +25,13 @@ require __DIR__ . '/middleware/auth.php';
     .ws-headroom .h-ok { color:#0F4D42; font-weight:700; }
     .ws-headroom .h-warn { color:#B45309; font-weight:700; }
     .ws-headroom .h-over { color:#B42318; font-weight:700; }
+    .ws-lastbox { display:flex; flex-wrap:wrap; gap:5px 8px; align-items:center; margin-top:6px; padding:.35rem .55rem; border:1px dashed #E5E9EF; border-radius:8px; background:#FCFDFD; font-size:.7rem; color:#5B6472; }
+    .ws-lastbox[hidden] { display:none; }
+    .ws-holdrow { display:flex; gap:8px; align-items:center; padding:.5rem .2rem; border-bottom:1px dashed #EFF2F6; }
+    .ws-holdrow:last-child { border-bottom:none; }
+    .ws-holdrow .ws-hm { flex:1; min-width:0; }
+    .ws-holdrow .ws-ht { font-weight:600; font-size:.8rem; }
+    .ws-holdrow .ws-hs { font-size:.68rem; color:#8A93A3; }
   </style>
 </head>
 <body data-page="wholesale-billing">
@@ -57,6 +65,7 @@ require __DIR__ . '/middleware/auth.php';
                       <button class="btn btn-light-mf" type="button" id="wsAddDealer" title="Add new dealer"><i class="bi bi-plus-lg"></i></button>
                     </div>
                     <div class="ws-hint" id="wsTypeHint"></div>
+                    <div class="ws-lastbox" id="wsLastBox" hidden></div>
                   </div>
                   <div class="col-md-4">
                     <label class="form-label">GSTIN</label>
@@ -66,17 +75,21 @@ require __DIR__ . '/middleware/auth.php';
                     <label class="form-label">Drug License No.</label>
                     <input class="form-control" id="wsDl" readonly placeholder="Auto-filled">
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-5">
                     <label class="form-label">Billing Address</label>
                     <textarea class="form-control" id="wsBillAddr" rows="2" readonly placeholder="Auto-filled"></textarea>
                   </div>
-                  <div class="col-md-6">
+                  <div class="col-md-5">
                     <label class="form-label">Shipping Address</label>
                     <textarea class="form-control" id="wsShipAddr" rows="2"></textarea>
                     <div class="form-check mt-1">
                       <input class="form-check-input" type="checkbox" id="wsSameAddr" checked>
                       <label class="form-check-label small text-2" for="wsSameAddr">Same as billing address</label>
                     </div>
+                  </div>
+                  <div class="col-md-2">
+                    <label class="form-label">Phone</label>
+                    <input type="tel" class="form-control" id="wsPhone" placeholder="Contact no." title="Auto-filled from the dealer card — edit to print a different number on this invoice only (master is not changed)">
                   </div>
                 </div>
               </div>
@@ -154,6 +167,10 @@ require __DIR__ . '/middleware/auth.php';
                 <div id="wsHeadroom" hidden></div>
                 <div class="d-grid gap-2">
                   <button class="btn btn-mf" id="wsSave"><i class="bi bi-check2-circle me-1"></i>Save &amp; Generate Invoice</button>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-light-mf flex-fill" id="wsPark" type="button" title="Set this bill aside and serve another dealer — resume it any time from Parked"><i class="bi bi-pause-circle me-1"></i>Park Bill</button>
+                    <button class="btn btn-light-mf flex-fill" id="wsHoldsBtn" type="button"><i class="bi bi-collection me-1"></i>Parked <span class="badge badge-soft-secondary ms-1" id="wsHoldsCount">0</span></button>
+                  </div>
                   <button class="btn btn-light-mf" id="wsReset"><i class="bi bi-arrow-counterclockwise me-1"></i>Reset Bill</button>
                 </div>
               </div>
@@ -200,6 +217,22 @@ require __DIR__ . '/middleware/auth.php';
         <div class="modal-footer">
           <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
           <button class="btn btn-mf" id="wdSave">Save Dealer</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Parked bills modal -->
+  <div class="modal fade" id="wsHoldsModal" tabindex="-1" data-bs-focus="false">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title">Parked wholesale bills</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="wsHoldsList"></div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal">Close</button>
         </div>
       </div>
     </div>
@@ -426,10 +459,12 @@ require __DIR__ . '/middleware/auth.php';
         $('#wsGstin').value = c ? (c.gstin === '—' ? '' : (c.gstin || '')) : '';
         $('#wsDl').value = c ? (c.dlNo || c.dl_no || '') : '';
         $('#wsBillAddr').value = c ? c.address : '';
+        $('#wsPhone').value = c ? (c.phone || '') : '';
         if ($('#wsSameAddr').checked) $('#wsShipAddr').value = c ? c.address : '';
         $('#wsTypeHint').outerHTML = c ? `<div class="ws-hint" id="wsTypeHint"><i class="bi bi-diagram-3 me-1"></i>${MF.esc(bizTypeLabel(c))}</div>` : '<div class="ws-hint" id="wsTypeHint"></div>';
         autoDetectInterstate();
         paintHeadroom();
+        updateLastBox();
       }
 
       renderDealers();
@@ -472,15 +507,174 @@ require __DIR__ . '/middleware/auth.php';
         }
       });
 
+      /* ===== Park / resume + duplicate-last-order (local snapshots) ========
+         No line-detail GET exists server-side, so the state captured at park /
+         save time is the only complete record — kept on this machine: a small
+         FIFO stack of parked bills, and one "last order" snapshot per dealer. */
+      const HOLD_KEY = 'mf-ws-holds-v1';
+      const LAST_KEY = (id) => 'mf-ws-last-' + id;
+      const readJson = (k, fb) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fb : v; } catch (e) { return fb; } };
+      const readHolds = () => { const h = readJson(HOLD_KEY, []); return Array.isArray(h) ? h : []; };
+      const writeHolds = (h) => { try { localStorage.setItem(HOLD_KEY, JSON.stringify(h)); } catch (e) { /* storage full */ } };
+
+      function partySnapshot() {
+        return {
+          custId: Number($('#wsCustomer').value) || 0,
+          scheme: parseFloat($('#wsSchemeDisc').value) || 0,
+          overall: parseFloat($('#wsOverallDisc').value) || 0,
+          interstate: $('#wsInterstate').checked,
+          pay: (document.querySelector('input[name="wsPay"]:checked') || {}).value || 'Cash',
+          phone: $('#wsPhone').value.trim(),
+          shipAddr: $('#wsShipAddr').value,
+        };
+      }
+      function applyPartySnapshot(s) {
+        if (s.custId && MF.cust(s.custId)) { $('#wsCustomer').value = s.custId; fillParty(); }
+        $('#wsSchemeDisc').value = s.scheme || 0;
+        $('#wsOverallDisc').value = s.overall || 0;
+        $('#wsInterstate').checked = !!s.interstate;
+        interstateTouched = true;
+        const r = document.querySelector('input[name="wsPay"][value="' + s.pay + '"]');
+        if (r) r.checked = true;
+        if (s.phone) $('#wsPhone').value = s.phone;
+        if (s.shipAddr) { $('#wsSameAddr').checked = false; $('#wsShipAddr').value = s.shipAddr; }
+        paintHeadroom();
+      }
+      function clearBill(keepParty) {
+        rows = [];
+        billId = crypto.randomUUID ? crypto.randomUUID() : 'ws-' + Date.now() + '-' + Math.random().toString(16).slice(2);
+        $('#wsSchemeDisc').value = 0;
+        $('#wsOverallDisc').value = 0;
+        const cash = document.querySelector('input[name="wsPay"][value="Cash"]');
+        if (cash) cash.checked = true;
+        interstateTouched = false;
+        if (keepParty !== false) fillParty();
+        render(); paintHeadroom();
+      }
+
+      /* Park / resume */
+      function updateHoldsCount() { $('#wsHoldsCount').textContent = readHolds().length; }
+      function snapshotRows(src) {
+        return src.filter((r) => r.medId && r.qty > 0).map((r) => ({
+          medId: r.medId, batch: r.batch, qty: r.qty, freeQty: r.freeQty, rate: r.rate, discPct: r.discPct,
+          name: (MF.med(r.medId) || {}).name || ('#' + r.medId),
+        }));
+      }
+      function buildRowsFrom(lines) {
+        const skipped = [];
+        rows = [];
+        (lines || []).forEach((lr) => {
+          const m = MF.med(lr.medId);
+          if (!m) { skipped.push(lr.name || ('#' + lr.medId)); return; }
+          rows.push({
+            id: ++seq, medId: m.id,
+            batch: lr.batch && String(lr.batch).toUpperCase() !== 'AUTO' ? lr.batch : 'AUTO',
+            qty: lr.qty || 1, freeQty: lr.freeQty || 0, freeTouched: true,
+            ptr: Number(m.purchaseRate) || 0,
+            rate: lr.rate != null ? lr.rate : (Number(m.wholesaleRate) || Number(m.retailRate) || Number(m.mrp) || 0),
+            discPct: lr.discPct || 0, gst: Number(m.gst) || 12, hsn: m.hsn || '',
+          });
+        });
+        return skipped;
+      }
+      function parkBill() {
+        const valid = snapshotRows(rows);
+        if (!valid.length) { MF.toast('No item lines with a medicine chosen — nothing worth parking.', 'warn', 'Park'); return; }
+        const c = MF.cust($('#wsCustomer').value);
+        const holds = readHolds();
+        holds.unshift({
+          id: 'h' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+          heldAt: Date.now(),
+          label: (c ? c.name : 'No dealer selected') + ' · ' + valid.length + ' item' + (valid.length > 1 ? 's' : '') + ' · ₹' + MF.fmt(totals().grand),
+          party: partySnapshot(),
+          rows: valid,
+        });
+        while (holds.length > 20) { holds.pop(); MF.toast('Oldest parked bill dropped — the stack keeps 20.', 'info', 'Park'); }
+        writeHolds(holds);
+        updateHoldsCount();
+        const nm = c ? c.name : 'Bill';
+        clearBill();
+        MF.toast(MF.esc(nm) + ' parked — pull it back from “Parked” any time.', 'success', 'Parked');
+      }
+      function resumeHold(id) {
+        const holds = readHolds();
+        const h = holds.find((x) => x.id === id);
+        if (!h) { updateHoldsCount(); return; }
+        writeHolds(holds.filter((x) => x.id !== id));
+        updateHoldsCount();
+        const skipped = buildRowsFrom(h.rows);
+        applyPartySnapshot(h.party || {});
+        if (skipped.length) MF.toast(skipped.length + ' line(s) skipped — medicine no longer in master.', 'warn', 'Resume');
+        render();
+      }
+      function renderHoldsList() {
+        const holds = readHolds();
+        $('#wsHoldsList').innerHTML = holds.length ? holds.map((h) => `
+          <div class="ws-holdrow" data-h="${h.id}">
+            <div class="ws-hm">
+              <div class="ws-ht">${MF.esc(h.label)}</div>
+              <div class="ws-hs">Parked ${new Date(h.heldAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</div>
+            </div>
+            <button type="button" class="btn btn-sm btn-mf ws-resume">Resume</button>
+            <button type="button" class="btn btn-sm btn-light-mf text-danger ws-hdel"><i class="bi bi-trash3"></i></button>
+          </div>`).join('')
+          : '<div class="empty-state py-4"><i class="bi bi-collection"></i>No parked bills. Use “Park Bill” to set one aside mid-entry.</div>';
+        $('#wsHoldsList').querySelectorAll('.ws-holdrow').forEach((el) => {
+          el.querySelector('.ws-resume').addEventListener('click', async () => {
+            if (rows.some((r) => r.medId)) {
+              const ok = await MF.confirm({ title: 'Replace the current bill?', message: 'The lines on screen will be cleared and the parked bill loaded in their place.', confirmText: 'Resume parked bill', tone: 'warn' });
+              if (!ok) return;
+            }
+            bootstrap.Modal.getInstance(document.getElementById('wsHoldsModal')).hide();
+            resumeHold(el.dataset.h);
+            const c = MF.cust($('#wsCustomer').value);
+            MF.toast('Parked bill resumed' + (c ? ' for ' + MF.esc(c.name) : '') + '.', 'success');
+          });
+          el.querySelector('.ws-hdel').addEventListener('click', async () => {
+            const ok = await MF.confirm({ title: 'Delete this parked bill?', message: 'It cannot be recovered once deleted.', confirmText: 'Delete', tone: 'danger' });
+            if (!ok) return;
+            writeHolds(readHolds().filter((x) => x.id !== el.dataset.h));
+            updateHoldsCount(); renderHoldsList();
+          });
+        });
+      }
+
+      /* Duplicate last order */
+      function saveLastSnap(c, res) {
+        try {
+          localStorage.setItem(LAST_KEY(c.id), JSON.stringify({
+            invoiceNo: res.invoiceNo, savedAt: Date.now(), grand: res.grandTotal,
+            party: partySnapshot(),
+            lines: snapshotRows(rows),
+          }));
+        } catch (e) { /* storage full */ }
+      }
+      function updateLastBox() {
+        const box = $('#wsLastBox');
+        const c = MF.cust($('#wsCustomer').value);
+        const s = c ? readJson(LAST_KEY(c.id), null) : null;
+        if (!s || !(s.lines || []).length) { box.hidden = true; box.innerHTML = ''; return; }
+        box.hidden = false;
+        box.innerHTML = `<i class="bi bi-arrow-repeat"></i><span>Last order <b>${MF.esc(s.invoiceNo)}</b> · ₹${MF.fmt(s.grand)} · ${s.lines.length} items · ${MF.fmtDate(new Date(s.savedAt).toISOString().slice(0, 10))}</span><button type="button" class="btn btn-sm btn-mf-soft" id="wsDupLast">Duplicate into grid</button>`;
+        box.querySelector('#wsDupLast').addEventListener('click', async () => {
+          if (rows.some((r) => r.medId)) {
+            const ok = await MF.confirm({ title: 'Replace current lines with ' + s.invoiceNo + '?', message: s.lines.length + ' lines will be cloned at last time\'s rates and discounts. Current entries are cleared; batches re-allocate FEFO from today\'s stock.', confirmText: 'Duplicate', tone: 'warn' });
+            if (!ok) return;
+          }
+          const skipped = buildRowsFrom(s.lines);
+          applyPartySnapshot(s.party || {});
+          render();
+          MF.toast(rows.length + ' line(s) cloned from ' + s.invoiceNo + (skipped.length ? ' — ' + skipped.length + ' skipped (no longer in master)' : '') + '.', 'success', 'Duplicated');
+        });
+      }
+
       $('#wsReset').addEventListener('click', async () => {
         if (!rows.length) return;
-        const ok = await MF.confirm({ title: 'Reset this wholesale bill?', message: 'All lines and discounts will be cleared.', confirmText: 'Reset', tone: 'danger' });
-        if (ok) {
-          rows = [];
-          billId = crypto.randomUUID ? crypto.randomUUID() : 'ws-' + Date.now() + '-' + Math.random().toString(16).slice(2);
-          render();
-        }
+        const ok = await MF.confirm({ title: 'Reset this wholesale bill?', message: 'All lines and discounts will be cleared; the dealer stays selected.', confirmText: 'Reset', tone: 'danger' });
+        if (ok) clearBill();
       });
+      $('#wsPark').addEventListener('click', parkBill);
+      $('#wsHoldsBtn').addEventListener('click', () => { renderHoldsList(); new bootstrap.Modal('#wsHoldsModal').show(); });
 
       /* ===== A4 tax invoice — wholesale, letterhead-grade =====================
          Same design family as the retail A4 engine, advanced for B2B: Ship-to,
@@ -669,6 +863,7 @@ require __DIR__ . '/middleware/auth.php';
               <h4>Bill To (Buyer)</h4>
               <div class="wi-nm">${MF.esc(meta.name)}</div>
               ${meta.billAddr ? `<div>${MF.esc(meta.billAddr)}</div>` : ''}
+              ${meta.phone ? `<div>Ph: ${MF.esc(meta.phone)}</div>` : ''}
               <div>${meta.gstin ? 'GSTIN: ' + MF.esc(meta.gstin) : 'GSTIN: Unregistered'}${meta.dl ? ' · DL: ' + MF.esc(meta.dl) : ''}</div>
             </div>
             ${meta.shipAddr && meta.shipAddr !== meta.billAddr ? `<div class="wi-ibox">
@@ -816,12 +1011,13 @@ require __DIR__ . '/middleware/auth.php';
             return;
           }
 
+          saveLastSnap(c, res);
           MF.toast(`${res.invoiceNo} generated for ${c.name}`, 'success', 'Invoice saved');
           if (res.balanceDue > 0) MF.toast(`${MF.fmt(res.balanceDue)} posted to ${MF.esc(c.name)}'s due ledger`, 'info', 'Credit sale');
           const meta = {
             name: c.name, billAddr: $('#wsBillAddr').value, shipAddr: $('#wsShipAddr').value,
             gstin: $('#wsGstin').value, dl: $('#wsDl').value,
-            pay, interstate: $('#wsInterstate').checked,
+            pay, interstate: $('#wsInterstate').checked, phone: $('#wsPhone').value.trim(),
             schemeDiscPct: parseFloat($('#wsSchemeDisc').value) || 0,
             overallDiscPct: parseFloat($('#wsOverallDisc').value) || 0,
           };
@@ -839,9 +1035,10 @@ require __DIR__ . '/middleware/auth.php';
 
       fillDatalist();
       fillParty();
+      updateHoldsCount();
       render();
     })();
     });
   </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a471a1f76af059d5',t:'MTc5MTQyNTY3Mg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</body>
 </html>
