@@ -1,144 +1,217 @@
 <?php
 session_start();
-require dirname(__DIR__, 2) . '/middleware/tenant.php';
-require dirname(__DIR__, 2) . '/core/Auth.php';
-require dirname(__DIR__, 2) . '/core/Json.php';
+require __DIR__ . '/middleware/tenant.php';
+require __DIR__ . '/middleware/auth.php';
+?>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- FIX: IIFE must be async (top-level await broke the whole script, button was dead) -->
+  <!-- build 2026-10-08.23 - resilient load + inline new category -->
+  <title>Expenses · OPTMS-RX</title>
+  <link rel="icon" href="assets/images/logo.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <link href="assets/css/style.css" rel="stylesheet">
+</head>
+<body data-page="expenses">
+  <div class="mf-layout">
+    <aside class="mf-sidebar" id="mf-sidebar"></aside>
+    <div class="mf-body">
+      <header class="mf-topbar" id="mf-topbar"></header>
+      <main class="mf-main">
 
-if (!Auth::check()) {
-    Json::error('Not authenticated.', 401);
-}
+        <div class="page-head">
+          <div>
+            <h1 class="page-title"><i class="bi bi-cash-coin me-2 text-success"></i>Expenses</h1>
+            <p class="page-sub">Track rent, salaries, utilities and other running costs</p>
+          </div>
+          <div class="ms-auto d-flex align-items-center gap-2">
+            <input type="date" class="form-control form-control-sm" id="exFrom" style="width:150px">
+            <span class="text-2 small">to</span>
+            <input type="date" class="form-control form-control-sm" id="exTo" style="width:150px">
+            <button class="btn btn-sm btn-light-mf" id="exApply"><i class="bi bi-funnel me-1"></i>Apply</button>
+            <button class="btn btn-sm btn-mf" id="exAddBtn"><i class="bi bi-plus-lg me-1"></i>Add Expense</button>
+          </div>
+        </div>
 
-/**
- * Expenses ledger — GET list (?from&to + categories), POST create, DELETE ?id.
- * Self-provisions its two small tables on first call (wholesale.php precedent),
- * so no separate migration run is required.
- */
+        <div class="row g-3 mb-3" id="exKpis"></div>
 
-function dayOk(?string $d): ?string
-{
-    if (!is_string($d) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $d)) return null;
-    [$y, $m, $dd] = array_map('intval', explode('-', $d));
-    return checkdate($m, $dd, $y) ? $d : null;
-}
+        <div class="row g-3">
+          <div class="col-lg-8">
+            <div class="card-mf">
+              <div class="card-head"><h2 class="card-title"><i class="bi bi-list-ul"></i>Expense Log</h2></div>
+              <div class="table-scroll" style="max-height:none">
+                <table class="table table-mf">
+                  <thead><tr><th>Date</th><th>Category</th><th>Note</th><th>Mode</th><th class="text-end">Amount</th><th class="text-end">Actions</th></tr></thead>
+                  <tbody id="exBody"></tbody>
+                  <tfoot id="exFoot"></tfoot>
+                </table>
+              </div>
+            </div>
+          </div>
+          <div class="col-lg-4">
+            <div class="card-mf">
+              <div class="card-head"><h2 class="card-title"><i class="bi bi-pie-chart"></i>By Category</h2></div>
+              <div class="p-3" id="exByCategory"></div>
+            </div>
+          </div>
+        </div>
 
-function clip(string $value, int $max): string
-{
-    $value = trim(preg_replace('/\s+/', ' ', $value) ?? '');
-    return function_exists('mb_substr') ? mb_substr($value, 0, $max) : substr($value, 0, $max);
-}
+      </main>
+    </div>
+  </div>
 
-$pdo = Tenant::db();
+  <div class="modal fade" id="exModal" tabindex="-1" data-bs-focus="false">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title">Add Expense</h5><button class="btn-close" data-bs-dismiss="modal"></button></div>
+        <div class="modal-body">
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label">Category <span class="req">*</span></label><select class="form-select" id="exCategory"></select></div>
+          </div>
+          <div class="row g-2 mb-2" id="exNewCatRow" hidden>
+            <div class="col-12"><label class="form-label">New category name <span class="req">*</span></label><input class="form-control" id="exNewCatName" placeholder="e.g. Internet bill" maxlength="60"></div>
+            <div class="col-6"><label class="form-label">Amount (₹) <span class="req">*</span></label><input type="number" class="form-control" id="exAmount" min="1"></div>
+          </div>
+          <div class="row g-2 mb-2">
+            <div class="col-6"><label class="form-label">Date</label><input type="date" class="form-control" id="exDate"></div>
+            <div class="col-6"><label class="form-label">Payment Mode</label>
+              <select class="form-select" id="exMode"><option>Cash</option><option>Bank</option><option>UPI</option><option>Cheque</option></select></div>
+          </div>
+          <div><label class="form-label">Note</label><input class="form-control" id="exNote" placeholder="Optional"></div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-light-mf" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-mf" id="exSave">Save Expense</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
-try {
-    $pdo->exec('CREATE TABLE IF NOT EXISTS expense_categories (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(60) NOT NULL UNIQUE,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-    $pdo->exec('CREATE TABLE IF NOT EXISTS expenses (
-        id INT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY,
-        category_id INT UNSIGNED NOT NULL,
-        amount DECIMAL(12,2) NOT NULL DEFAULT 0,
-        expense_date DATE NOT NULL,
-        mode VARCHAR(16) NOT NULL DEFAULT \'Cash\',
-        note VARCHAR(200) NOT NULL DEFAULT \'\',
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_expenses_date (expense_date),
-        CONSTRAINT fk_expenses_category FOREIGN KEY (category_id) REFERENCES expense_categories (id)
-    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4');
-} catch (Throwable $e) {
-    Json::error('Expense tables could not be prepared.', 500);
-}
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="assets/js/data.js"></script>
+  <script src="assets/js/config.js"></script>
+  <script src="assets/js/app.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', async () => {
+      await MF.boot();
+    (async function () {
+      const MF = window.MF;
+      const $ = (s) => document.querySelector(s);
+      let rows = [], categories = [];
 
-/* Seed the category list once — renames stay user-owned afterwards. */
-try {
-    $count = (int) $pdo->query('SELECT COUNT(*) FROM expense_categories')->fetchColumn();
-    if ($count === 0) {
-        $seed = $pdo->prepare('INSERT IGNORE INTO expense_categories (name) VALUES (?)');
-        foreach (['Rent', 'Salary & Wages', 'Electricity', 'Water & Utilities', 'Transport & Freight', 'Packaging', 'Repairs & Maintenance', 'Miscellaneous'] as $name) {
-            $seed->execute([$name]);
+      $('#exFrom').value = MF.today().slice(0, 8) + '01';
+      $('#exTo').value = MF.today();
+      $('#exDate').value = MF.today();
+
+      const NEW_CAT = '__new';
+      function paintCategories() {
+        $('#exCategory').innerHTML =
+          categories.map((c) => `<option value="${c.id}">${MF.esc(c.name)}</option>`).join('') +
+          `<option value="${NEW_CAT}">＋ New category…</option>`;
+      }
+      async function load() {
+        try {
+          const res = await MF.Api.get(`expenses.php?from=${$('#exFrom').value}&to=${$('#exTo').value}`);
+          rows = res.data || []; categories = res.categories || [];
+        } catch (err) {
+          rows = [];
+          MF.toast(err.message || 'Could not load expenses.', 'danger', 'Expenses');
         }
-    }
-} catch (Throwable $e) { /* seeding is best-effort */ }
+        paintCategories();
+        render();
+      }
 
-function categoryRows(PDO $pdo): array
-{
-    $rows = $pdo->query('SELECT id, name FROM expense_categories ORDER BY name ASC, id ASC')->fetchAll(PDO::FETCH_ASSOC);
-    return array_map(fn ($r) => ['id' => (int) $r['id'], 'name' => $r['name']], $rows);
-}
+      function render() {
+        const total = rows.reduce((s, e) => s + e.amount, 0);
+        $('#exKpis').innerHTML = [
+          ['Total Expenses (period)', MF.fmt(total), 'danger', 'cash-stack'],
+          ['Entries', rows.length, 'primary', 'list-ul'],
+          ['Average / Entry', rows.length ? MF.fmt(total / rows.length) : MF.fmt(0), 'info', 'calculator'],
+        ].map(([l, v, tone, icon]) => `
+          <div class="col-md-4"><div class="card-mf kpi-card h-100"><div class="kpi-icon tone-${tone}"><i class="bi bi-${icon}"></i></div>
+            <div><div class="kpi-label">${l}</div><div class="kpi-value num">${v}</div></div></div></div>`).join('');
 
-$method = $_SERVER['REQUEST_METHOD'];
+        $('#exBody').innerHTML = rows.map((e) => `
+          <tr>
+            <td class="num">${MF.fmtDate(e.date)}</td>
+            <td class="td-title">${MF.esc(e.category)}</td>
+            <td class="text-2">${MF.esc(e.note || '—')}</td>
+            <td>${e.mode}</td>
+            <td class="text-end num fw-semibold">${MF.fmt(e.amount)}</td>
+            <td class="text-end row-actions"><button class="btn btn-icon btn-light-mf text-danger" data-del="${e.id}"><i class="bi bi-trash"></i></button></td>
+          </tr>`).join('') || `<tr><td colspan="6"><div class="empty-state"><i class="bi bi-cash-coin"></i>No expenses in this period.</div></td></tr>`;
+        $('#exFoot').innerHTML = rows.length ? `<tr><td colspan="4">Total</td><td class="text-end num">${MF.fmt(total)}</td><td></td></tr>` : '';
+        $('#exBody').querySelectorAll('[data-del]').forEach((b) => b.addEventListener('click', () => remove(b.dataset.del)));
 
-if ($method === 'GET') {
-    $to = dayOk($_GET['to'] ?? '') ?: date('Y-m-d');
-    $from = dayOk($_GET['from'] ?? '') ?: substr($to, 0, 8) . '01';
-    $stmt = $pdo->prepare('SELECT e.id, e.category_id, e.amount, e.expense_date, e.mode, e.note, c.name AS category
-        FROM expenses e JOIN expense_categories c ON c.id = e.category_id
-        WHERE e.expense_date BETWEEN ? AND ?
-        ORDER BY e.expense_date DESC, e.id DESC');
-    $stmt->execute([$from, $to]);
-    $data = array_map(fn ($r) => [
-        'id' => (int) $r['id'],
-        'categoryId' => (int) $r['category_id'],
-        'date' => $r['expense_date'],
-        'category' => $r['category'],
-        'note' => $r['note'],
-        'mode' => $r['mode'],
-        'amount' => (float) $r['amount'],
-    ], $stmt->fetchAll(PDO::FETCH_ASSOC));
-    Json::ok(['data' => $data, 'categories' => categoryRows($pdo), 'range' => ['from' => $from, 'to' => $to]]);
-}
+        const byCat = {};
+        rows.forEach((e) => { byCat[e.category] = (byCat[e.category] || 0) + e.amount; });
+        const entries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+        $('#exByCategory').innerHTML = entries.length ? entries.map(([cat, amt]) => `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="small">${MF.esc(cat)}</span><span class="num fw-semibold">${MF.fmt(amt)}</span>
+          </div>
+          <div class="progress mb-3" style="height:6px"><div class="progress-bar bg-success" style="width:${total ? (amt / total * 100) : 0}%"></div></div>`).join('')
+          : `<div class="empty-state py-3"><i class="bi bi-pie-chart"></i>No data.</div>`;
+      }
 
-if ($method === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true) ?? [];
-    $amount = round((float) ($input['amount'] ?? 0), 2);
-    $date = dayOk($input['date'] ?? '') ?: date('Y-m-d');
-    $mode = ucfirst(strtolower(clip((string) ($input['mode'] ?? 'Cash'), 10)));
-    if (!in_array($mode, ['Cash', 'Bank', 'Upi', 'Cheque'], true)) $mode = 'Cash';
-    if ($mode === 'Upi') $mode = 'UPI';
-    $note = clip((string) ($input['note'] ?? ''), 200);
+      async function remove(id) {
+        const ok = await MF.confirm({ title: 'Delete this expense entry?', confirmText: 'Delete', tone: 'danger' });
+        if (!ok) return;
+        try {
+          await MF.Api.del('expenses.php?id=' + id);
+          MF.toast('Expense removed.', 'success');
+          load();
+        } catch (err) {
+          MF.toast(err.message || 'Could not remove expense.', 'danger');
+        }
+      }
 
-    if ($amount <= 0) Json::error('Enter an amount greater than zero.', 422);
-    if ($amount > 10000000) Json::error('That amount looks wrong — check the figure.', 422);
-    if ($date > date('Y-m-d')) Json::error('Expenses cannot be dated in the future.', 422);
-
-    $categoryId = (int) ($input['categoryId'] ?? 0);
-    $newName = clip((string) ($input['categoryName'] ?? ''), 60);
-    if ($categoryId <= 0 && $newName === '') Json::error('Pick a category or name a new one.', 422);
-
-    try {
-        $pdo->beginTransaction();
-        if ($categoryId <= 0) {
-            $ins = $pdo->prepare('INSERT IGNORE INTO expense_categories (name) VALUES (?)');
-            $ins->execute([$newName]);
-            $sel = $pdo->prepare('SELECT id FROM expense_categories WHERE name = ? LIMIT 1');
-            $sel->execute([$newName]);
-            $categoryId = (int) $sel->fetchColumn();
+      $('#exAddBtn').addEventListener('click', () => {
+        $('#exAmount').value = ''; $('#exNote').value = ''; $('#exDate').value = MF.today();
+        $('#exCategory').value = categories.length ? String(categories[0].id) : NEW_CAT;
+        $('#exNewCatRow').hidden = $('#exCategory').value !== NEW_CAT;
+        new bootstrap.Modal($('#exModal')).show();
+      });
+      $('#exCategory').addEventListener('change', () => {
+        $('#exNewCatRow').hidden = $('#exCategory').value !== NEW_CAT;
+      });
+      $('#exSave').addEventListener('click', async () => {
+        const amount = parseFloat($('#exAmount').value) || 0;
+        if (amount <= 0) { MF.toast('Enter a valid amount.', 'warn'); return; }
+        const catVal = $('#exCategory').value;
+        const payload = { amount, date: $('#exDate').value, mode: $('#exMode').value, note: $('#exNote').value.trim() };
+        if (catVal === NEW_CAT) {
+          const nm = $('#exNewCatName').value.trim();
+          if (nm.length < 2) { MF.toast('Name the new category.', 'warn'); return; }
+          payload.categoryName = nm;
         } else {
-            $sel = $pdo->prepare('SELECT id FROM expense_categories WHERE id = ? LIMIT 1');
-            $sel->execute([$categoryId]);
-            if (!$sel->fetchColumn()) Json::error('Category not found.', 404);
+          payload.categoryId = parseInt(catVal, 10) || 0;
         }
-        $stmt = $pdo->prepare('INSERT INTO expenses (category_id, amount, expense_date, mode, note) VALUES (?, ?, ?, ?, ?)');
-        $stmt->execute([$categoryId, $amount, $date, $mode, $note]);
-        $id = (int) $pdo->lastInsertId();
-        $pdo->commit();
-    } catch (JsonException $e) {
-        throw $e;
-    } catch (Throwable $e) {
-        if ($pdo->inTransaction()) $pdo->rollBack();
-        Json::error('Could not save the expense.', 500);
-    }
-    Json::ok(['data' => ['id' => $id, 'categoryId' => $categoryId], 'categories' => categoryRows($pdo)]);
-}
+        $('#exSave').disabled = true;
+        try {
+          const res = await MF.Api.post('expenses.php', payload);
+          if (res && res.categories) categories = res.categories;
+          bootstrap.Modal.getInstance($('#exModal')).hide();
+          MF.toast('Expense recorded.', 'success');
+          paintCategories();
+          load();
+        } catch (err) {
+          MF.toast(err.message || 'Could not save expense.', 'danger');
+        } finally {
+          $('#exSave').disabled = false;
+        }
+      });
 
-if ($method === 'DELETE') {
-    $id = (int) ($_GET['id'] ?? 0);
-    if ($id <= 0) Json::error('Missing expense id.', 422);
-    $stmt = $pdo->prepare('DELETE FROM expenses WHERE id = ?');
-    $stmt->execute([$id]);
-    if ($stmt->rowCount() === 0) Json::error('Expense not found.', 404);
-    Json::ok(['data' => ['id' => $id]]);
-}
-
-Json::error('Method not allowed.', 405);
+      $('#exApply').addEventListener('click', load);
+      await load();
+    })();
+    });
+  </script>
+</body>
+</html>
