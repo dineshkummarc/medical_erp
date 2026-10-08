@@ -498,7 +498,10 @@ if ($cashier === '') $cashier = 'Cashier';
               </div>
               <div class="col-md-6">
                 <label class="form-label">Doctor <span class="req">*</span></label>
-                <select class="form-select" id="rpDoctor"><option value="">— select doctor —</option></select>
+                <div class="d-flex gap-1">
+                  <select class="form-select" id="rpDoctor"><option value="">— select doctor —</option></select>
+                  <button class="btn btn-light-mf" type="button" id="rpAddDoctor" title="Add new doctor"><i class="bi bi-plus-lg"></i></button>
+                </div>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Rx date</label>
@@ -671,7 +674,7 @@ if ($cashier === '') $cashier = 'Cashier';
   </aside>
 
   <!-- BUMP this version on EVERY pos.js change — long-cache browsers must not serve stale billing logic. -->
-  <script src="assets/js/pos.js?v=2026-10-06.18"></script>
+  <script src="assets/js/pos.js?v=2026-10-06.19"></script>
   <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await MF.boot();
@@ -730,11 +733,14 @@ if ($cashier === '') $cashier = 'Cashier';
             (D.doctors = D.doctors || []).push({ id, name, specialty: payload.specialty, phone: payload.phone, reg_no: reg, status: 'Active' });
             await MF.rehydrate().catch(() => {});
             if (MF.refillPosDoctors) await MF.refillPosDoctors();
-            // Scan modal open ⇒ the "+" that launched this came from its attach form:
-            // land the new doctor there unconditionally; otherwise normal main-picker flow.
+            // Whichever capture modal is open gets the new doctor selected there;
+            // otherwise the normal main-picker flow.
             if ($('#posScanRxModal') && $('#posScanRxModal').classList.contains('show')) {
               window.__sxPickAfterAdd = false;
               if (MF.refillSxDoctor) MF.refillSxDoctor(id);
+            } else if ($('#posRxPendModal') && $('#posRxPendModal').classList.contains('show')) {
+              window.__sxPickAfterAdd = false;
+              if (MF.refillRxDoctor) MF.refillRxDoctor('#rpDoctor', id);
             } else {
               window.__sxPickAfterAdd = false;
               $('#posDoctor').value = id;

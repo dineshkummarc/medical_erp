@@ -2917,9 +2917,9 @@
     pickerClose(st, false);
     pickerSyncLabel(st.selId);
     rxNudgeSync(); // a field just got settled — the glow may clear
-    // Inside the Scan & Send modal, stay put — yanking focus to the bill search
-    // would kick the user out of the attach form mid-flow.
-    if (!$('#posScanRxModal')?.classList.contains('show')) $('#posSearch').focus();
+    // Inside any capture modal, stay put — yanking focus to the bill search
+    // would kick the user out of the form mid-flow.
+    if (!['#posScanRxModal', '#posRxPendModal'].some((m) => $(m)?.classList.contains('show'))) $('#posSearch').focus();
   }
   function initPicker(selId, addBtnId, kind) {
     const sel = $(selId); if (!sel || pickerState[selId]) return;
@@ -2958,7 +2958,7 @@
         else pickerClose(st);
         return;
       }
-      if (e.key === 'Escape') { e.stopPropagation(); pickerClose(st); if (!$('#posScanRxModal')?.classList.contains('show')) $('#posSearch').focus(); }
+      if (e.key === 'Escape') { e.stopPropagation(); pickerClose(st); if (!['#posScanRxModal', '#posRxPendModal'].some((m) => $(m)?.classList.contains('show'))) $('#posSearch').focus(); }
     });
     st.menu.addEventListener('mousedown', (e) => e.preventDefault()); // keep input focus while clicking
     st.menu.addEventListener('click', (e) => {
@@ -3035,10 +3035,9 @@
     rpActive = state.rxPending[i] || null;
     if (!rpActive) return;
     $('#rpFormTitle').textContent = 'Capture — ' + rpActive.invoice_no;
-    const docSel = $('#rpDoctor');
-    docSel.innerHTML = '<option value="">— select doctor —</option>' +
-      ((D.doctors || []).slice().sort((a, b) => String(a.name).localeCompare(String(b.name)))
-        .map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}</option>`).join(''));
+    // Fresh form per capture: live doctor source (same engine as the QR modal's).
+    $('#rpDoctor').value = '';
+    MF.refillRxDoctor('#rpDoctor');
     $('#rpDate').value = MF.today();
     $('#rpFormWrap').hidden = false;
     setTimeout(() => $('#rpPatient').focus(), 150);
@@ -3109,7 +3108,7 @@
    polling ships "without refresh" honestly). Attach writes a REAL prescription
    (photo kept on the register entry), claims the inbox row, and auto-selects the
    script in the bill's dropdown through the same onRxPick path. */
-  console.debug('[pos] build 2026-10-06.18 — icon-size chips + matched hovers'); // cache diagnosis aid
+  console.debug('[pos] build 2026-10-06.19 — capture modal gets QR-grade doctor picker'); // cache diagnosis aid
   state.rxInbox = [];
   let sxActive = null;
   let sxPhoneEditingId = 0; // inbox row id whose inline phone editor is open (poll freeze)
@@ -3221,13 +3220,10 @@
       if (e.key === 'Escape') { e.preventDefault(); done(); paintScanRxList(); }
     });
   }
-  // Central doctor-option refill for the Scan & Send modal — also called by the
-  // inline quick-add flow after a doctor is created mid-attach.
-  // Mirrors fillDoctors(): bootstrap D.doctors is unreliable on this page, so the
-  // live doctors.php list is the real source (same shape, same specialty suffix).
-  MF.refillSxDoctor = async function (preferId) {
-    const sel = $('#sxDoctor'); if (!sel) return;
-    const keep = preferId || sel.value;
+  // The ONE live doctor source for every picker on this page (bootstrap D.doctors is
+  // unreliable here). Mirrors fillDoctors(): live doctors.php first, bootstrap fallback,
+  // Active only, alphabetical, name + specialty label.
+  async function doctorRowsLive() {
     let rows = Array.isArray(D.doctors) ? D.doctors.slice() : [];
     if (MF.Api && MF.Api.live) {
       try {
@@ -3237,15 +3233,24 @@
         if (list.length) rows = list;
       } catch (e) { /* keep bootstrap doctors */ }
     }
-    rows = rows.filter((d) => d && d.name && d.status !== 'Inactive');
-    rows.sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    return rows
+      .filter((d) => d && d.name && d.status !== 'Inactive')
+      .sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  }
+  // Repaints ANY doctor select (repaints its picker input + open menu too).
+  MF.refillRxDoctor = async function (selId, preferId) {
+    const sel = $(selId); if (!sel) return;
+    const keep = preferId || sel.value;
+    const rows = await doctorRowsLive();
     sel.innerHTML = '<option value="">— select doctor —</option>' +
       rows.map((d) => `<option value="${MF.esc(d.id)}">${MF.esc(d.name)}${d.specialty ? ' — ' + MF.esc(d.specialty) : ''}</option>`).join('');
     if (keep) sel.value = keep;
-    sel.dispatchEvent(new Event('change', { bubbles: true })); // repaints the picker input
-    const st = pickerState['#sxDoctor'];
+    sel.dispatchEvent(new Event('change', { bubbles: true }));
+    const st = pickerState[selId];
     if (st && st.open) pickerPaintMenu(st); // list up-to-date if the menu is open
   };
+  // Legacy name kept for the inline quick-add flow (#sxDoctor is the Scan & Send one).
+  MF.refillSxDoctor = function (preferId) { return MF.refillRxDoctor('#sxDoctor', preferId); };
   // Bill-as-customer choices for the active inbox photo (patient ≠ account):
   //   ''        → keep the bill's current customer        (explicit default)
   //   '__new__' → create a customer from patient name      (default for unknown senders;
@@ -3446,6 +3451,7 @@
     initPicker('#posCustomer', '#posAddCustomer', 'customer');
     initPicker('#posDoctor', '#posAddDoctor', 'doctor');
     initPicker('#sxDoctor', '#sxAddDoctor', 'doctor'); // same searchable picker inside the Scan & Send modal
+    initPicker('#rpDoctor', '#rpAddDoctor', 'doctor'); // and inside the Rx-capture modal
     initLastBillChip();
 
     // Rx capture-later queue wiring
